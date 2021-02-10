@@ -5,6 +5,7 @@
 #define VERTEX_BUFFER_SIZE Megabytes(512)
 #define INDEX_BUFFER_SIZE Megabytes(2)
 #define UNIFORM_BUFFER_SIZE Kilobytes(4)
+#define IMAGE_BUFFER_SIZE Megabytes(64)
 
 #pragma pack(push)
 struct VertexPC
@@ -113,7 +114,11 @@ struct VulkanRenderer
     VulkanBuffer uniformBuffer;
     VulkanBuffer indexUploadBuffer;
     VulkanBuffer indexBuffer;
+    VulkanBuffer imageUploadBuffer;
 
+    VkSampler defaultSampler;
+
+    // Triangle stuff
     VkShaderModule testVertexShader;
     VkShaderModule testFragmentShader;
 
@@ -123,4 +128,10 @@ struct VulkanRenderer
     VkPipeline pipeline;
     VkPipelineCache pipelineCache;
     VkDescriptorSet descriptorSets[2];
+
+    // Fullscreen quad stuff
+    VkShaderModule fullscreenQuadVertexShader;
+    VkShaderModule fullscreenQuadFragmentShader;
+    VkPipeline fullscreenQuadPipeline;
+    VkImageView imageView;
 };

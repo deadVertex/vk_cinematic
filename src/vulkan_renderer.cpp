@@ -286,9 +286,10 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
     return descriptorPool;
 }
 
-internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(VkDevice device)
+internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
+    VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[2] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[4] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -298,6 +299,15 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(VkDevice device)
     layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     layoutBindings[1].descriptorCount = 1;
     layoutBindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    layoutBindings[2].binding = 2;
+    layoutBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    layoutBindings[2].descriptorCount = 1;
+    layoutBindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[2].pImmutableSamplers = &sampler;
+    layoutBindings[3].binding = 3;
+    layoutBindings[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layoutBindings[3].descriptorCount = 1;
+    layoutBindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -324,6 +334,21 @@ internal VkPipelineLayout VulkanCreatePipelineLayout(
     VkPipelineLayout layout;
     VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
     return layout;
+}
+
+internal void DoRayTracing(u32 width, u32 height, u32 *pixels)
+{
+    for (u32 y = 0; y < height; ++y)
+    {
+        for (u32 x = 0; x < width; ++x)
+        {
+            u32 r = (u32)(((f32)x / (f32)width) * 255.0f);
+            u32 g = (u32)(((f32)y / (f32)height) * 255.0f);
+            u32 b = 0;
+            *pixels = 0xFF000000 | r | (g << 8) | (b << 16);
+            pixels++;
+        }
+    }
 }
 
 // TODO: Handle errors gracefully?
@@ -423,13 +448,43 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
+    renderer->imageUploadBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            IMAGE_BUFFER_SIZE, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
     // Load shaders
     renderer->testVertexShader = LoadShader(renderer->device, "mesh.vert.spv");
     renderer->testFragmentShader = LoadShader(renderer->device, "mesh.frag.spv");
 
+    // Load fullscreen quad shaders
+    renderer->fullscreenQuadVertexShader = LoadShader(renderer->device, "fullscreen_quad.vert.spv");
+    renderer->fullscreenQuadFragmentShader = LoadShader(renderer->device, "fullscreen_quad.frag.spv");
+
+    // TODO: CLAMP_TO_EDGE sampler 
+    VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerCreateInfo.anisotropyEnable = VK_TRUE;
+    samplerCreateInfo.maxAnisotropy = 16.0f;
+    samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerCreateInfo.compareEnable = VK_FALSE;
+    samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerCreateInfo.mipLodBias = 0.0f;
+    samplerCreateInfo.minLod = 0.0f;
+    samplerCreateInfo.maxLod = 1000.0f;
+    VK_CHECK(vkCreateSampler(
+        renderer->device, &samplerCreateInfo, NULL, &renderer->defaultSampler));
+
     // Create descriptor set layout
     renderer->descriptorSetLayout =
-        VulkanCreateDescriptorSetLayout(renderer->device);
+        VulkanCreateDescriptorSetLayout(renderer->device, renderer->defaultSampler);
 
     // Create pipeline layout
     renderer->pipelineLayout = VulkanCreatePipelineLayout(
@@ -449,6 +504,21 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->pipelineLayout, renderer->testVertexShader,
         renderer->testFragmentShader, &pipelineDefinition);
 
+    // I think I can reuse the descriptor set and pipeline layout for the full
+    // screen quad rendering
+    VulkanPipelineDefinition fullscreenQuadPipeline = {};
+    fullscreenQuadPipeline.vertexStride = sizeof(VertexPC);
+    fullscreenQuadPipeline.primitive = Primitive_Triangle;
+    fullscreenQuadPipeline.polygonMode = PolygonMode_Fill;
+    fullscreenQuadPipeline.cullMode = CullMode_None;
+    fullscreenQuadPipeline.depthTestEnabled = false;
+    fullscreenQuadPipeline.depthWriteEnabled = false;
+
+    renderer->fullscreenQuadPipeline = VulkanCreatePipeline(renderer->device,
+        renderer->pipelineCache, renderer->renderPass,
+        renderer->pipelineLayout, renderer->fullscreenQuadVertexShader,
+        renderer->fullscreenQuadFragmentShader, &fullscreenQuadPipeline);
+
     // Allocate descriptor sets
     {
         VkDescriptorSetLayout layouts[2] = {
@@ -456,36 +526,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         Assert(ArrayCount(layouts) == ArrayCount(renderer->descriptorSets));
         VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
             layouts, ArrayCount(layouts), renderer->descriptorSets);
-    }
-
-    // Update descriptor sets
-    Assert(renderer->swapchain.imageCount == 2);
-    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
-    {
-        VkDescriptorBufferInfo uniformBufferInfo = {};
-        uniformBufferInfo.buffer = renderer->uniformBuffer.handle;
-        uniformBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkDescriptorBufferInfo vertexDataBufferInfo = {};
-        vertexDataBufferInfo.buffer =
-            renderer->vertexDataBuffer.handle;
-        vertexDataBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkWriteDescriptorSet descriptorWrites[2] = {};
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo = &vertexDataBufferInfo;
-        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
-            descriptorWrites, 0, NULL);
     }
 
     // Populate vertex data buffer
@@ -527,7 +567,78 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     correctionMatrix.columns[1] = Vec4(0, -1, 0, 0);
     correctionMatrix.columns[2] = Vec4(0, 0, 0.5f, 0);
     correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
-    ubo->projectionMatrices[0] = correctionMatrix * Perspective(90.0f, aspect, 0.1f, 100.0f);
+    ubo->projectionMatrices[0] =
+        correctionMatrix * Perspective(90.0f, aspect, 0.1f, 100.0f);
+
+    // Create image from CPU ray tracer
+    {
+        u32 width = 1024 / 2;
+        u32 height = 768 / 2;
+        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+        VulkanImage image = VulkanCreateImage(renderer->device,
+            renderer->physicalDevice, width, height, format,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        VulkanTransitionImageLayout(image.handle, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+            renderer->commandPool, renderer->graphicsQueue);
+
+        DoRayTracing(width, height, (u32 *)renderer->imageUploadBuffer.data);
+
+        VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+            renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
+            image.handle, width, height, 0);
+
+        VulkanTransitionImageLayout(image.handle,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+            renderer->commandPool, renderer->graphicsQueue);
+
+        renderer->imageView = VulkanCreateImageView(
+            renderer->device, image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+
+    // Update descriptor sets
+    Assert(renderer->swapchain.imageCount == 2);
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorBufferInfo uniformBufferInfo = {};
+        uniformBufferInfo.buffer = renderer->uniformBuffer.handle;
+        uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo vertexDataBufferInfo = {};
+        vertexDataBufferInfo.buffer =
+            renderer->vertexDataBuffer.handle;
+        vertexDataBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorImageInfo imageInfo = {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = renderer->imageView;
+
+        VkWriteDescriptorSet descriptorWrites[3] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &vertexDataBufferInfo;
+        // Binding 2 is for the defaultSampler
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[2].dstBinding = 3;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pImageInfo = &imageInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
 
 }
 
@@ -568,6 +679,7 @@ internal void VulkanRender(VulkanRenderer *renderer)
     vkCmdSetViewport(renderer->commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(renderer->commandBuffer, 0, 1, &scissor);
 
+#if DRAW_TRIANGLE
     // Bind pipeline
     vkCmdBindDescriptorSets(renderer->commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
@@ -582,6 +694,19 @@ internal void VulkanRender(VulkanRenderer *renderer)
 
     // Draw mesh
     vkCmdDraw(renderer->commandBuffer, 3, 1, 0, 0);
+#else
+    // CPU ray tracing
+    // Bind pipeline
+    vkCmdBindDescriptorSets(renderer->commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
+        &renderer->descriptorSets[imageIndex], 0, NULL);
+
+    vkCmdBindPipeline(renderer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        renderer->fullscreenQuadPipeline);
+
+    // Draw mesh
+    vkCmdDraw(renderer->commandBuffer, 6, 1, 0, 0);
+#endif
 
     vkCmdEndRenderPass(renderer->commandBuffer);
 

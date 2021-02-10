@@ -460,3 +460,79 @@ internal void VulkanCopyBuffer(VkDevice device, VkCommandPool commandPool,
 
     VulkanEndSingleTimeCommands(commandBuffer, device, commandPool, queue);
 }
+
+internal void VulkanTransitionImageLayout(VkImage image,
+    VkImageLayout oldLayout, VkImageLayout newLayout, VkDevice device,
+    VkCommandPool commandPool, VkQueue queue, b32 isCubeMap = false,
+    u32 mipLevelCount = 1)
+{
+    VkCommandBuffer commandBuffer =
+        VulkanBeginSingleTimeCommands(device, commandPool);
+
+    VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = mipLevelCount;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = isCubeMap ? 6 : 1;
+
+    VkPipelineStageFlags sourceStage = 0;
+    VkPipelineStageFlags destinationStage = 0;
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && 
+        newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else
+    {
+        InvalidCodePath();
+    }
+
+    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0,
+        NULL, 0, NULL, 1, &barrier);
+
+    VulkanEndSingleTimeCommands(commandBuffer, device, commandPool, queue);
+}
+
+// TODO: Can be much more efficient about this when copying multiple mip levels
+internal void VulkanCopyBufferToImage(VkDevice device, VkCommandPool commandPool,
+        VkQueue queue, VkBuffer buffer, VkImage image, u32 width, u32 height,
+        VkDeviceSize offset, b32 isCubeMap = false, u32 mipLevel = 0)
+{
+    VkCommandBuffer commandBuffer =
+        VulkanBeginSingleTimeCommands(device, commandPool);
+
+    VkBufferImageCopy imageCopy = {};
+    imageCopy.bufferOffset = offset;
+    imageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageCopy.imageSubresource.mipLevel = mipLevel;
+    imageCopy.imageSubresource.baseArrayLayer = 0;
+    imageCopy.imageSubresource.layerCount = isCubeMap ? 6 : 1;
+
+    imageCopy.imageExtent.width = width;
+    imageCopy.imageExtent.height = height;
+    imageCopy.imageExtent.depth = 1;
+
+    vkCmdCopyBufferToImage(commandBuffer, buffer, image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
+
+    VulkanEndSingleTimeCommands(commandBuffer, device, commandPool, queue);
+}
