@@ -2,6 +2,7 @@
 
 #include "vulkan_utils.cpp"
 
+//#define DRAW_TRIANGLE
 internal VkInstance VulkanCreateInstance()
 {
     const char *validationLayers[] = {"VK_LAYER_KHRONOS_validation"};
@@ -545,8 +546,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         renderer->physicalDevice, renderer->surface, &currentSurfaceCapabilities));
 
-    f32 aspect = (f32)currentSurfaceCapabilities.currentExtent.height /
-                 (f32)currentSurfaceCapabilities.currentExtent.width;
+    f32 aspect = (f32)currentSurfaceCapabilities.currentExtent.width /
+                 (f32)currentSurfaceCapabilities.currentExtent.height;
     mat4 correctionMatrix = {};
     correctionMatrix.columns[0] = Vec4(1, 0, 0, 0);
     correctionMatrix.columns[1] = Vec4(0, -1, 0, 0);
@@ -646,7 +647,7 @@ internal void VulkanRender(VulkanRenderer *renderer)
 
     // Begin render pass
     VkClearValue clearValues[2] = {};
-    clearValues[0].color = {1.0f, 0.0f, 1.0f, 1.0f};
+    clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
     clearValues[1].depthStencil = {1.0f, 0};
 
     VkRenderPassBeginInfo renderPassBegin = {
@@ -668,7 +669,7 @@ internal void VulkanRender(VulkanRenderer *renderer)
     vkCmdSetViewport(renderer->commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(renderer->commandBuffer, 0, 1, &scissor);
 
-#if DRAW_TRIANGLE
+#ifdef DRAW_TRIANGLE
     // Bind pipeline
     vkCmdBindDescriptorSets(renderer->commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
