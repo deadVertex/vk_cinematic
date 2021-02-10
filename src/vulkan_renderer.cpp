@@ -2,7 +2,6 @@
 
 #include "vulkan_utils.cpp"
 
-//#define DRAW_TRIANGLE
 internal VkInstance VulkanCreateInstance()
 {
     const char *validationLayers[] = {"VK_LAYER_KHRONOS_validation"};
@@ -537,25 +536,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->graphicsQueue, renderer->indexUploadBuffer.handle,
         renderer->indexBuffer.handle, sizeof(u32) * 3);
 
-    // Populate uniform data buffer
-    UniformBufferObject *ubo = (UniformBufferObject *)renderer->uniformBuffer.data;
-    ubo->viewMatrices[0] = Translate(Vec3(0, 0, -1));
-
-    VkSurfaceCapabilitiesKHR currentSurfaceCapabilities = {
-        VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR};
-    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-        renderer->physicalDevice, renderer->surface, &currentSurfaceCapabilities));
-
-    f32 aspect = (f32)currentSurfaceCapabilities.currentExtent.width /
-                 (f32)currentSurfaceCapabilities.currentExtent.height;
-    mat4 correctionMatrix = {};
-    correctionMatrix.columns[0] = Vec4(1, 0, 0, 0);
-    correctionMatrix.columns[1] = Vec4(0, -1, 0, 0);
-    correctionMatrix.columns[2] = Vec4(0, 0, 0.5f, 0);
-    correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
-    ubo->projectionMatrices[0] =
-        correctionMatrix * Perspective(90.0f, aspect, 0.1f, 100.0f);
-
     // Create image from CPU ray tracer
     {
         u32 width = RAY_TRACER_WIDTH;
@@ -632,7 +612,7 @@ internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
         renderer->commandPool, renderer->graphicsQueue);
 }
 
-internal void VulkanRender(VulkanRenderer *renderer)
+internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene)
 {
     u32 imageIndex;
     VK_CHECK(vkAcquireNextImageKHR(renderer->device, renderer->swapchain.handle,
@@ -669,34 +649,37 @@ internal void VulkanRender(VulkanRenderer *renderer)
     vkCmdSetViewport(renderer->commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(renderer->commandBuffer, 0, 1, &scissor);
 
-#ifdef DRAW_TRIANGLE
-    // Bind pipeline
-    vkCmdBindDescriptorSets(renderer->commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
-        &renderer->descriptorSets[imageIndex], 0, NULL);
+    if (drawScene)
+    {
+        // Bind pipeline
+        vkCmdBindDescriptorSets(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
+            &renderer->descriptorSets[imageIndex], 0, NULL);
 
-    vkCmdBindPipeline(renderer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        renderer->pipeline);
+        vkCmdBindPipeline(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
-    // Bind index buffer
-    vkCmdBindIndexBuffer(renderer->commandBuffer,
-        renderer->indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+        // Bind index buffer
+        vkCmdBindIndexBuffer(renderer->commandBuffer,
+            renderer->indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
-    // Draw mesh
-    vkCmdDraw(renderer->commandBuffer, 3, 1, 0, 0);
-#else
-    // CPU ray tracing
-    // Bind pipeline
-    vkCmdBindDescriptorSets(renderer->commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
-        &renderer->descriptorSets[imageIndex], 0, NULL);
+        // Draw mesh
+        vkCmdDraw(renderer->commandBuffer, 3, 1, 0, 0);
+    }
+    else
+    {
+        // CPU ray tracing
+        // Bind pipeline
+        vkCmdBindDescriptorSets(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
+            &renderer->descriptorSets[imageIndex], 0, NULL);
 
-    vkCmdBindPipeline(renderer->commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        renderer->fullscreenQuadPipeline);
+        vkCmdBindPipeline(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->fullscreenQuadPipeline);
 
-    // Draw mesh
-    vkCmdDraw(renderer->commandBuffer, 6, 1, 0, 0);
-#endif
+        // Draw mesh
+        vkCmdDraw(renderer->commandBuffer, 6, 1, 0, 0);
+    }
 
     vkCmdEndRenderPass(renderer->commandBuffer);
 

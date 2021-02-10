@@ -11,6 +11,7 @@
 #include <GLFW/glfw3native.h>
 
 #include "platform.h"
+#include "input.h"
 
 struct DebugReadFileResult
 {
@@ -114,6 +115,277 @@ DebugReadEntireFile(ReadEntireFile)
 
 #endif
 
+#define KEY_HELPER(NAME)                                                       \
+    case GLFW_KEY_##NAME:                                                      \
+        return KEY_##NAME;
+internal i32 ConvertKey(int key)
+{
+    if (key >= GLFW_KEY_SPACE && key <= GLFW_KEY_GRAVE_ACCENT)
+    {
+        return key;
+    }
+    switch (key)
+    {
+        KEY_HELPER(BACKSPACE);
+        KEY_HELPER(TAB);
+        KEY_HELPER(INSERT);
+        KEY_HELPER(HOME);
+        KEY_HELPER(PAGE_UP);
+    // Can't use KEY_HELPER( DELETE ) as windows has a #define for DELETE
+    case GLFW_KEY_DELETE:
+        return KEY_DELETE;
+        KEY_HELPER(END);
+        KEY_HELPER(PAGE_DOWN);
+        KEY_HELPER(ENTER);
+
+        KEY_HELPER(LEFT_SHIFT);
+    case GLFW_KEY_LEFT_CONTROL:
+        return KEY_LEFT_CTRL;
+        KEY_HELPER(LEFT_ALT);
+        KEY_HELPER(RIGHT_SHIFT);
+    case GLFW_KEY_RIGHT_CONTROL:
+        return KEY_RIGHT_CTRL;
+        KEY_HELPER(RIGHT_ALT);
+
+        KEY_HELPER(LEFT);
+        KEY_HELPER(RIGHT);
+        KEY_HELPER(UP);
+        KEY_HELPER(DOWN);
+
+        KEY_HELPER(ESCAPE);
+
+        KEY_HELPER(F1);
+        KEY_HELPER(F2);
+        KEY_HELPER(F3);
+        KEY_HELPER(F4);
+        KEY_HELPER(F5);
+        KEY_HELPER(F6);
+        KEY_HELPER(F7);
+        KEY_HELPER(F8);
+        KEY_HELPER(F9);
+        KEY_HELPER(F10);
+        KEY_HELPER(F11);
+        KEY_HELPER(F12);
+    case GLFW_KEY_KP_0:
+        return KEY_NUM0;
+    case GLFW_KEY_KP_1:
+        return KEY_NUM1;
+    case GLFW_KEY_KP_2:
+        return KEY_NUM2;
+    case GLFW_KEY_KP_3:
+        return KEY_NUM3;
+    case GLFW_KEY_KP_4:
+        return KEY_NUM4;
+    case GLFW_KEY_KP_5:
+        return KEY_NUM5;
+    case GLFW_KEY_KP_6:
+        return KEY_NUM6;
+    case GLFW_KEY_KP_7:
+        return KEY_NUM7;
+    case GLFW_KEY_KP_8:
+        return KEY_NUM8;
+    case GLFW_KEY_KP_9:
+        return KEY_NUM9;
+    case GLFW_KEY_KP_DECIMAL:
+        return KEY_NUM_DECIMAL;
+    case GLFW_KEY_KP_DIVIDE:
+        return KEY_NUM_DIVIDE;
+    case GLFW_KEY_KP_MULTIPLY:
+        return KEY_NUM_MULTIPLY;
+    case GLFW_KEY_KP_SUBTRACT:
+        return KEY_NUM_MINUS;
+    case GLFW_KEY_KP_ADD:
+        return KEY_NUM_PLUS;
+    case GLFW_KEY_KP_ENTER:
+        return KEY_NUM_ENTER;
+    }
+    return KEY_UNKNOWN;
+}
+
+
+void KeyCallback(GLFWwindow *window, int glfwKey, int scancode, int action, int mods)
+{
+    GameInput *input =
+            (GameInput *)glfwGetWindowUserPointer(window);
+
+    i32 key = ConvertKey(glfwKey);
+    if (key != KEY_UNKNOWN)
+    {
+        Assert(key < MAX_KEYS);
+        if (action == GLFW_PRESS)
+        {
+            input->buttonStates[key].isDown = true;
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            input->buttonStates[key].isDown = false;
+        }
+        // else: ignore key repeat messages
+    }
+}
+
+internal void MouseButtonCallback(
+    GLFWwindow *window, int button, int action, int mods)
+{
+    GameInput *input =
+            (GameInput *)glfwGetWindowUserPointer(window);
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        input->buttonStates[KEY_MOUSE_BUTTON_LEFT].isDown = (action == GLFW_PRESS);
+    }
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE)
+    {
+        input->buttonStates[KEY_MOUSE_BUTTON_MIDDLE].isDown = (action == GLFW_PRESS);
+    }
+    if (button == GLFW_MOUSE_BUTTON_RIGHT)
+    {
+        input->buttonStates[KEY_MOUSE_BUTTON_RIGHT].isDown = (action == GLFW_PRESS);
+    }
+}
+
+global f64 g_PrevMousePosX;
+global f64 g_PrevMousePosY;
+
+internal void CursorPositionCallback(GLFWwindow *window, f64 xPos, f64 yPos)
+{
+    GameInput *input = (GameInput *)glfwGetWindowUserPointer(window);
+
+    // Unfortunately GLFW doesn't seem to provide a way to get mouse motion
+    // rather than cursor position so we have to compute the relative motion
+    // ourselves.
+    f64 relX = xPos - g_PrevMousePosX;
+    f64 relY = yPos - g_PrevMousePosY;
+    g_PrevMousePosX = xPos;
+    g_PrevMousePosY = yPos;
+
+    input->mouseRelPosX = (i32)Floor((f32)relX);
+    input->mouseRelPosY = (i32)Floor((f32)relY);
+    input->mousePosX = (i32)Floor((f32)xPos);
+    input->mousePosY = (i32)Floor((f32)yPos);
+}
+
+internal void ShowMouseCursor(b32 isVisible)
+{
+    glfwSetInputMode(g_Window, GLFW_CURSOR,
+        isVisible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+}
+
+struct FreeRoamCamera
+{
+    vec3 position;
+    vec3 velocity;
+    vec3 rotation;
+};
+
+global FreeRoamCamera g_camera;
+
+internal void UpdateFreeRoamCamera(
+    FreeRoamCamera *camera, GameInput *input, f32 dt)
+{
+    vec3 position = camera->position;
+    vec3 velocity = camera->velocity;
+    vec3 rotation = camera->rotation;
+
+    f32 speed = 200.0f;
+    f32 friction = 7.0f;
+
+    f32 sens = 0.005f;
+    f32 mouseX = -input->mouseRelPosY * sens;
+    f32 mouseY = -input->mouseRelPosX * sens;
+
+    vec3 newRotation = Vec3(mouseX, mouseY, 0.0f);
+
+    if (input->buttonStates[KEY_MOUSE_BUTTON_RIGHT].isDown)
+    {
+        rotation += newRotation;
+        ShowMouseCursor(false);
+    }
+    else
+    {
+        ShowMouseCursor(true);
+    }
+
+    rotation.x = Clamp(rotation.x, -PI * 0.5f, PI * 0.5f);
+
+    if (rotation.y > 2.0f * PI)
+    {
+        rotation.y -= 2.0f * PI;
+    }
+    if (rotation.y < 2.0f * -PI)
+    {
+        rotation.y += 2.0f * PI;
+    }
+
+    f32 forwardMove = 0.0f;
+    f32 rightMove = 0.0f;
+    if (input->buttonStates[KEY_W].isDown)
+    {
+        forwardMove = -1.0f;
+    }
+
+    if (input->buttonStates[KEY_S].isDown)
+    {
+        forwardMove = 1.0f;
+    }
+
+    if (input->buttonStates[KEY_A].isDown)
+    {
+        rightMove = -1.0f;
+    }
+    if (input->buttonStates[KEY_D].isDown)
+    {
+        rightMove = 1.0f;
+    }
+
+    if (input->buttonStates[KEY_LEFT_SHIFT].isDown)
+    {
+        speed *= 10.0f;
+    }
+
+    mat4 rotationMatrix = RotateY(rotation.y) * RotateX(rotation.x);
+
+    vec3 forward = (rotationMatrix * Vec4(0, 0, 1, 0)).xyz;
+    vec3 right = (rotationMatrix * Vec4(1, 0, 0, 0)).xyz;
+
+    vec3 targetDir = Normalize(forward * forwardMove + right * rightMove);
+
+    velocity -= velocity * friction * dt;
+    velocity += targetDir * speed * dt;
+
+    position = position + velocity * dt;
+
+    camera->position = position;
+    camera->velocity = velocity;
+    camera->rotation = rotation;
+}
+
+internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
+{
+    UpdateFreeRoamCamera(&g_camera, input, dt);
+    UniformBufferObject *ubo = (UniformBufferObject *)renderer->uniformBuffer.data;
+    vec3 cameraPosition = g_camera.position;
+    vec3 rotation = g_camera.rotation;
+    quat cameraRotation =
+        Quat(Vec3(0, 1, 0), rotation.y) * Quat(Vec3(1, 0, 0), rotation.x);
+
+    ubo->viewMatrices[0] =
+        Rotate(Conjugate(cameraRotation)) * Translate(-cameraPosition);
+
+    f32 aspect =
+        (f32)renderer->swapchain.width / (f32)renderer->swapchain.height;
+
+    // Vulkan specific correction matrix
+    mat4 correctionMatrix = {};
+    correctionMatrix.columns[0] = Vec4(1, 0, 0, 0);
+    correctionMatrix.columns[1] = Vec4(0, -1, 0, 0);
+    correctionMatrix.columns[2] = Vec4(0, 0, 0.5f, 0);
+    correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
+    ubo->projectionMatrices[0] =
+        correctionMatrix * Perspective(90.0f, aspect, 0.1f, 100.0f);
+
+}
+
 #ifdef PLATFORM_WINDOWS
 int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine,
             int cmdShow)
@@ -142,18 +414,37 @@ int main(int argc, char **argv)
     g_Window = glfwCreateWindow(g_FramebufferWidth,
         g_FramebufferHeight, "vk_cinematic", NULL, NULL);
     Assert(g_Window != NULL);
+    GameInput input = {};
+    glfwSetWindowUserPointer(g_Window, &input);
+    glfwSetKeyCallback(g_Window, KeyCallback);
+    glfwSetMouseButtonCallback(g_Window, MouseButtonCallback);
+    glfwSetCursorPosCallback(g_Window, CursorPositionCallback);
 
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
 
-    DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
-        (u32 *)renderer.imageUploadBuffer.data);
-    VulkanCopyImageFromCPU(&renderer);
-
+    b32 drawScene = true;
+    f32 prevFrameTime = 0.0f;
     while (!glfwWindowShouldClose(g_Window))
     {
+        f64 frameStart = glfwGetTime();
+        InputBeginFrame(&input);
         glfwPollEvents();
-        VulkanRender(&renderer);
+
+        if (WasPressed(input.buttonStates[KEY_SPACE]))
+        {
+            drawScene = !drawScene;
+            if (!drawScene)
+            {
+                DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
+                    (u32 *)renderer.imageUploadBuffer.data);
+                VulkanCopyImageFromCPU(&renderer);
+            }
+        }
+
+        Update(&renderer, &input, prevFrameTime);
+        VulkanRender(&renderer, drawScene);
+        prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;
 }
