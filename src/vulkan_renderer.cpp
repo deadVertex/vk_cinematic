@@ -336,21 +336,6 @@ internal VkPipelineLayout VulkanCreatePipelineLayout(
     return layout;
 }
 
-internal void DoRayTracing(u32 width, u32 height, u32 *pixels)
-{
-    for (u32 y = 0; y < height; ++y)
-    {
-        for (u32 x = 0; x < width; ++x)
-        {
-            u32 r = (u32)(((f32)x / (f32)width) * 255.0f);
-            u32 g = (u32)(((f32)y / (f32)height) * 255.0f);
-            u32 b = 0;
-            *pixels = 0xFF000000 | r | (g << 8) | (b << 16);
-            pixels++;
-        }
-    }
-}
-
 // TODO: Handle errors gracefully?
 internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 {
@@ -572,31 +557,20 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
     // Create image from CPU ray tracer
     {
-        u32 width = 1024 / 2;
-        u32 height = 768 / 2;
+        u32 width = RAY_TRACER_WIDTH;
+        u32 height = RAY_TRACER_HEIGHT;
         VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-        VulkanImage image = VulkanCreateImage(renderer->device,
+        renderer->image = VulkanCreateImage(renderer->device,
             renderer->physicalDevice, width, height, format,
             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        VulkanTransitionImageLayout(image.handle, VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
-            renderer->commandPool, renderer->graphicsQueue);
+        VulkanTransitionImageLayout(renderer->image.handle,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            renderer->device, renderer->commandPool, renderer->graphicsQueue);
 
-        DoRayTracing(width, height, (u32 *)renderer->imageUploadBuffer.data);
-
-        VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
-            renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
-            image.handle, width, height, 0);
-
-        VulkanTransitionImageLayout(image.handle,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
-            renderer->commandPool, renderer->graphicsQueue);
-
-        renderer->imageView = VulkanCreateImageView(
-            renderer->device, image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
+        renderer->imageView = VulkanCreateImageView(renderer->device,
+            renderer->image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     // Update descriptor sets
@@ -640,6 +614,21 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             descriptorWrites, 0, NULL);
     }
 
+}
+
+internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
+{
+    u32 width = RAY_TRACER_WIDTH;
+    u32 height = RAY_TRACER_HEIGHT;
+
+    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
+        renderer->image.handle, width, height, 0);
+
+    VulkanTransitionImageLayout(renderer->image.handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue);
 }
 
 internal void VulkanRender(VulkanRenderer *renderer)

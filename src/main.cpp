@@ -27,6 +27,7 @@ internal void* AllocateMemory(u64 size, u64 baseAddress = 0);
 internal void FreeMemory(void *p);
 internal DebugReadEntireFile(ReadEntireFile);
 
+#include "cpu_ray_tracer.cpp"
 #include "vulkan_renderer.cpp"
 
 global GLFWwindow *g_Window;
@@ -144,6 +145,10 @@ int main(int argc, char **argv)
 
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
+
+    DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
+        (u32 *)renderer.imageUploadBuffer.data);
+    VulkanCopyImageFromCPU(&renderer);
 
     while (!glfwWindowShouldClose(g_Window))
     {

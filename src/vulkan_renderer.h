@@ -133,5 +133,6 @@ struct VulkanRenderer
     VkShaderModule fullscreenQuadVertexShader;
     VkShaderModule fullscreenQuadFragmentShader;
     VkPipeline fullscreenQuadPipeline;
+    VulkanImage image;
     VkImageView imageView;
 };
