@@ -360,7 +360,8 @@ internal void UpdateFreeRoamCamera(
     camera->rotation = rotation;
 }
 
-internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
+internal void Update(
+    VulkanRenderer *renderer, RayTracer *rayTracer, GameInput *input, f32 dt)
 {
     UpdateFreeRoamCamera(&g_camera, input, dt);
     UniformBufferObject *ubo = (UniformBufferObject *)renderer->uniformBuffer.data;
@@ -384,6 +385,7 @@ internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
     ubo->projectionMatrices[0] =
         correctionMatrix * Perspective(90.0f, aspect, 0.1f, 100.0f);
 
+    rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
 #ifdef PLATFORM_WINDOWS
@@ -423,6 +425,8 @@ int main(int argc, char **argv)
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
 
+    RayTracer rayTracer = {};
+
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
     while (!glfwWindowShouldClose(g_Window))
@@ -437,12 +441,12 @@ int main(int argc, char **argv)
             if (!drawScene)
             {
                 DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
-                    (u32 *)renderer.imageUploadBuffer.data);
+                    (u32 *)renderer.imageUploadBuffer.data, &rayTracer);
                 VulkanCopyImageFromCPU(&renderer);
             }
         }
 
-        Update(&renderer, &input, prevFrameTime);
+        Update(&renderer, &rayTracer, &input, prevFrameTime);
         VulkanRender(&renderer, drawScene);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }

@@ -94,13 +94,17 @@ internal f32 RayIntersectTriangle(
     return -1.0f;
 }
 
-internal void DoRayTracing(u32 width, u32 height, u32 *pixels)
+struct RayTracer
 {
-    // TODO: Replace with view matrix
-    vec3 cameraPosition = Vec3(0, 0, 1);
-    vec3 cameraForward = Vec3(0, 0, -1);
-    vec3 cameraRight = Normalize(Cross(Vec3(0, 1, 0), cameraForward));
-    vec3 cameraUp = Normalize(Cross(cameraForward, cameraRight));
+    mat4 viewMatrix;
+};
+
+internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTracer)
+{
+    vec3 cameraPosition = TransformPoint(Vec3(0, 0, 0), rayTracer->viewMatrix);
+    vec3 cameraForward = TransformVector(Vec3(0, 0, -1), rayTracer->viewMatrix);
+    vec3 cameraRight = TransformVector(Vec3(1, 0, 0), rayTracer->viewMatrix);
+    vec3 cameraUp = TransformVector(Vec3(0, 1, 0), rayTracer->viewMatrix);
 
     f32 filmWidth = 1.0f;
     f32 filmHeight = 1.0f;
@@ -113,7 +117,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels)
         filmWidth = (f32)width / (f32)height;
     }
 
-    f32 filmDistance = 0.1f;
+    f32 fov = 90.0f * ((f32)width / (f32)height);
+    f32 filmDistance = 1.0f / Tan(fov * 0.5f * PI / 180.0f);
     vec3 filmCenter = cameraForward * filmDistance + cameraPosition;
 
     f32 pixelWidth = 1.0f / (f32)width;

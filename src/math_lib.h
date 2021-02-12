@@ -733,6 +733,12 @@ inline b32 RectContainsPoint(rect2 rect, vec2 p)
     return result;
 }
 
+inline vec3 TransformVector(vec3 d, mat4 m)
+{
+    vec4 v = m * Vec4(d, 0.0);
+    return v.xyz;
+}
+
 inline vec3 TransformPoint(vec3 p, mat4 m)
 {
     vec4 v = m * Vec4(p, 1.0);
