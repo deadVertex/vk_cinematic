@@ -12,9 +12,16 @@ struct VertexPC
     float cr, cg, cb;
 };
 
+struct VertexPNT
+{
+    float px, py, pz;
+    float nx, ny, nz;
+    float tx, ty;
+};
+
 layout(binding = 1) readonly buffer Vertices
 {
-    VertexPC vertices[];
+    VertexPNT vertices[];
 };
 
 layout(location = 0) out vec4 fragColor;
@@ -29,14 +36,18 @@ void main()
             vertices[gl_VertexIndex + vertexDataOffset].py,
             vertices[gl_VertexIndex + vertexDataOffset].pz);
 
-    vec3 inColor = vec3(
-            vertices[gl_VertexIndex + vertexDataOffset].cr,
-            vertices[gl_VertexIndex + vertexDataOffset].cg,
-            vertices[gl_VertexIndex + vertexDataOffset].cb);
+    vec3 inNormal = vec3(
+            vertices[gl_VertexIndex + vertexDataOffset].nx,
+            vertices[gl_VertexIndex + vertexDataOffset].ny,
+            vertices[gl_VertexIndex + vertexDataOffset].nz);
+
+    vec2 inTextureCoord = vec2(
+            vertices[gl_VertexIndex + vertexDataOffset].tx,
+            vertices[gl_VertexIndex + vertexDataOffset].ty);
 
     gl_Position = ubo.projectionMatrices[uboIndex] *
                   ubo.viewMatrices[uboIndex] * 
                   vec4(inPosition, 1.0);
 
-    fragColor = vec4(inColor, 1.0);
+    fragColor = vec4(1.0, 0.0, 1.0, 1.0);
 }

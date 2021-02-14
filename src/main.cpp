@@ -1,3 +1,7 @@
+#include <assimp/cimport.h>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #define ENABLE_VALIDATION_LAYERS
 
 #define PLATFORM_WINDOWS
@@ -287,7 +291,7 @@ internal void UpdateFreeRoamCamera(
     vec3 velocity = camera->velocity;
     vec3 rotation = camera->rotation;
 
-    f32 speed = 200.0f;
+    f32 speed = 20.0f; //200.0f;
     f32 friction = 7.0f;
 
     f32 sens = 0.005f;
@@ -383,9 +387,74 @@ internal void Update(
     correctionMatrix.columns[2] = Vec4(0, 0, 0.5f, 0);
     correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
     ubo->projectionMatrices[0] =
-        correctionMatrix * Perspective(90.0f, aspect, 0.1f, 100.0f);
+        correctionMatrix * Perspective(90.0f, aspect, 0.01f, 100.0f);
 
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
+}
+
+// TODO: Copy raw mesh data into vertexUploadBuffer for vulkan renderer
+// TODO: Copy into some sort of triangle mesh structure for our CPU ray tracer
+struct MeshData
+{
+    VertexPNT *vertices;
+    u32 *indices;
+    u32 vertexCount;
+    u32 indexCount;
+};
+
+internal MeshData LoadMesh()
+{
+    MeshData result = {};
+
+    const struct aiScene *scene = aiImportFile("../assets/bunny.obj",
+        aiProcess_CalcTangentSpace | aiProcess_Triangulate |
+            aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
+
+    if (!scene)
+    {
+        LogMessage("Mesh import failed!\n%s\n", aiGetErrorString());
+        return result;
+    }
+
+    Assert(scene->mNumMeshes > 0);
+    aiMesh *mesh = scene->mMeshes[0];
+
+    // TODO: Replace with AllocateMemory?
+    VertexPNT *vertices = (VertexPNT *)calloc(mesh->mNumVertices, sizeof(VertexPNT));
+    u32 indexCount = mesh->mNumFaces * 3; // We only support triangles
+    u32 *indices = (u32 *)calloc(indexCount, sizeof(u32));
+
+    // NOTE: mesh->mVertices is always present
+    Assert(mesh->mNormals);
+
+    for (u32 vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex)
+    {
+        VertexPNT *vertex = vertices + vertexIndex;
+        vertex->position.x = mesh->mVertices[vertexIndex].x;
+        vertex->position.y = mesh->mVertices[vertexIndex].y;
+        vertex->position.z = mesh->mVertices[vertexIndex].z;
+
+        vertex->normal.x = mesh->mNormals[vertexIndex].x;
+        vertex->normal.y = mesh->mNormals[vertexIndex].y;
+        vertex->normal.z = mesh->mNormals[vertexIndex].z;
+    }
+
+    for (u32 triangleIndex = 0; triangleIndex < mesh->mNumFaces; ++triangleIndex)
+    {
+        aiFace *face = mesh->mFaces + triangleIndex;
+        indices[triangleIndex*3 + 0] = face->mIndices[0];
+        indices[triangleIndex*3 + 1] = face->mIndices[1];
+        indices[triangleIndex*3 + 2] = face->mIndices[2];
+    }
+
+    result.vertices = vertices;
+    result.indices= indices;
+    result.vertexCount = mesh->mNumVertices;
+    result.indexCount = indexCount;
+
+    aiReleaseImport(scene);
+
+    return result;
 }
 
 #ifdef PLATFORM_WINDOWS
@@ -424,6 +493,15 @@ int main(int argc, char **argv)
 
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
+
+   MeshData bunnyMesh = LoadMesh();
+    CopyMemory(renderer.vertexDataUploadBuffer.data, bunnyMesh.vertices,
+        sizeof(VertexPNT) * bunnyMesh.vertexCount);
+    CopyMemory(renderer.indexUploadBuffer.data, bunnyMesh.indices,
+        sizeof(u32) * bunnyMesh.indexCount);
+    renderer.vertexCount = bunnyMesh.vertexCount;
+    renderer.indexCount = bunnyMesh.indexCount;
+    VulkanCopyMeshDataToGpu(&renderer);
 
     RayTracer rayTracer = {};
 

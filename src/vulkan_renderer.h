@@ -13,6 +13,12 @@ struct VertexPC
     vec3 position;
     vec3 color;
 };
+struct VertexPNT
+{
+    vec3 position;
+    vec3 normal;
+    vec2 textureCoord;
+};
 #pragma pack(pop)
 
 struct UniformBufferObject
@@ -135,4 +141,7 @@ struct VulkanRenderer
     VkPipeline fullscreenQuadPipeline;
     VulkanImage image;
     VkImageView imageView;
+
+    u32 vertexCount;
+    u32 indexCount;
 };

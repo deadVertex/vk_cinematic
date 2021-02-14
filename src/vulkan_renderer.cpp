@@ -477,7 +477,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
     // Create pipeline
     VulkanPipelineDefinition pipelineDefinition = {};
-    pipelineDefinition.vertexStride = sizeof(VertexPC);
+    pipelineDefinition.vertexStride = sizeof(VertexPNT);
     pipelineDefinition.primitive = Primitive_Triangle;
     pipelineDefinition.polygonMode = PolygonMode_Fill;
     pipelineDefinition.cullMode = CullMode_Back;
@@ -492,7 +492,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     // I think I can reuse the descriptor set and pipeline layout for the full
     // screen quad rendering
     VulkanPipelineDefinition fullscreenQuadPipeline = {};
-    fullscreenQuadPipeline.vertexStride = sizeof(VertexPC);
+    fullscreenQuadPipeline.vertexStride = sizeof(VertexPNT);
     fullscreenQuadPipeline.primitive = Primitive_Triangle;
     fullscreenQuadPipeline.polygonMode = PolygonMode_Fill;
     fullscreenQuadPipeline.cullMode = CullMode_None;
@@ -514,17 +514,20 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     }
 
     // Populate vertex data buffer
-    VertexPC *vertices = (VertexPC *)renderer->vertexDataUploadBuffer.data;
+    VertexPNT *vertices = (VertexPNT *)renderer->vertexDataUploadBuffer.data;
     vertices[0].position = Vec3(-0.5, -0.5, 0.0);
-    vertices[0].color = Vec3(1.0, 0.0, 0.0);
+    vertices[0].normal = Vec3(0.0, 0.0, 1.0);
+    vertices[0].textureCoord = Vec2(0.0, 0.0);
     vertices[1].position = Vec3(0.5, -0.5, 0.0);
-    vertices[1].color = Vec3(0.0, 1.0, 0.0);
+    vertices[1].normal = Vec3(0.0, 0.0, 1.0);
+    vertices[1].textureCoord = Vec2(1.0, 0.0);
     vertices[2].position = Vec3(0.0, 0.5, 0.0);
-    vertices[2].color = Vec3(0.0, 0.0, 1.0);
+    vertices[2].normal = Vec3(0.0, 0.0, 1.0);
+    vertices[2].textureCoord = Vec2(0.0, 1.0);
 
     VulkanCopyBuffer(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->vertexDataUploadBuffer.handle,
-        renderer->vertexDataBuffer.handle, sizeof(VertexPC) * 3);
+        renderer->vertexDataBuffer.handle, sizeof(VertexPNT) * 3);
 
     // Populate index buffer
     u32 *indices = (u32 *)renderer->indexUploadBuffer.data;
@@ -612,6 +615,18 @@ internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
         renderer->commandPool, renderer->graphicsQueue);
 }
 
+internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
+{
+    VulkanCopyBuffer(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->vertexDataUploadBuffer.handle,
+        renderer->vertexDataBuffer.handle,
+        sizeof(VertexPNT) * renderer->vertexCount);
+
+    VulkanCopyBuffer(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->indexUploadBuffer.handle,
+        renderer->indexBuffer.handle, sizeof(u32) * renderer->indexCount);
+}
+
 internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene)
 {
     u32 imageIndex;
@@ -664,7 +679,9 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene)
             renderer->indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
         // Draw mesh
-        vkCmdDraw(renderer->commandBuffer, 3, 1, 0, 0);
+        //vkCmdDraw(renderer->commandBuffer, renderer->indexCount, 1, 0, 0);
+        vkCmdDrawIndexed(renderer->commandBuffer, renderer->indexCount, 1,
+            0, 0, 0);
     }
     else
     {

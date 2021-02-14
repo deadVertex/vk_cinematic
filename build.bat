@@ -13,5 +13,5 @@ glslangvalidator ..\src\shaders\fullscreen_quad.vert.glsl -V -o fullscreen_quad.
 glslangvalidator ..\src\shaders\fullscreen_quad.frag.glsl -V -o fullscreen_quad.frag.spv
 
 REM Build executable
-cl %CompilerFlags% -I./ -I "%VULKAN_SDK%\Include" -I..\windows-dependencies\glfw3\include ../src/main.cpp -link %LinkerFlags% ..\windows-dependencies\glfw3\lib\glfw3dll.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"
+cl %CompilerFlags% -I./ -I "%VULKAN_SDK%\Include" -I..\windows-dependencies\glfw3\include -I..\windows-dependencies\assimp\include ../src/main.cpp -link %LinkerFlags% ..\windows-dependencies\glfw3\lib\glfw3dll.lib ..\windows-dependencies\assimp\lib-vc2017\assimp-vc141-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"
 popd
