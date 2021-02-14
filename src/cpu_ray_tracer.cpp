@@ -1,7 +1,7 @@
 #include "math_lib.h"
 
-#define RAY_TRACER_WIDTH (1024 / 2)
-#define RAY_TRACER_HEIGHT (768 / 2)
+#define RAY_TRACER_WIDTH (1024 / 32)
+#define RAY_TRACER_HEIGHT (768 / 32)
 
 inline f32 RayIntersectSphere(vec3 center, f32 radius, vec3 rayOrigin, vec3 rayDirection)
 {
@@ -97,7 +97,35 @@ internal f32 RayIntersectTriangle(
 struct RayTracer
 {
     mat4 viewMatrix;
+    MeshData meshData;
 };
+
+internal f32 TraceRayThroughScene(
+    RayTracer *rayTracer, vec3 rayOrigin, vec3 rayDirection)
+{
+    MeshData meshData = rayTracer->meshData;
+    f32 tmin = F32_MAX;
+    Assert(meshData.indexCount % 3 == 0);
+    u32 triangleCount = meshData.indexCount / 3;
+    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+    {
+        u32 indices[3];
+        indices[0] = meshData.indices[triangleIndex*3 + 0];
+        indices[1] = meshData.indices[triangleIndex*3 + 1];
+        indices[2] = meshData.indices[triangleIndex*3 + 2];
+
+        f32 t = RayIntersectTriangle(rayOrigin, rayDirection,
+                meshData.vertices[indices[0]].position,
+                meshData.vertices[indices[1]].position,
+                meshData.vertices[indices[2]].position);
+        if (t > 0.0f)
+        {
+            tmin = Min(tmin, t);
+        }
+    }
+
+    return tmin;
+}
 
 internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTracer)
 {
@@ -156,11 +184,12 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTra
             //f32 t = RayIntersectSphere(
                 //Vec3(0, 0, 0), 0.5f, rayOrigin, rayDirection);
             //vec3 outputColor = (t < F32_MAX) ? Vec3(1, 0, 0) : Vec3(0, 0, 0);
-            f32 t = RayIntersectTriangle(rayOrigin, rayDirection,
-                        Vec3(-0.5f, -0.5f, 0.0f),
-                        Vec3(0.5f, -0.5f, 0.0f),
-                        Vec3(0.0, 0.5f, 0.0f));
-            vec3 outputColor = (t > 0.0f) ? Vec3(1, 0, 1) : Vec3(0, 0, 0);
+            //f32 t = RayIntersectTriangle(rayOrigin, rayDirection,
+                        //Vec3(-0.5f, -0.5f, 0.0f),
+                        //Vec3(0.5f, -0.5f, 0.0f),
+                        //Vec3(0.0, 0.5f, 0.0f));
+            f32 t = TraceRayThroughScene(rayTracer, rayOrigin, rayDirection);
+            vec3 outputColor = (t != F32_MAX) ? Vec3(1, 0, 1) : Vec3(0, 0, 0);
 
             outputColor *= 255.0f;
             u32 bgra = (0xFF000000 | ((u32)outputColor.z) << 16 |

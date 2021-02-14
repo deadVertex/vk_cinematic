@@ -32,6 +32,15 @@ internal void* AllocateMemory(u64 size, u64 baseAddress = 0);
 internal void FreeMemory(void *p);
 internal DebugReadEntireFile(ReadEntireFile);
 
+#include "vulkan_renderer.h"
+struct MeshData
+{
+    VertexPNT *vertices;
+    u32 *indices;
+    u32 vertexCount;
+    u32 indexCount;
+};
+
 #include "cpu_ray_tracer.cpp"
 #include "vulkan_renderer.cpp"
 
@@ -394,14 +403,6 @@ internal void Update(
 
 // TODO: Copy raw mesh data into vertexUploadBuffer for vulkan renderer
 // TODO: Copy into some sort of triangle mesh structure for our CPU ray tracer
-struct MeshData
-{
-    VertexPNT *vertices;
-    u32 *indices;
-    u32 vertexCount;
-    u32 indexCount;
-};
-
 internal MeshData LoadMesh()
 {
     MeshData result = {};
@@ -504,6 +505,7 @@ int main(int argc, char **argv)
     VulkanCopyMeshDataToGpu(&renderer);
 
     RayTracer rayTracer = {};
+    rayTracer.meshData = bunnyMesh;
 
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
