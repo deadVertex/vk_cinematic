@@ -41,6 +41,8 @@ struct MeshData
     u32 indexCount;
 };
 
+#include "profiler.h"
+
 #include "cpu_ray_tracer.cpp"
 #include "vulkan_renderer.cpp"
 
@@ -507,6 +509,9 @@ int main(int argc, char **argv)
     RayTracer rayTracer = {};
     rayTracer.meshData = bunnyMesh;
 
+    g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
+    ProfilerResults profilerResults = {};
+
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
     while (!glfwWindowShouldClose(g_Window))
@@ -520,8 +525,15 @@ int main(int argc, char **argv)
             drawScene = !drawScene;
             if (!drawScene)
             {
+                f64 rayTracingStartTime = glfwGetTime();
                 DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
                     (u32 *)renderer.imageUploadBuffer.data, &rayTracer);
+                f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
+                LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
+                LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
+
+                Profiler_ProcessResults(&g_Profiler, &profilerResults);
+                Profiler_PrintResults(&profilerResults);
                 VulkanCopyImageFromCPU(&renderer);
             }
         }

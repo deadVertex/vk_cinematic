@@ -30,9 +30,11 @@ inline f32 RayIntersectSphere(vec3 center, f32 radius, vec3 rayOrigin, vec3 rayD
 internal f32 RayIntersectTriangle(
     vec3 rayOrigin, vec3 rayDirection, vec3 a, vec3 b, vec3 c)
 {
+    PROFILE_FUNCTION_SCOPE();
+
     vec3 edgeCA = c - a;
     vec3 edgeBA = b - a;
-    vec3 normal = Cross(edgeBA, edgeCA);
+    vec3 normal = Normalize(Cross(edgeBA, edgeCA));
     f32 distance = Dot(normal, a);
 
 #if 0
@@ -103,12 +105,16 @@ struct RayTracer
 internal f32 TraceRayThroughScene(
     RayTracer *rayTracer, vec3 rayOrigin, vec3 rayDirection)
 {
+    PROFILE_FUNCTION_SCOPE();
+
     MeshData meshData = rayTracer->meshData;
     f32 tmin = F32_MAX;
     Assert(meshData.indexCount % 3 == 0);
     u32 triangleCount = meshData.indexCount / 3;
     for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
     {
+        PROFILE_SCOPE(PerTriangle);
+
         u32 indices[3];
         indices[0] = meshData.indices[triangleIndex*3 + 0];
         indices[1] = meshData.indices[triangleIndex*3 + 1];
@@ -129,6 +135,7 @@ internal f32 TraceRayThroughScene(
 
 internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTracer)
 {
+    PROFILE_FUNCTION_SCOPE();
     vec3 cameraPosition = TransformPoint(Vec3(0, 0, 0), rayTracer->viewMatrix);
     vec3 cameraForward = TransformVector(Vec3(0, 0, -1), rayTracer->viewMatrix);
     vec3 cameraRight = TransformVector(Vec3(1, 0, 0), rayTracer->viewMatrix);

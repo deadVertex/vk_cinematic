@@ -1,6 +1,6 @@
 @echo off
 
-set CompilerFlags=-Od -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7 -I..\src
+set CompilerFlags=-O2 -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7 -I..\src
 set LinkerFlags=-opt:ref -incremental:no
 
 if not exist build mkdir build
