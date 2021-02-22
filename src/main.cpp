@@ -497,7 +497,7 @@ int main(int argc, char **argv)
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
 
-   MeshData bunnyMesh = LoadMesh();
+    MeshData bunnyMesh = LoadMesh();
     CopyMemory(renderer.vertexDataUploadBuffer.data, bunnyMesh.vertices,
         sizeof(VertexPNT) * bunnyMesh.vertexCount);
     CopyMemory(renderer.indexUploadBuffer.data, bunnyMesh.indices,
@@ -507,7 +507,9 @@ int main(int argc, char **argv)
     VulkanCopyMeshDataToGpu(&renderer);
 
     RayTracer rayTracer = {};
+    rayTracer.nodes = (BvhNode *)AllocateMemory(sizeof(BvhNode) * MAX_BVH_NODES);
     rayTracer.meshData = bunnyMesh;
+    BuildBvh(&rayTracer, bunnyMesh);
 
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};
@@ -532,8 +534,13 @@ int main(int argc, char **argv)
                 LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
                 LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
 
+                DumpMetrics(&g_Metrics);
                 Profiler_ProcessResults(&g_Profiler, &profilerResults);
                 Profiler_PrintResults(&profilerResults);
+                ClearToZero(&profilerResults, sizeof(profilerResults));
+                LogMessage("Rays per second: %g",
+                    (f64)g_Metrics.rayCount / rayTracingElapsedTime);
+                ClearToZero(&g_Metrics, sizeof(g_Metrics));
                 VulkanCopyImageFromCPU(&renderer);
             }
         }

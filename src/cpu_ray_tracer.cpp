@@ -1,7 +1,28 @@
 #include "math_lib.h"
 
-#define RAY_TRACER_WIDTH (1024 / 32)
-#define RAY_TRACER_HEIGHT (768 / 32)
+#define RAY_TRACER_WIDTH (1024 / 2)
+#define RAY_TRACER_HEIGHT (768 / 2)
+
+struct Metrics
+{
+    u64 aabbTestCount;
+    u64 triangleTestCount;
+    u64 rayCount;
+    u64 totalSampleCount;
+    u64 totalPixelCount;
+    // TODO: Triangle test pass/fail
+};
+
+global Metrics g_Metrics;
+
+internal void DumpMetrics(Metrics *metrics)
+{
+    LogMessage("AABB Test Count: %llu", metrics->aabbTestCount);
+    LogMessage("Triangle Test Count: %llu", metrics->triangleTestCount);
+    LogMessage("Ray Count: %llu", metrics->rayCount);
+    LogMessage("Total Sample Count: %llu", metrics->totalSampleCount);
+    LogMessage("Total Pixel Count: %llu", metrics->totalPixelCount);
+}
 
 inline f32 RayIntersectSphere(vec3 center, f32 radius, vec3 rayOrigin, vec3 rayDirection)
 {
@@ -26,11 +47,190 @@ inline f32 RayIntersectSphere(vec3 center, f32 radius, vec3 rayOrigin, vec3 rayD
     return t;
 }
 
+inline f32 RayIntersectAabb(
+    vec3 boxMin, vec3 boxMax, vec3 rayOrigin, vec3 rayDirection)
+{
+    g_Metrics.aabbTestCount++;
+
+    f32 tmin = 0.0f;
+    f32 tmax = 1.0f;
+
+    b32 negateNormal = false;
+    u32 normalIdx = 0;
+
+    for (u32 axis = 0; axis < 3; ++axis)
+    {
+        f32 s = rayOrigin.data[axis];
+        f32 d = rayDirection.data[axis];
+        f32 min = boxMin.data[axis];
+        f32 max = boxMax.data[axis];
+
+        if (Abs(d) < EPSILON)
+        {
+            // Ray is parallel to axis plane
+            if (s < min || s > max)
+            {
+                // No collision
+                tmin = -1.0f;
+                break;
+            }
+        }
+        else
+        {
+            f32 a = (min - s) / d;
+            f32 b = (max - s) / d;
+
+            f32 t0 = Min(a, b);
+            f32 t1 = Max(a, b);
+
+            if (t0 > tmin)
+            {
+                negateNormal = (d >= 0.0f);
+                normalIdx = axis;
+                tmin = t0;
+            }
+
+            tmax = Min(tmax, t1);
+
+            if (tmin > tmax)
+            {
+                // No collision
+                tmin = -1.0f;
+                break;
+            }
+        }
+    }
+
+    return tmin;
+}
+
+#define MAX_BVH_NODES 0x10000
+
+// TODO: Probably want multiple triangles per leaf node
+struct BvhNode
+{
+    vec3 min;
+    vec3 max;
+    BvhNode *children[2];
+    u32 triangleIndex;
+};
+
+struct RayTracer
+{
+    mat4 viewMatrix;
+    MeshData meshData;
+    BvhNode *nodes;
+    u32 nodeCount;
+    BvhNode *root;
+};
+
+internal void BuildBvh(RayTracer *rayTracer, MeshData meshData)
+{
+    u32 unmergedNodeIndices[MAX_BVH_NODES];
+    u32 unmergedNodeCount = 0;
+
+    // Build BvhNode for each triangle
+    u32 triangleCount = meshData.indexCount / 3;
+    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+    {
+        u32 indices[3];
+        indices[0] = meshData.indices[triangleIndex * 3 + 0];
+        indices[1] = meshData.indices[triangleIndex * 3 + 1];
+        indices[2] = meshData.indices[triangleIndex * 3 + 2];
+
+        vec3 vertices[3];
+        vertices[0] = meshData.vertices[indices[0]].position;
+        vertices[1] = meshData.vertices[indices[1]].position;
+        vertices[2] = meshData.vertices[indices[2]].position;
+
+        Assert(rayTracer->nodeCount < MAX_BVH_NODES);
+        BvhNode *node = rayTracer->nodes + rayTracer->nodeCount++;
+        node->min = Min(vertices[0], Min(vertices[1], vertices[2]));
+        node->max = Max(vertices[0], Max(vertices[1], vertices[2]));
+        node->triangleIndex = triangleIndex;
+        node->children[0] = NULL;
+        node->children[1] = NULL;
+
+        // NOTE: Triangle index is our leaf index
+        unmergedNodeIndices[triangleIndex] = triangleIndex;
+    }
+    Assert(rayTracer->nodeCount == triangleCount);
+    unmergedNodeCount = triangleCount;
+
+    while (unmergedNodeCount > 1)
+    {
+        u32 newUnmergedNodeCount = 0;
+
+        // Join nodes with their nearest neighbors to build tree
+        for (u32 index = 0; index < unmergedNodeCount; ++index)
+        {
+            u32 nodeIndex = unmergedNodeIndices[index];
+            BvhNode *node = rayTracer->nodes + nodeIndex;
+            vec3 centroid = (node->max + node->min) * 0.5f;
+
+            f32 closestDistance = F32_MAX;
+            BvhNode *closestPartnerNode = NULL;
+            u32 closestPartnerIndex = 0;
+
+            // TODO: Spatial hashing
+            // Find a node who's centroid is closest to ours
+            for (u32 partnerIndex = index + 1; partnerIndex < unmergedNodeCount;
+                 ++partnerIndex)
+            {
+                u32 partnerNodeIndex = unmergedNodeIndices[partnerIndex];
+                BvhNode *partnerNode = rayTracer->nodes + partnerNodeIndex;
+
+                vec3 partnerCentroid =
+                    (partnerNode->max + partnerNode->min) * 0.5f;
+
+                // Find minimal distance via length squared to avoid sqrt
+                f32 dist = LengthSq(partnerCentroid - centroid);
+                if (dist < closestDistance)
+                {
+                    closestDistance = dist;
+                    closestPartnerNode = partnerNode;
+                    closestPartnerIndex = partnerIndex;
+                }
+            }
+
+            if (closestPartnerNode != NULL)
+            {
+                // Create combined node
+                Assert(rayTracer->nodeCount < MAX_BVH_NODES);
+                u32 newNodeIndex = rayTracer->nodeCount++;
+                BvhNode *newNode = rayTracer->nodes + newNodeIndex;
+                newNode->min = Min(node->min, closestPartnerNode->min);
+                newNode->max = Max(node->max, closestPartnerNode->max);
+                newNode->children[0] = node;
+                newNode->children[1] = closestPartnerNode;
+                newNode->triangleIndex = 0;
+
+                // Start overwriting the old entries with combined nodes, should
+                // be roughly half the length as the original array
+                Assert(newUnmergedNodeCount <= index);
+                unmergedNodeIndices[newUnmergedNodeCount++] = newNodeIndex;
+
+                // Remove partner from unmerged node indices array
+                u32 last = unmergedNodeCount - 1;
+                unmergedNodeIndices[closestPartnerIndex] =
+                    unmergedNodeIndices[last];
+                unmergedNodeCount--;
+            }
+        }
+
+        unmergedNodeCount = newUnmergedNodeCount;
+    }
+
+    // Assume the last node created is the root node
+    rayTracer->root = rayTracer->nodes + (rayTracer->nodeCount - 1);
+}
+
 // TODO: Do we need to normalize cross products?
 internal f32 RayIntersectTriangle(
     vec3 rayOrigin, vec3 rayDirection, vec3 a, vec3 b, vec3 c)
 {
-    PROFILE_FUNCTION_SCOPE();
+    g_Metrics.triangleTestCount++;
+    //PROFILE_FUNCTION_SCOPE();
 
     vec3 edgeCA = c - a;
     vec3 edgeBA = b - a;
@@ -96,39 +296,81 @@ internal f32 RayIntersectTriangle(
     return -1.0f;
 }
 
-struct RayTracer
+internal f32 RayIntersectTriangleMesh(
+    BvhNode *root, MeshData meshData, vec3 rayOrigin, vec3 rayDirection)
 {
-    mat4 viewMatrix;
-    MeshData meshData;
-};
+    f32 tmin = F32_MAX;
+    BvhNode *stack[256];
+    u32 stackSize = 1;
+    stack[0] = root;
+
+    BvhNode *newStack[256];
+    u32 newStackSize = 0;
+    while (stackSize > 0)
+    {
+        BvhNode *node = stack[--stackSize];
+        f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
+        if (t > 0.0f)
+        {
+            if (node->children[0] != NULL)
+            {
+                // Assuming that this is always true?
+                Assert(node->children[1] != NULL);
+
+                Assert(newStackSize + 2 <= ArrayCount(newStack));        
+                newStack[newStackSize] = node->children[0];
+                newStack[newStackSize + 1] = node->children[1];
+                newStackSize += 2;
+            }
+            else
+            {
+                // Test triangle
+                u32 triangleIndex = node->triangleIndex;
+                u32 indices[3];
+                indices[0] = meshData.indices[triangleIndex * 3 + 0];
+                indices[1] = meshData.indices[triangleIndex * 3 + 1];
+                indices[2] = meshData.indices[triangleIndex * 3 + 2];
+
+                vec3 vertices[3];
+                vertices[0] = meshData.vertices[indices[0]].position;
+                vertices[1] = meshData.vertices[indices[1]].position;
+                vertices[2] = meshData.vertices[indices[2]].position;
+
+                t = RayIntersectTriangle(rayOrigin, rayDirection, vertices[0],
+                    vertices[1], vertices[2]);
+                if (t > 0.0f && t < tmin)
+                {
+                    tmin = t;
+                }
+            }
+        }
+
+        if (stackSize == 0)
+        {
+            stackSize = newStackSize;
+            // TODO: Use ping pong buffers rather than copying memory!
+            CopyMemory(stack, newStack, newStackSize * sizeof(BvhNode*));
+
+            newStackSize = 0;
+        }
+    }
+
+    if (tmin == F32_MAX)
+    {
+        tmin = -1.0f;
+    }
+
+    return tmin;
+}
 
 internal f32 TraceRayThroughScene(
     RayTracer *rayTracer, vec3 rayOrigin, vec3 rayDirection)
 {
+    g_Metrics.rayCount++;
     PROFILE_FUNCTION_SCOPE();
 
-    MeshData meshData = rayTracer->meshData;
-    f32 tmin = F32_MAX;
-    Assert(meshData.indexCount % 3 == 0);
-    u32 triangleCount = meshData.indexCount / 3;
-    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
-    {
-        PROFILE_SCOPE(PerTriangle);
-
-        u32 indices[3];
-        indices[0] = meshData.indices[triangleIndex*3 + 0];
-        indices[1] = meshData.indices[triangleIndex*3 + 1];
-        indices[2] = meshData.indices[triangleIndex*3 + 2];
-
-        f32 t = RayIntersectTriangle(rayOrigin, rayDirection,
-                meshData.vertices[indices[0]].position,
-                meshData.vertices[indices[1]].position,
-                meshData.vertices[indices[2]].position);
-        if (t > 0.0f)
-        {
-            tmin = Min(tmin, t);
-        }
-    }
+    f32 tmin = RayIntersectTriangleMesh(
+        rayTracer->root, rayTracer->meshData, rayOrigin, rayDirection);
 
     return tmin;
 }
@@ -152,8 +394,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTra
         filmWidth = (f32)width / (f32)height;
     }
 
-    f32 fov = 90.0f * ((f32)width / (f32)height);
-    f32 filmDistance = 1.0f / Tan(fov * 0.5f * PI / 180.0f);
+    f32 fovy = 90.0f * ((f32)width / (f32)height);
+    f32 filmDistance = 1.0f / Tan(Radians(fovy) * 0.5f);
     vec3 filmCenter = cameraForward * filmDistance + cameraPosition;
 
     f32 pixelWidth = 1.0f / (f32)width;
@@ -170,6 +412,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTra
     {
         for (u32 x = 0; x < width; ++x)
         {
+            g_Metrics.totalPixelCount++;
+
             // Map to -1 to 1 range
             f32 filmX = -1.0f + 2.0f * ((f32)x / (f32)width);
             f32 filmY = -1.0f + 2.0f * (1.0f - ((f32)y / (f32)height));
@@ -185,6 +429,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTra
             vec3 filmP = halfFilmWidth * offsetX * cameraRight +
                          halfFilmHeight * offsetY * cameraUp + filmCenter;
 
+            g_Metrics.totalSampleCount++;
+
             vec3 rayOrigin = cameraPosition;
             vec3 rayDirection = Normalize(filmP - cameraPosition);
 
@@ -196,7 +442,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels, RayTracer *rayTra
                         //Vec3(0.5f, -0.5f, 0.0f),
                         //Vec3(0.0, 0.5f, 0.0f));
             f32 t = TraceRayThroughScene(rayTracer, rayOrigin, rayDirection);
-            vec3 outputColor = (t != F32_MAX) ? Vec3(1, 0, 1) : Vec3(0, 0, 0);
+            vec3 outputColor = (t != -1.0f) ? Vec3(1, 0, 1) : Vec3(0, 0, 0);
 
             outputColor *= 255.0f;
             u32 bgra = (0xFF000000 | ((u32)outputColor.z) << 16 |
