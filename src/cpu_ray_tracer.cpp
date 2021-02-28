@@ -10,7 +10,7 @@ struct Metrics
     u64 rayCount;
     u64 totalSampleCount;
     u64 totalPixelCount;
-    // TODO: Triangle test pass/fail
+    u64 triangleHitCount;
 };
 
 global Metrics g_Metrics;
@@ -19,6 +19,7 @@ internal void DumpMetrics(Metrics *metrics)
 {
     LogMessage("AABB Test Count: %llu", metrics->aabbTestCount);
     LogMessage("Triangle Test Count: %llu", metrics->triangleTestCount);
+    LogMessage("Triangle Hit Count: %llu", metrics->triangleHitCount);
     LogMessage("Ray Count: %llu", metrics->rayCount);
     LogMessage("Total Sample Count: %llu", metrics->totalSampleCount);
     LogMessage("Total Pixel Count: %llu", metrics->totalPixelCount);
@@ -338,9 +339,13 @@ internal f32 RayIntersectTriangleMesh(
 
                 t = RayIntersectTriangle(rayOrigin, rayDirection, vertices[0],
                     vertices[1], vertices[2]);
-                if (t > 0.0f && t < tmin)
+                if (t > 0.0f)
                 {
-                    tmin = t;
+                    g_Metrics.triangleHitCount++;
+                    if (t < tmin)
+                    {
+                        tmin = t;
+                    }
                 }
             }
         }

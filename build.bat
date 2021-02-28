@@ -12,6 +12,11 @@ glslangvalidator ..\src\shaders\mesh.frag.glsl -V -o mesh.frag.spv
 glslangvalidator ..\src\shaders\fullscreen_quad.vert.glsl -V -o fullscreen_quad.vert.spv
 glslangvalidator ..\src\shaders\fullscreen_quad.frag.glsl -V -o fullscreen_quad.frag.spv
 
+REM Build unit tests
+cl %CompilerFlags% -I..\thirdparty\unity -c ../thirdparty/unity/unity.c
+cl %CompilerFlags% -I..\thirdparty\unity ../src/test.cpp -link %LinkerFlags% unity.obj
+test.exe
+
 REM Build executable
 cl %CompilerFlags% -I./ -I "%VULKAN_SDK%\Include" -I..\windows-dependencies\glfw3\include -I..\windows-dependencies\assimp\include ../src/main.cpp -link %LinkerFlags% ..\windows-dependencies\glfw3\lib\glfw3dll.lib ..\windows-dependencies\assimp\lib-vc2017\assimp-vc141-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"
 popd
