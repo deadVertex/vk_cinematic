@@ -1,28 +1,6 @@
 #pragma once
 
-struct ProfilerSample
-{
-    const char *identifier;
-    u64 timestamp;
-    u32 type;
-};
-
-enum
-{
-    ProfilerSampleType_Begin,
-    ProfilerSampleType_End,
-};
-
-#define PROFILER_SAMPLE_BUFFER_SIZE Megabytes(512)
-
-struct Profiler
-{
-    ProfilerSample *samples;
-    u32 count;
-};
-
-global Profiler g_Profiler;
-
+#ifdef ENABLE_PROFILING
 #define PROFILE_BEGIN_SCOPE(IDENTIFIER) \
 { \
     u32 __idx = g_Profiler.count++; \
@@ -46,6 +24,45 @@ global Profiler g_Profiler;
 #define PROFILE_END_FUNCTION() \
     PROFILE_END_SCOPE(__FUNCTION__)
 
+#define PROFILE_SCOPE(IDENTIFIER) \
+    ProfileScope __profileScope##IDENTIFIER(#IDENTIFIER)
+
+#define PROFILE_FUNCTION_SCOPE() \
+    ProfileScope __profileScope##__FUNCTION__(__FUNCTION__)
+#else
+// NULL MACROS
+#define PROFILE_BEGIN_SCOPE(IDENTIFIER)
+#define PROFILE_END_SCOPE(IDENTIFIER)
+#define PROFILE_BEGIN_FUNCTION()
+#define PROFILE_END_FUNCTION()
+#define PROFILE_SCOPE(IDENTIFIER)
+#define PROFILE_FUNCTION_SCOPE()
+#endif
+
+
+struct ProfilerSample
+{
+    const char *identifier;
+    u64 timestamp;
+    u32 type;
+};
+
+enum
+{
+    ProfilerSampleType_Begin,
+    ProfilerSampleType_End,
+};
+
+#define PROFILER_SAMPLE_BUFFER_SIZE Megabytes(512)
+
+struct Profiler
+{
+    ProfilerSample *samples;
+    u32 count;
+};
+
+global Profiler g_Profiler;
+
 struct ProfileScope
 {
     const char *identifier;
@@ -60,12 +77,6 @@ struct ProfileScope
         PROFILE_END_SCOPE(identifier);
     }
 };
-
-#define PROFILE_SCOPE(IDENTIFIER) \
-    ProfileScope __profileScope##IDENTIFIER(#IDENTIFIER)
-
-#define PROFILE_FUNCTION_SCOPE() \
-    ProfileScope __profileScope##__FUNCTION__(__FUNCTION__)
 
 struct ProfilerResult
 {

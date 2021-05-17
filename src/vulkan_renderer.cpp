@@ -322,6 +322,33 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     return descriptorSetLayout;
 }
 
+internal VkDescriptorSetLayout VulkanCreateDebugDrawDescriptorSetLayout(
+    VkDevice device)
+{
+    VkDescriptorSetLayoutBinding layoutBindings[2] = {};
+    layoutBindings[0].binding = 0;
+    layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layoutBindings[0].descriptorCount = 1;
+    layoutBindings[0].stageFlags =
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[1].binding = 1;
+    layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[1].descriptorCount = 1;
+    layoutBindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutCreateInfo createInfo = {
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    createInfo.bindingCount = ArrayCount(layoutBindings);
+    createInfo.pBindings = layoutBindings;
+
+    VkDescriptorSetLayout descriptorSetLayout;
+
+    VK_CHECK(vkCreateDescriptorSetLayout(
+        device, &createInfo, NULL, &descriptorSetLayout));
+
+    return descriptorSetLayout;
+}
+
 internal VkPipelineLayout VulkanCreatePipelineLayout(
     VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
 {
@@ -439,6 +466,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+    renderer->debugVertexDataBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            DEBUG_VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
     // Load shaders
     renderer->testVertexShader = LoadShader(renderer->device, "mesh.vert.spv");
     renderer->testFragmentShader = LoadShader(renderer->device, "mesh.frag.spv");
@@ -446,6 +479,9 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     // Load fullscreen quad shaders
     renderer->fullscreenQuadVertexShader = LoadShader(renderer->device, "fullscreen_quad.vert.spv");
     renderer->fullscreenQuadFragmentShader = LoadShader(renderer->device, "fullscreen_quad.frag.spv");
+
+    renderer->debugDrawVertexShader = LoadShader(renderer->device, "debug_draw.vert.spv");
+    renderer->debugDrawFragmentShader = LoadShader(renderer->device, "debug_draw.frag.spv");
 
     // TODO: CLAMP_TO_EDGE sampler 
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
@@ -471,9 +507,15 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->descriptorSetLayout =
         VulkanCreateDescriptorSetLayout(renderer->device, renderer->defaultSampler);
 
+    renderer->debugDrawDescriptorSetLayout =
+        VulkanCreateDebugDrawDescriptorSetLayout(renderer->device);
+
     // Create pipeline layout
     renderer->pipelineLayout = VulkanCreatePipelineLayout(
         renderer->device, renderer->descriptorSetLayout);
+
+    renderer->debugDrawPipelineLayout = VulkanCreatePipelineLayout(
+        renderer->device, renderer->debugDrawDescriptorSetLayout);
 
     // Create pipeline
     VulkanPipelineDefinition pipelineDefinition = {};
@@ -504,6 +546,20 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->pipelineLayout, renderer->fullscreenQuadVertexShader,
         renderer->fullscreenQuadFragmentShader, &fullscreenQuadPipeline);
 
+    // Create debug draw pipeline
+    VulkanPipelineDefinition debugDrawPipelineDefinition = {};
+    debugDrawPipelineDefinition.vertexStride = sizeof(VertexPC);
+    debugDrawPipelineDefinition.primitive = Primitive_Line;
+    debugDrawPipelineDefinition.polygonMode = PolygonMode_Fill;
+    debugDrawPipelineDefinition.cullMode = CullMode_None;
+    debugDrawPipelineDefinition.depthTestEnabled = false;
+    debugDrawPipelineDefinition.depthWriteEnabled = false;
+
+    renderer->debugDrawPipeline = VulkanCreatePipeline(renderer->device,
+        renderer->pipelineCache, renderer->renderPass,
+        renderer->debugDrawPipelineLayout, renderer->debugDrawVertexShader,
+        renderer->debugDrawFragmentShader, &debugDrawPipelineDefinition);
+
     // Allocate descriptor sets
     {
         VkDescriptorSetLayout layouts[2] = {
@@ -511,6 +567,16 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         Assert(ArrayCount(layouts) == ArrayCount(renderer->descriptorSets));
         VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
             layouts, ArrayCount(layouts), renderer->descriptorSets);
+    }
+
+    // Allocate debug draw descriptor sets
+    {
+        VkDescriptorSetLayout layouts[2] = {
+            renderer->debugDrawDescriptorSetLayout,
+            renderer->debugDrawDescriptorSetLayout};
+        Assert(ArrayCount(layouts) == ArrayCount(renderer->debugDrawDescriptorSets));
+        VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
+            layouts, ArrayCount(layouts), renderer->debugDrawDescriptorSets);
     }
 
     // Populate vertex data buffer
@@ -594,6 +660,35 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[2].descriptorCount = 1;
         descriptorWrites[2].pImageInfo = &imageInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
+
+    // Update debug draw descriptor sets
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorBufferInfo uniformBufferInfo = {};
+        uniformBufferInfo.buffer = renderer->uniformBuffer.handle;
+        uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo vertexDataBufferInfo = {};
+        vertexDataBufferInfo.buffer =
+            renderer->debugVertexDataBuffer.handle;
+        vertexDataBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet descriptorWrites[2] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->debugDrawDescriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = renderer->debugDrawDescriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &vertexDataBufferInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
@@ -682,6 +777,17 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene)
         //vkCmdDraw(renderer->commandBuffer, renderer->indexCount, 1, 0, 0);
         vkCmdDrawIndexed(renderer->commandBuffer, renderer->indexCount, 1,
             0, 0, 0);
+
+        // Draw debug buffer
+        vkCmdBindDescriptorSets(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->debugDrawPipelineLayout, 0, 1,
+            &renderer->debugDrawDescriptorSets[imageIndex], 0, NULL);
+
+        vkCmdBindPipeline(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->debugDrawPipeline);
+
+        vkCmdDraw(
+            renderer->commandBuffer, renderer->debugDrawVertexCount, 1, 0, 0);
     }
     else
     {

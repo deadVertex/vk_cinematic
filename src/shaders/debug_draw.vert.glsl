@@ -1,5 +1,6 @@
 #version 450
 
+// TODO: Move to common header
 layout(binding = 0) uniform UniformBufferObject {
     mat4 viewMatrices[16];
     mat4 projectionMatrices[16];
@@ -12,19 +13,12 @@ struct VertexPC
     float cr, cg, cb;
 };
 
-struct VertexPNT
-{
-    float px, py, pz;
-    float nx, ny, nz;
-    float tx, ty;
-};
-
 layout(binding = 1) readonly buffer Vertices
 {
-    VertexPNT vertices[];
+    VertexPC vertices[];
 };
 
-layout(location = 0) out vec4 fragColor;
+layout(location = 0) out vec3 vertexColor;
 
 void main()
 {
@@ -36,18 +30,14 @@ void main()
             vertices[gl_VertexIndex + vertexDataOffset].py,
             vertices[gl_VertexIndex + vertexDataOffset].pz);
 
-    vec3 inNormal = vec3(
-            vertices[gl_VertexIndex + vertexDataOffset].nx,
-            vertices[gl_VertexIndex + vertexDataOffset].ny,
-            vertices[gl_VertexIndex + vertexDataOffset].nz);
-
-    vec2 inTextureCoord = vec2(
-            vertices[gl_VertexIndex + vertexDataOffset].tx,
-            vertices[gl_VertexIndex + vertexDataOffset].ty);
+    vec3 inColor = vec3(
+            vertices[gl_VertexIndex + vertexDataOffset].cr,
+            vertices[gl_VertexIndex + vertexDataOffset].cg,
+            vertices[gl_VertexIndex + vertexDataOffset].cb);
 
     gl_Position = ubo.projectionMatrices[uboIndex] *
                   ubo.viewMatrices[uboIndex] * 
                   vec4(inPosition, 1.0);
 
-    fragColor = vec4(inNormal, 1.0);
+    vertexColor = inColor;
 }

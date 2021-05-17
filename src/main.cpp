@@ -33,18 +33,14 @@ internal void FreeMemory(void *p);
 internal DebugReadEntireFile(ReadEntireFile);
 
 #include "vulkan_renderer.h"
-struct MeshData
-{
-    VertexPNT *vertices;
-    u32 *indices;
-    u32 vertexCount;
-    u32 indexCount;
-};
-
+#include "mesh.h"
 #include "profiler.h"
+#include "debug.h"
 
+#include "debug.cpp"
 #include "cpu_ray_tracer.cpp"
 #include "vulkan_renderer.cpp"
+#include "mesh.cpp"
 
 global GLFWwindow *g_Window;
 global u32 g_FramebufferWidth = 1024;
@@ -303,7 +299,7 @@ internal void UpdateFreeRoamCamera(
     vec3 rotation = camera->rotation;
 
     f32 speed = 20.0f; //200.0f;
-    f32 friction = 7.0f;
+    f32 friction = 18.0f;
 
     f32 sens = 0.005f;
     f32 mouseX = -input->mouseRelPosY * sens;
@@ -403,63 +399,6 @@ internal void Update(
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
-// TODO: Copy raw mesh data into vertexUploadBuffer for vulkan renderer
-// TODO: Copy into some sort of triangle mesh structure for our CPU ray tracer
-internal MeshData LoadMesh()
-{
-    MeshData result = {};
-
-    const struct aiScene *scene = aiImportFile("../assets/bunny.obj",
-        aiProcess_CalcTangentSpace | aiProcess_Triangulate |
-            aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
-
-    if (!scene)
-    {
-        LogMessage("Mesh import failed!\n%s\n", aiGetErrorString());
-        return result;
-    }
-
-    Assert(scene->mNumMeshes > 0);
-    aiMesh *mesh = scene->mMeshes[0];
-
-    // TODO: Replace with AllocateMemory?
-    VertexPNT *vertices = (VertexPNT *)calloc(mesh->mNumVertices, sizeof(VertexPNT));
-    u32 indexCount = mesh->mNumFaces * 3; // We only support triangles
-    u32 *indices = (u32 *)calloc(indexCount, sizeof(u32));
-
-    // NOTE: mesh->mVertices is always present
-    Assert(mesh->mNormals);
-
-    for (u32 vertexIndex = 0; vertexIndex < mesh->mNumVertices; ++vertexIndex)
-    {
-        VertexPNT *vertex = vertices + vertexIndex;
-        vertex->position.x = mesh->mVertices[vertexIndex].x;
-        vertex->position.y = mesh->mVertices[vertexIndex].y;
-        vertex->position.z = mesh->mVertices[vertexIndex].z;
-
-        vertex->normal.x = mesh->mNormals[vertexIndex].x;
-        vertex->normal.y = mesh->mNormals[vertexIndex].y;
-        vertex->normal.z = mesh->mNormals[vertexIndex].z;
-    }
-
-    for (u32 triangleIndex = 0; triangleIndex < mesh->mNumFaces; ++triangleIndex)
-    {
-        aiFace *face = mesh->mFaces + triangleIndex;
-        indices[triangleIndex*3 + 0] = face->mIndices[0];
-        indices[triangleIndex*3 + 1] = face->mIndices[1];
-        indices[triangleIndex*3 + 2] = face->mIndices[2];
-    }
-
-    result.vertices = vertices;
-    result.indices= indices;
-    result.vertexCount = mesh->mNumVertices;
-    result.indexCount = indexCount;
-
-    aiReleaseImport(scene);
-
-    return result;
-}
-
 #ifdef PLATFORM_WINDOWS
 int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine,
             int cmdShow)
@@ -514,38 +453,123 @@ int main(int argc, char **argv)
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};
 
+    DebugDrawingBuffer debugDrawBuffer = {};
+    debugDrawBuffer.vertices = (VertexPC *)renderer.debugVertexDataBuffer.data;
+    debugDrawBuffer.max = DEBUG_VERTEX_BUFFER_SIZE / sizeof(VertexPC);
+
+    vec3 lastCameraPosition = g_camera.position;
+    vec3 lastCameraRotation = g_camera.rotation;
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
+    u32 maxDepth = 1;
     while (!glfwWindowShouldClose(g_Window))
     {
+        f32 dt = prevFrameTime;
+        dt = Min(dt, 0.25f);
+        if (drawScene)
+        {
+            dt = 0.016f;
+        }
+
+        debugDrawBuffer.count = 0;
+
+
         f64 frameStart = glfwGetTime();
         InputBeginFrame(&input);
         glfwPollEvents();
 
+        b32 isDirty = false;
         if (WasPressed(input.buttonStates[KEY_SPACE]))
         {
             drawScene = !drawScene;
-            if (!drawScene)
-            {
-                f64 rayTracingStartTime = glfwGetTime();
-                DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
-                    (u32 *)renderer.imageUploadBuffer.data, &rayTracer);
-                f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
-                LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
-                LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
-
-                DumpMetrics(&g_Metrics);
-                Profiler_ProcessResults(&g_Profiler, &profilerResults);
-                Profiler_PrintResults(&profilerResults);
-                ClearToZero(&profilerResults, sizeof(profilerResults));
-                LogMessage("Rays per second: %g",
-                    (f64)g_Metrics.rayCount / rayTracingElapsedTime);
-                ClearToZero(&g_Metrics, sizeof(g_Metrics));
-                VulkanCopyImageFromCPU(&renderer);
-            }
+            isDirty = true;
         }
 
-        Update(&renderer, &rayTracer, &input, prevFrameTime);
+        if (WasPressed(input.buttonStates[KEY_TAB]))
+        {
+            rayTracer.useAccelerationStructure = !rayTracer.useAccelerationStructure;
+            isDirty = true;
+        }
+
+        if (LengthSq(g_camera.position - lastCameraPosition) > 0.0001f ||
+            LengthSq(g_camera.rotation - lastCameraRotation) > 0.0001f)
+        {
+            lastCameraPosition = g_camera.position;
+            lastCameraRotation = g_camera.rotation;
+            isDirty = true;
+        }
+
+        if (WasPressed(input.buttonStates[KEY_UP]))
+        {
+            maxDepth++;
+        }
+        if (WasPressed(input.buttonStates[KEY_DOWN]))
+        {
+            if (maxDepth > 0)
+            {
+                maxDepth--;
+            }
+        }
+        
+        if (!drawScene && isDirty)
+        {
+            f64 rayTracingStartTime = glfwGetTime();
+            DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
+                (u32 *)renderer.imageUploadBuffer.data, &rayTracer,
+                &debugDrawBuffer);
+            f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
+            LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
+                g_camera.position.y, g_camera.position.z);
+            LogMessage("Camera Rotation: (%g, %g, %g)", g_camera.rotation.x,
+                g_camera.rotation.y, g_camera.rotation.z);
+            LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
+            LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
+
+            DumpMetrics(&g_Metrics);
+            Profiler_ProcessResults(&g_Profiler, &profilerResults);
+            Profiler_PrintResults(&profilerResults);
+            ClearToZero(&profilerResults, sizeof(profilerResults));
+            LogMessage("Rays per second: %g",
+                    (f64)g_Metrics.rayCount / rayTracingElapsedTime);
+            ClearToZero(&g_Metrics, sizeof(g_Metrics));
+            VulkanCopyImageFromCPU(&renderer);
+            isDirty = false;
+        }
+        else
+        {
+            vec3 rotation = Vec3(-0.145001, 0.25, 0);
+            quat cameraRotation = Quat(Vec3(0, 1, 0), rotation.y) *
+                                  Quat(Vec3(1, 0, 0), rotation.x);
+            rayTracer.viewMatrix =
+                Translate(Vec3(0.0141059, 0.106304, 0.163337)) *
+                Rotate(cameraRotation);
+            rayTracer.debugDrawBuffer = &debugDrawBuffer;
+            rayTracer.maxDepth = maxDepth;
+            rayTracer.useAccelerationStructure = true;
+
+            u32 width = RAY_TRACER_WIDTH;
+            u32 height = RAY_TRACER_HEIGHT;
+
+            CameraConstants camera =
+                CalculateCameraConstants(rayTracer.viewMatrix, width, height);
+
+            u32 x = 423 / 16;
+            u32 y = 541 / 16;
+
+            vec3 filmP = CalculateFilmP(&camera, width, height, x, y);
+
+            vec3 rayOrigin = camera.cameraPosition;
+            vec3 rayDirection = Normalize(filmP - camera.cameraPosition);
+
+            DrawLine(&debugDrawBuffer, rayOrigin,
+                rayOrigin + rayDirection * 100.0f, Vec3(1, 0, 0));
+
+            RayHitResult rayHit = TraceRayThroughScene(
+                &rayTracer, rayOrigin, rayDirection);
+        }
+
+        Update(&renderer, &rayTracer, &input, dt);
+        renderer.debugDrawVertexCount = debugDrawBuffer.count;
         VulkanRender(&renderer, drawScene);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }

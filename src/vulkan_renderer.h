@@ -1,25 +1,13 @@
 #pragma once
 
 #include "math_lib.h"
+#include "mesh.h"
 
 #define VERTEX_BUFFER_SIZE Megabytes(512)
 #define INDEX_BUFFER_SIZE Megabytes(2)
 #define UNIFORM_BUFFER_SIZE Kilobytes(4)
 #define IMAGE_BUFFER_SIZE Megabytes(64)
-
-#pragma pack(push)
-struct VertexPC
-{
-    vec3 position;
-    vec3 color;
-};
-struct VertexPNT
-{
-    vec3 position;
-    vec3 normal;
-    vec2 textureCoord;
-};
-#pragma pack(pop)
+#define DEBUG_VERTEX_BUFFER_SIZE Megabytes(256)
 
 struct UniformBufferObject
 {
@@ -122,6 +110,8 @@ struct VulkanRenderer
     VulkanBuffer indexBuffer;
     VulkanBuffer imageUploadBuffer;
 
+    VulkanBuffer debugVertexDataBuffer;
+
     VkSampler defaultSampler;
 
     // Triangle stuff
@@ -142,6 +132,15 @@ struct VulkanRenderer
     VulkanImage image;
     VkImageView imageView;
 
+    // Debug draw buffer
+    VkShaderModule debugDrawVertexShader;
+    VkShaderModule debugDrawFragmentShader;
+    VkPipeline debugDrawPipeline;
+    VkPipelineLayout debugDrawPipelineLayout;
+    VkDescriptorSetLayout debugDrawDescriptorSetLayout;
+    VkDescriptorSet debugDrawDescriptorSets[2];
+
     u32 vertexCount;
     u32 indexCount;
+    u32 debugDrawVertexCount;
 };
