@@ -53,12 +53,9 @@ internal DebugLogMessage(LogMessage_)
     va_start(args, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
-#ifdef PLATFORM_WINDOWS
-    OutputDebugString(buffer);
-    OutputDebugString("\n");
-#elif defined(PLATFORM_LINUX)
+    //OutputDebugString(buffer);
+    //OutputDebugString("\n");
     puts(buffer);
-#endif
 }
 
 internal void GlfwErrorCallback(int error, const char *description)
@@ -399,12 +396,7 @@ internal void Update(
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
-#ifdef PLATFORM_WINDOWS
-int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine,
-            int cmdShow)
-#elif defined(PLATFORM_LINUX)
 int main(int argc, char **argv)
-#endif
 {
     LogMessage = &LogMessage_;
 
