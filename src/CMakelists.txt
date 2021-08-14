@@ -1,0 +1,12 @@
+# Link again WinMain() entry point rather than standard main() on windows
+# See https://cmake.org/cmake/help/latest/prop_tgt/WIN32_EXECUTABLE.html
+set(CMAKE_WIN32_EXECUTABLE TRUE)
+
+# Using the concept of a 'unity' build in C++ which is where you #include your
+# .cpp files into our main.cpp file to create one giant translation unit which
+# compiles much faster than having many separate files. See
+# https://en.wikipedia.org/wiki/Unity_build
+# TODO: Apparently CMake supports unity builds?!?!?
+add_executable(main main.cpp)
+
+target_link_libraries(main glfw3dll.lib assimp-vc141-mt.lib "$ENV{VULKAN_SDK}/Lib/vulkan-1.lib")

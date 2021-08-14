@@ -1,0 +1,18 @@
+# TODO: Not sure about this min version, copied from other personal project
+cmake_minimum_required(VERSION 3.13)
+
+project(vk_cinematic LANGUAGES CXX)
+
+# TODO: find_package for assimp, glfw3, vulkan, etc
+
+# GLFW3
+include_directories(windows-dependencies/glfw3/include)
+link_directories(windows-dependencies/glfw3/lib)
+
+# Assimp
+include_directories(windows-dependencies/assimp/include)
+link_directories(windows-dependencies/assimp/lib-vc2017)
+
+include_directories($ENV{VULKAN_SDK}/Include)
+
+add_subdirectory(src)
