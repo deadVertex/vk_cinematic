@@ -1,0 +1,5 @@
+# TODO: CMake submodule update see
+# https://github.com/simdjson/cmakedemo/blob/master/dependencies/CMakeLists.txt
+# More info from https://cliutils.gitlab.io/modern-cmake/chapters/projects/submodule.html
+add_subdirectory(glfw EXCLUDE_FROM_ALL)
+add_subdirectory(assimp EXCLUDE_FROM_ALL)

@@ -7,4 +7,4 @@ add_subdirectory(shaders)
 # TODO: Apparently CMake supports unity builds?!?!?
 add_executable(main main.cpp)
 
-target_link_libraries(main glfw3dll.lib assimp-vc141-mt.lib "$ENV{VULKAN_SDK}/Lib/vulkan-1.lib")
+target_link_libraries(main glfw assimp "$ENV{VULKAN_SDK}/Lib/vulkan-1.lib")

@@ -5,15 +5,9 @@ project(vk_cinematic LANGUAGES CXX)
 
 # TODO: find_package for assimp, glfw3, vulkan, etc
 
-# GLFW3
-include_directories(windows-dependencies/glfw3/include)
-link_directories(windows-dependencies/glfw3/lib)
-
-# Assimp
-include_directories(windows-dependencies/assimp/include)
-link_directories(windows-dependencies/assimp/lib-vc2017)
-
 include_directories($ENV{VULKAN_SDK}/Include)
+
+add_subdirectory(dependencies)
 
 # FIXME: Only for windows
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7")
