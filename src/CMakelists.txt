@@ -1,3 +1,5 @@
+add_subdirectory(shaders)
+
 # Using the concept of a 'unity' build in C++ which is where you #include your
 # .cpp files into our main.cpp file to create one giant translation unit which
 # compiles much faster than having many separate files. See

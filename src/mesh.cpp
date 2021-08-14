@@ -6,7 +6,7 @@ internal MeshData LoadMesh()
 {
     MeshData result = {};
 
-    const struct aiScene *scene = aiImportFile("../assets/bunny.obj",
+    const struct aiScene *scene = aiImportFile("bunny.obj",
         aiProcess_CalcTangentSpace | aiProcess_Triangulate |
             aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
 
