@@ -289,7 +289,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[5] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[4] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -308,10 +308,6 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     layoutBindings[3].descriptorCount = 1;
     layoutBindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    layoutBindings[4].binding = 4;
-    layoutBindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    layoutBindings[4].descriptorCount = 1;
-    layoutBindings[4].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -473,12 +469,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->debugVertexDataBuffer =
         VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
             DEBUG_VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    renderer->modelMatricesBuffer = 
-        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
-            MODEL_MATRICES_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -646,15 +636,11 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             renderer->vertexDataBuffer.handle;
         vertexDataBufferInfo.range = VK_WHOLE_SIZE;
 
-        VkDescriptorBufferInfo modelMatricesBufferInfo = {};
-        modelMatricesBufferInfo.buffer = renderer->modelMatricesBuffer.handle;
-        modelMatricesBufferInfo.range = VK_WHOLE_SIZE;
-
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = renderer->imageView;
 
-        VkWriteDescriptorSet descriptorWrites[4] = {};
+        VkWriteDescriptorSet descriptorWrites[3] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -674,12 +660,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[2].descriptorCount = 1;
         descriptorWrites[2].pImageInfo = &imageInfo;
-        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[3].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[3].dstBinding = 2;
-        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[3].descriptorCount = 1;
-        descriptorWrites[3].pBufferInfo = &modelMatricesBufferInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
