@@ -176,7 +176,10 @@ internal VkFramebuffer VulkanCreateFramebuffer(VkDevice device,
 
 internal VkShaderModule LoadShader(VkDevice device, const char *path)
 {
-    DebugReadFileResult fileData = ReadEntireFile(path);
+    char fullPath[256];
+    snprintf(fullPath, sizeof(fullPath), "%s/%s", SHADER_PATH, path);
+
+    DebugReadFileResult fileData = ReadEntireFile(fullPath);
     Assert(fileData.contents);
     Assert(fileData.length % 4 == 0);
 

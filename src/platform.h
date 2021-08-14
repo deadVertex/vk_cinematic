@@ -2,13 +2,19 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 
 #include <intrin.h>
 
+#ifdef NO_STDLIB
+#define Abort() (*(volatile int *)0 = 0)
+#else
+#define Abort() abort()
+#endif
 #define Assert(X)                              \
     if (!(X)) {                                \
         LogMessage("%s:%d: Assertion failed!\n\t" #X, __FILE__, __LINE__); \
-        *(volatile int *)0 = 0;                         \
+        Abort(); \
     }
 #define InvalidCodePath() \
     Assert(!"Invalid code path!")

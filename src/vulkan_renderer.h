@@ -10,6 +10,8 @@
 #define DEBUG_VERTEX_BUFFER_SIZE Megabytes(256)
 #define MODEL_MATRICES_BUFFER_SIZE Megabytes(4)
 
+#define SHADER_PATH "src/shaders"
+
 struct UniformBufferObject
 {
     mat4 viewMatrices[16];
