@@ -14,7 +14,8 @@
         "ASSIMP_NO_EXPORT": "ON",
         "ASSIMP_BUILD_ASSIMP_TOOLS": "OFF",
         "ASSIMP_BUILD_TESTS": "OFF",
-        "ASSIMP_INSTALL_PDB": "OFF"
+        "ASSIMP_INSTALL_PDB": "OFF",
+        "INJECT_DEBUG_POSTFIX": "OFF"
       }
     }
   ],
