@@ -196,7 +196,7 @@ internal VkSwapchainKHR VulkanCreateSwapchain(VkDevice device,
         createInfo.queueFamilyIndexCount = ArrayCount(queueFamilyIndicesArray);
         createInfo.pQueueFamilyIndices = queueFamilyIndicesArray;
     }
-    createInfo.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; // FIXME: Always supported?
+    createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; //VK_PRESENT_MODE_IMMEDIATE_KHR; // FIXME: Always supported?
     createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 

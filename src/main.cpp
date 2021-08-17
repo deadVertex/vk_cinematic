@@ -505,6 +505,7 @@ int main(int argc, char **argv)
         
         if (!drawScene && isDirty)
         {
+            LogMessage("Begin ray tracing");
             f64 rayTracingStartTime = glfwGetTime();
             DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
                 (u32 *)renderer.imageUploadBuffer.data, &rayTracer,
@@ -526,38 +527,6 @@ int main(int argc, char **argv)
             ClearToZero(&g_Metrics, sizeof(g_Metrics));
             VulkanCopyImageFromCPU(&renderer);
             isDirty = false;
-        }
-        else
-        {
-            vec3 rotation = Vec3(-0.145001, 0.25, 0);
-            quat cameraRotation = Quat(Vec3(0, 1, 0), rotation.y) *
-                                  Quat(Vec3(1, 0, 0), rotation.x);
-            rayTracer.viewMatrix =
-                Translate(Vec3(0.0141059, 0.106304, 0.163337)) *
-                Rotate(cameraRotation);
-            rayTracer.debugDrawBuffer = &debugDrawBuffer;
-            rayTracer.maxDepth = maxDepth;
-            rayTracer.useAccelerationStructure = true;
-
-            u32 width = RAY_TRACER_WIDTH;
-            u32 height = RAY_TRACER_HEIGHT;
-
-            CameraConstants camera =
-                CalculateCameraConstants(rayTracer.viewMatrix, width, height);
-
-            u32 x = 423 / 16;
-            u32 y = 541 / 16;
-
-            vec3 filmP = CalculateFilmP(&camera, width, height, x, y);
-
-            vec3 rayOrigin = camera.cameraPosition;
-            vec3 rayDirection = Normalize(filmP - camera.cameraPosition);
-
-            DrawLine(&debugDrawBuffer, rayOrigin,
-                rayOrigin + rayDirection * 100.0f, Vec3(1, 0, 0));
-
-            RayHitResult rayHit = TraceRayThroughScene(
-                &rayTracer, rayOrigin, rayDirection);
         }
 
         Update(&renderer, &rayTracer, &input, dt);

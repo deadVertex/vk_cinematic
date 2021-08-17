@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 0,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "binaryDir": "${sourceDir}/dependencies/build",
+      "installDir": "${sourceDir}/build/dependencies",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": "ON",
+        "GLFW_BUILD_EXAMPLES": "OFF",
+        "GLFW_BUILD_TESTS": "OFF",
+        "GLFW_BUILD_DOCS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "configuration": "Release"
+    }
+  ]
+}
