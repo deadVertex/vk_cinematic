@@ -11,10 +11,10 @@
       "binaryDir": "${sourceDir}/build",
       "installDir": "${sourceDir}/build/install",
       "cacheVariables": {
-        "BUILD_SHARED_LIBS": "ON",
-        "GLFW_BUILD_EXAMPLES": "OFF",
-        "GLFW_BUILD_TESTS": "OFF",
-        "GLFW_BUILD_DOCS": "OFF"
+        "ASSIMP_NO_EXPORT": "ON",
+        "ASSIMP_BUILD_ASSIMP_TOOLS": "OFF",
+        "ASSIMP_BUILD_TESTS": "OFF",
+        "ASSIMP_INSTALL_PDB": "OFF"
       }
     }
   ],
