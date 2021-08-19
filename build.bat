@@ -20,5 +20,5 @@ REM cl %CompilerFlags% -Od -I..\thirdparty\unity -I..\windows-dependencies\assim
 REM test.exe
 
 REM Build executable
-cl %CompilerFlags% -O2 -I./ -I "%VULKAN_SDK%\Include" -I..\windows-dependencies\glfw3\include -I..\windows-dependencies\assimp\include ../src/main.cpp -link %LinkerFlags% ..\windows-dependencies\glfw3\lib\glfw3dll.lib ..\windows-dependencies\assimp\lib-vc2017\assimp-vc141-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"
+cl %CompilerFlags% -O2 -I./ -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"
 popd

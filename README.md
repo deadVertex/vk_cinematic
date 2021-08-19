@@ -20,15 +20,35 @@ git clone git@github.com:deadVertex/vk_cinematic.git
 git submodule update --init
 ```
 
-The source code for the project can then be built with the standard cmake
-commands.
+Next you will need to build the dependencies for the project.
+```
+build_dependencies.bat
+```
+
+You can then build the project with the standard commands.
 ```
 cmake -B build
 cmake --build build
 ```
 
-Once built navigate into the build directory and run the executable.
+Before you can run the project you will need to manually copy the DLL files for
+the dependencies to the same directory as the main.exe binary that was built.
+
+Copy /dependencies/glfw/build/install/bin/glfw3.dll to /build/src/Debug
+Copy /dependencies/assimp/build/install/bin/*.dll to /build/src/Debug
+
+You can then navigate into the build directory and run the executable.
 ```
 cd build
 src/Debug/main.exe
+```
+
+## Minimalist Build System
+Its also possible to use the old build.bat Handmade Hero style build system.
+Although you will still need to use cmake to build the dependencies like in the
+main instructions and copy the DLL files to the build directory.
+
+After that initial setup you can then just build the application by running
+```
+build.bat
 ```
