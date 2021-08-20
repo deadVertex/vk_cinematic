@@ -8,8 +8,10 @@
 #define UNIFORM_BUFFER_SIZE Kilobytes(4)
 #define IMAGE_BUFFER_SIZE Megabytes(64)
 #define DEBUG_VERTEX_BUFFER_SIZE Megabytes(256)
+#define MODEL_MATRICES_BUFFER_SIZE Megabytes(4)
 
-#define SHADER_PATH "src/shaders"
+//#define SHADER_PATH "src/shaders"
+#define SHADER_PATH "shaders"
 
 struct UniformBufferObject
 {
@@ -111,6 +113,7 @@ struct VulkanRenderer
     VulkanBuffer indexUploadBuffer;
     VulkanBuffer indexBuffer;
     VulkanBuffer imageUploadBuffer;
+    VulkanBuffer modelMatricesBuffer;
 
     VulkanBuffer debugVertexDataBuffer;
 

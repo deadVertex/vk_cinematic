@@ -53,8 +53,8 @@ internal DebugLogMessage(LogMessage_)
     va_start(args, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
-    //OutputDebugString(buffer);
-    //OutputDebugString("\n");
+    OutputDebugString(buffer);
+    OutputDebugString("\n");
     puts(buffer);
 }
 
@@ -440,6 +440,7 @@ int main(int argc, char **argv)
     RayTracer rayTracer = {};
     rayTracer.nodes = (BvhNode *)AllocateMemory(sizeof(BvhNode) * MAX_BVH_NODES);
     rayTracer.meshData = bunnyMesh;
+    rayTracer.useAccelerationStructure = true;
     BuildBvh(&rayTracer, bunnyMesh);
 
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
@@ -448,6 +449,10 @@ int main(int argc, char **argv)
     DebugDrawingBuffer debugDrawBuffer = {};
     debugDrawBuffer.vertices = (VertexPC *)renderer.debugVertexDataBuffer.data;
     debugDrawBuffer.max = DEBUG_VERTEX_BUFFER_SIZE / sizeof(VertexPC);
+    rayTracer.debugDrawBuffer = &debugDrawBuffer;
+
+    mat4 *modelMatrices = (mat4 *)renderer.modelMatricesBuffer.data;
+    modelMatrices[0] = Scale(Vec3(1,1,1));
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
@@ -508,8 +513,7 @@ int main(int argc, char **argv)
             LogMessage("Begin ray tracing");
             f64 rayTracingStartTime = glfwGetTime();
             DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
-                (u32 *)renderer.imageUploadBuffer.data, &rayTracer,
-                &debugDrawBuffer);
+                (u32 *)renderer.imageUploadBuffer.data, &rayTracer);
             f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
             LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
                 g_camera.position.y, g_camera.position.z);

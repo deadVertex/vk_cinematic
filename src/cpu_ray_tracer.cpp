@@ -22,7 +22,6 @@ struct Metrics
 };
 
 global Metrics g_Metrics;
-global DebugDrawingBuffer *g_DebugDrawingBuffer;
 
 internal void DumpMetrics(Metrics *metrics)
 {
@@ -569,15 +568,13 @@ inline vec3 CalculateFilmP(
     return filmP;
 }
 
-internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
-    RayTracer *rayTracer, DebugDrawingBuffer *debugDrawBuffer)
+internal void DoRayTracing(
+    u32 width, u32 height, u32 *pixels, RayTracer *rayTracer)
 {
     PROFILE_FUNCTION_SCOPE();
 
     CameraConstants camera =
         CalculateCameraConstants(rayTracer->viewMatrix, width, height);
-
-    g_DebugDrawingBuffer = debugDrawBuffer;
 
     for (u32 y = 0; y < height; ++y)
     {

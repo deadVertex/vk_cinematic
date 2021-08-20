@@ -4,15 +4,16 @@ set CompilerFlags=-MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4305 -wd4127 
 set LinkerFlags=-opt:ref -incremental:no
 
 if not exist build mkdir build
+if not exist build\shaders mkdir build\shaders
 
 pushd build
 
-glslangvalidator ..\src\shaders\mesh.vert.glsl -V -o mesh.vert.spv
-glslangvalidator ..\src\shaders\mesh.frag.glsl -V -o mesh.frag.spv
-glslangvalidator ..\src\shaders\fullscreen_quad.vert.glsl -V -o fullscreen_quad.vert.spv
-glslangvalidator ..\src\shaders\fullscreen_quad.frag.glsl -V -o fullscreen_quad.frag.spv
-glslangvalidator ..\src\shaders\debug_draw.vert.glsl -V -o debug_draw.vert.spv
-glslangvalidator ..\src\shaders\debug_draw.frag.glsl -V -o debug_draw.frag.spv
+glslangvalidator ..\src\shaders\mesh.vert.glsl -V -o shaders\mesh.vert.spv
+glslangvalidator ..\src\shaders\mesh.frag.glsl -V -o shaders\mesh.frag.spv
+glslangvalidator ..\src\shaders\fullscreen_quad.vert.glsl -V -o shaders\fullscreen_quad.vert.spv
+glslangvalidator ..\src\shaders\fullscreen_quad.frag.glsl -V -o shaders\fullscreen_quad.frag.spv
+glslangvalidator ..\src\shaders\debug_draw.vert.glsl -V -o shaders\debug_draw.vert.spv
+glslangvalidator ..\src\shaders\debug_draw.frag.glsl -V -o shaders\debug_draw.frag.spv
 
 REM Build unit tests
 REM cl %CompilerFlags% -Od -I..\thirdparty\unity -c ../thirdparty/unity/unity.c

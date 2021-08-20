@@ -24,12 +24,18 @@ layout(binding = 1) readonly buffer Vertices
     VertexPNT vertices[];
 };
 
+layout(binding = 4) readonly buffer ModelMatrices
+{
+    mat4 modelMatrices[];
+};
+
 layout(location = 0) out vec4 fragColor;
 
 void main()
 {
     uint vertexDataOffset = 0;
     uint uboIndex = 0;
+    uint modelMatrixIndex = 0;
 
     vec3 inPosition = vec3(
             vertices[gl_VertexIndex + vertexDataOffset].px,
@@ -47,6 +53,7 @@ void main()
 
     gl_Position = ubo.projectionMatrices[uboIndex] *
                   ubo.viewMatrices[uboIndex] * 
+                  modelMatrices[modelMatrixIndex] *
                   vec4(inPosition, 1.0);
 
     fragColor = vec4(inNormal, 1.0);
