@@ -62,7 +62,7 @@ inline f32 RayIntersectAabb(
     g_Metrics.aabbTestCount++;
 
     f32 tmin = 0.0f;
-    f32 tmax = 1.0f;
+    f32 tmax = F32_MAX;
 
     b32 negateNormal = false;
     u32 normalIdx = 0;
