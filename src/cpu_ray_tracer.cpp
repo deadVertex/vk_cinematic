@@ -642,7 +642,10 @@ internal void DoRayTracing(
             RayHitResult rayHit =
                 TraceRayThroughScene(rayTracer, world, rayOrigin, rayDirection);
             vec3 outputColor =
-                rayHit.isValid ? rayHit.normal * 0.5f + Vec3(0.5f) : Vec3(0, 0, 0);
+                rayHit.isValid ? rayHit.normal : Vec3(0, 0, 0);
+                //rayHit.isValid ? rayHit.normal * 0.5f + Vec3(0.5f) : Vec3(0, 0, 0);
+
+            outputColor = Clamp(outputColor, Vec3(0), Vec3(1));
 
             //f32 maxDepth = 10;
             //outputColor = Vec3(1, 1, 1) * ((f32)rayHit.depth / (f32)maxDepth);

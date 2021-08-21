@@ -42,7 +42,7 @@ void main()
     uint uboIndex = 0;
 
     mat4 modelMatrix = modelMatrices[modelMatrixIndex];
-    mat4 invModelMatrix = transpose(modelMatrix);
+    mat3 invModelMatrix = transpose(mat3(modelMatrix));
 
     vec3 inPosition = vec3(
             vertices[gl_VertexIndex + vertexDataOffset].px,
@@ -63,6 +63,7 @@ void main()
                   modelMatrix *
                   vec4(inPosition, 1.0);
 
-    vec3 normal = normalize(inNormal * mat3(invModelMatrix));
+    // Transform normal into world space
+    vec3 normal = normalize(inNormal * invModelMatrix);
     fragColor = vec4(normal, 1.0);
 }
