@@ -353,14 +353,23 @@ internal VkDescriptorSetLayout VulkanCreateDebugDrawDescriptorSetLayout(
     return descriptorSetLayout;
 }
 
-internal VkPipelineLayout VulkanCreatePipelineLayout(
-    VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
+internal VkPipelineLayout VulkanCreatePipelineLayout(VkDevice device,
+    VkDescriptorSetLayout descriptorSetLayout, b32 usePushConstants)
 {
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(MeshPushConstants);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
     VkPipelineLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     createInfo.setLayoutCount = 1;
     createInfo.pSetLayouts = &descriptorSetLayout;
-    createInfo.pushConstantRangeCount = 0;
+    if (usePushConstants)
+    {
+        createInfo.pPushConstantRanges = &pushConstantRange;
+        createInfo.pushConstantRangeCount = 1;
+    }
 
     VkPipelineLayout layout;
     VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
@@ -522,10 +531,10 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
     // Create pipeline layout
     renderer->pipelineLayout = VulkanCreatePipelineLayout(
-        renderer->device, renderer->descriptorSetLayout);
+        renderer->device, renderer->descriptorSetLayout, true);
 
     renderer->debugDrawPipelineLayout = VulkanCreatePipelineLayout(
-        renderer->device, renderer->debugDrawDescriptorSetLayout);
+        renderer->device, renderer->debugDrawDescriptorSetLayout, false);
 
     // Create pipeline
     VulkanPipelineDefinition pipelineDefinition = {};
@@ -742,7 +751,7 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
         renderer->indexBuffer.handle, sizeof(u32) * renderer->indexCount);
 }
 
-internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene)
+internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene, u32 drawCount)
 {
     u32 imageIndex;
     VK_CHECK(vkAcquireNextImageKHR(renderer->device, renderer->swapchain.handle,
@@ -795,8 +804,17 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene)
 
         // Draw mesh
         //vkCmdDraw(renderer->commandBuffer, renderer->indexCount, 1, 0, 0);
-        vkCmdDrawIndexed(renderer->commandBuffer, renderer->indexCount, 1,
-            0, 0, 0);
+        for (u32 i = 0; i < drawCount; ++i)
+        {
+            MeshPushConstants pushConstants = {};
+            pushConstants.modelMatrixIndex = i;
+            vkCmdPushConstants(renderer->commandBuffer,
+                renderer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                sizeof(pushConstants), &pushConstants);
+
+            vkCmdDrawIndexed(
+                renderer->commandBuffer, renderer->indexCount, 1, 0, 0, 0);
+        }
 
         // Draw debug buffer
         vkCmdBindDescriptorSets(renderer->commandBuffer,

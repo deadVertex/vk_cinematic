@@ -464,41 +464,68 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
 }
 
 internal RayHitResult TraceRayThroughScene(
-    RayTracer *rayTracer, vec3 rayOrigin, vec3 rayDirection)
+    RayTracer *rayTracer, World *world, vec3 rayOrigin, vec3 rayDirection)
 {
     g_Metrics.rayCount++;
     PROFILE_FUNCTION_SCOPE();
 
-    mat4 modelMatrix = Scale(Vec3(5.0f));
-    mat4 invModelMatrix = Scale(Vec3(1.0f / 5.0f));
-
-    // Ray is transformed by the inverse of the model matrix
-    vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
-    vec3 transformRayDirection =
-        Normalize(TransformVector(rayDirection, invModelMatrix));
-    
-    // Perform ray intersection test in model space
-    RayHitResult result = {};
-    if (rayTracer->useAccelerationStructure)
+    RayHitResult worldResult = {};
+    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
     {
-        result = RayIntersectTriangleMeshAabbTree(rayTracer->root,
-            rayTracer->meshData, transformRayOrigin, transformRayDirection,
-            rayTracer->debugDrawBuffer, rayTracer->maxDepth);
+        Entity *entity = world->entities + entityIndex;
+        // TODO: Don't calculate this for every ray!
+        mat4 modelMatrix = Translate(entity->position) *
+                             Rotate(entity->rotation) * Scale(entity->scale);
+        mat4 invModelMatrix =
+            Scale(Vec3(1.0f / entity->scale.x, 1.0f / entity->scale.y,
+                1.0f / entity->scale.z)) *
+            Rotate(Conjugate(entity->rotation)) * Translate(-entity->position);
+
+        // Ray is transformed by the inverse of the model matrix
+        vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
+        vec3 transformRayDirection =
+            Normalize(TransformVector(rayDirection, invModelMatrix));
+
+        RayHitResult entityResult;
+        // Perform ray intersection test in model space
+        if (rayTracer->useAccelerationStructure)
+        {
+            entityResult = RayIntersectTriangleMeshAabbTree(rayTracer->root,
+                rayTracer->meshData, transformRayOrigin, transformRayDirection,
+                rayTracer->debugDrawBuffer, rayTracer->maxDepth);
+        }
+        else
+        {
+            entityResult = RayIntersectTriangleMeshSlow(
+                rayTracer->meshData, transformRayOrigin, transformRayDirection);
+        }
+
+        // Transform the hit point and normal back into world space
+        // PROBLEM: t value needs a bit more thought, luckily its not used for
+        // anything other than checking if we intersected anythinh yet.
+        // result.point = TransformPoint(result->point, modelMatrix);
+        entityResult.normal =
+            Normalize(TransformVector(entityResult.normal, modelMatrix));
+
+        if (entityResult.isValid)
+        {
+            if (worldResult.isValid)
+            {
+                // FIXME: Probably not correct to compare t values from
+                // different spaces, just going with it for now.
+                if (entityResult.t < worldResult.t)
+                {
+                    worldResult = entityResult;
+                }
+            }
+            else
+            {
+                worldResult = entityResult;
+            }
+        }
     }
-    else
-    {
-        result = RayIntersectTriangleMeshSlow(
-            rayTracer->meshData, transformRayOrigin, transformRayDirection);
-    }
 
-
-    // Transform the hit point and normal back into world space
-    // PROBLEM: t value needs a bit more thought, luckily its not used for
-    // anything other than checking if we intersected anythinh yet.
-    //result.point = TransformPoint(result->point, modelMatrix);
-    result.normal = Normalize(TransformVector(result.normal, modelMatrix));
-
-    return result;
+    return worldResult;
 }
 
 struct CameraConstants
@@ -585,7 +612,7 @@ inline vec3 CalculateFilmP(
 }
 
 internal void DoRayTracing(
-    u32 width, u32 height, u32 *pixels, RayTracer *rayTracer)
+    u32 width, u32 height, u32 *pixels, RayTracer *rayTracer, World *world)
 {
     PROFILE_FUNCTION_SCOPE();
 
@@ -613,7 +640,7 @@ internal void DoRayTracing(
                         //Vec3(0.5f, -0.5f, 0.0f),
                         //Vec3(0.0, 0.5f, 0.0f));
             RayHitResult rayHit =
-                TraceRayThroughScene(rayTracer, rayOrigin, rayDirection);
+                TraceRayThroughScene(rayTracer, world, rayOrigin, rayDirection);
             vec3 outputColor =
                 rayHit.isValid ? rayHit.normal * 0.5f + Vec3(0.5f) : Vec3(0, 0, 0);
 

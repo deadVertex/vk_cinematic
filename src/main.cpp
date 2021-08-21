@@ -36,6 +36,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "mesh.h"
 #include "profiler.h"
 #include "debug.h"
+#include "world.h"
 
 #include "debug.cpp"
 #include "cpu_ray_tracer.cpp"
@@ -396,6 +397,19 @@ internal void Update(
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
+internal void AddEntity(
+    World *world, vec3 position, quat rotation, vec3 scale, u32 mesh)
+{
+    if (world->count < ArrayCount(world->entities))
+    {
+        Entity *entity = world->entities + world->count++;
+        entity->position = position;
+        entity->rotation = rotation;
+        entity->scale = scale;
+        entity->mesh = mesh;
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -437,6 +451,10 @@ int main(int argc, char **argv)
     renderer.indexCount = bunnyMesh.indexCount;
     VulkanCopyMeshDataToGpu(&renderer);
 
+    World world = {};
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), 0);
+    AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1), 0);
+
     RayTracer rayTracer = {};
     rayTracer.nodes = (BvhNode *)AllocateMemory(sizeof(BvhNode) * MAX_BVH_NODES);
     rayTracer.meshData = bunnyMesh;
@@ -451,8 +469,14 @@ int main(int argc, char **argv)
     debugDrawBuffer.max = DEBUG_VERTEX_BUFFER_SIZE / sizeof(VertexPC);
     rayTracer.debugDrawBuffer = &debugDrawBuffer;
 
+    // Sync model matrices with world
     mat4 *modelMatrices = (mat4 *)renderer.modelMatricesBuffer.data;
-    modelMatrices[0] = Scale(Vec3(5, 5, 5));
+    for (u32 i = 0; i < world.count; ++i)
+    {
+        Entity *entity = world.entities + i;
+        modelMatrices[i] = Translate(entity->position) *
+                           Rotate(entity->rotation) * Scale(entity->scale);
+    }
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
@@ -524,7 +548,7 @@ int main(int argc, char **argv)
             LogMessage("Begin ray tracing");
             f64 rayTracingStartTime = glfwGetTime();
             DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
-                (u32 *)renderer.imageUploadBuffer.data, &rayTracer);
+                (u32 *)renderer.imageUploadBuffer.data, &rayTracer, &world);
             f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
             LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
                 g_camera.position.y, g_camera.position.z);
@@ -546,7 +570,7 @@ int main(int argc, char **argv)
 
         Update(&renderer, &rayTracer, &input, dt);
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
-        VulkanRender(&renderer, drawScene);
+        VulkanRender(&renderer, drawScene, world.count);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;

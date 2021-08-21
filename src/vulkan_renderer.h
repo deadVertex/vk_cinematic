@@ -84,6 +84,11 @@ struct VulkanPipelineDefinition
     b32 alphaBlendingEnabled;
 };
 
+struct MeshPushConstants
+{
+    u32 modelMatrixIndex;
+};
+
 struct VulkanRenderer
 {
     VkInstance instance;

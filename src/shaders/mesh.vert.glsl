@@ -29,13 +29,20 @@ layout(binding = 4) readonly buffer ModelMatrices
     mat4 modelMatrices[];
 };
 
+layout(push_constant) uniform PushConstants
+{
+    uint modelMatrixIndex;
+};
+
 layout(location = 0) out vec4 fragColor;
 
 void main()
 {
     uint vertexDataOffset = 0;
     uint uboIndex = 0;
-    uint modelMatrixIndex = 0;
+
+    mat4 modelMatrix = modelMatrices[modelMatrixIndex];
+    mat4 invModelMatrix = transpose(modelMatrix);
 
     vec3 inPosition = vec3(
             vertices[gl_VertexIndex + vertexDataOffset].px,
@@ -53,8 +60,9 @@ void main()
 
     gl_Position = ubo.projectionMatrices[uboIndex] *
                   ubo.viewMatrices[uboIndex] * 
-                  modelMatrices[modelMatrixIndex] *
+                  modelMatrix *
                   vec4(inPosition, 1.0);
 
-    fragColor = vec4(inNormal, 1.0);
+    vec3 normal = normalize(inNormal * mat3(invModelMatrix));
+    fragColor = vec4(normal, 1.0);
 }
