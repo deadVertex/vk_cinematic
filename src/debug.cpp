@@ -50,3 +50,11 @@ internal void DrawPoint(DebugDrawingBuffer *buffer, vec3 p, f32 size, vec3 color
     DrawLine(buffer, p - Vec3(0, size, 0), p + Vec3(0, size, 0), color);
     DrawLine(buffer, p - Vec3(0, 0, size), p + Vec3(0, 0, size), color);
 }
+
+internal void DrawTriangle(
+    DebugDrawingBuffer *buffer, vec3 a, vec3 b, vec3 c, vec3 color)
+{
+    DrawLine(buffer, a, b, color);
+    DrawLine(buffer, b, c, color);
+    DrawLine(buffer, c, a, color);
+}

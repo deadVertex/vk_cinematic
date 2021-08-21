@@ -452,13 +452,14 @@ int main(int argc, char **argv)
     rayTracer.debugDrawBuffer = &debugDrawBuffer;
 
     mat4 *modelMatrices = (mat4 *)renderer.modelMatricesBuffer.data;
-    modelMatrices[0] = Scale(Vec3(1,1,1));
+    modelMatrices[0] = Scale(Vec3(5, 5, 5));
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
     u32 maxDepth = 1;
+    b32 drawTests = true;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -506,6 +507,16 @@ int main(int argc, char **argv)
             {
                 maxDepth--;
             }
+        }
+
+        if (drawTests)
+        {
+            // Force drawing through the vulkan renderer
+            drawScene = true;
+
+            // Run tests
+            //TestTransformRayVsAabb(&debugDrawBuffer);
+            TestTransformRayVsTriangle(&debugDrawBuffer);
         }
         
         if (!drawScene && isDirty)
