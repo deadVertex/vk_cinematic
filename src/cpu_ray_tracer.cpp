@@ -468,19 +468,35 @@ internal RayHitResult TraceRayThroughScene(
 {
     g_Metrics.rayCount++;
     PROFILE_FUNCTION_SCOPE();
+
+    mat4 modelMatrix = Scale(Vec3(5.0f));
+    mat4 invModelMatrix = Scale(Vec3(1.0f / 5.0f));
+
+    // Ray is transformed by the inverse of the model matrix
+    vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
+    vec3 transformRayDirection =
+        Normalize(TransformVector(rayDirection, invModelMatrix));
     
+    // Perform ray intersection test in model space
     RayHitResult result = {};
     if (rayTracer->useAccelerationStructure)
     {
         result = RayIntersectTriangleMeshAabbTree(rayTracer->root,
-            rayTracer->meshData, rayOrigin, rayDirection,
+            rayTracer->meshData, transformRayOrigin, transformRayDirection,
             rayTracer->debugDrawBuffer, rayTracer->maxDepth);
     }
     else
     {
         result = RayIntersectTriangleMeshSlow(
-            rayTracer->meshData, rayOrigin, rayDirection);
+            rayTracer->meshData, transformRayOrigin, transformRayDirection);
     }
+
+
+    // Transform the hit point and normal back into world space
+    // PROBLEM: t value needs a bit more thought, luckily its not used for
+    // anything other than checking if we intersected anythinh yet.
+    //result.point = TransformPoint(result->point, modelMatrix);
+    result.normal = Normalize(TransformVector(result.normal, modelMatrix));
 
     return result;
 }

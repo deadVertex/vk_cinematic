@@ -459,7 +459,7 @@ int main(int argc, char **argv)
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
     u32 maxDepth = 1;
-    b32 drawTests = true;
+    b32 drawTests = false;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
