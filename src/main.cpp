@@ -392,7 +392,7 @@ internal void Update(
     correctionMatrix.columns[2] = Vec4(0, 0, 0.5f, 0);
     correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
     ubo->projectionMatrices[0] =
-        correctionMatrix * Perspective(90.0f, aspect, 0.01f, 100.0f);
+        correctionMatrix * Perspective(50.0f, aspect, 0.01f, 100.0f);
 
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }

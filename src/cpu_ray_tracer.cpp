@@ -561,7 +561,9 @@ internal CameraConstants CalculateCameraConstants(mat4 viewMatrix, u32 width, u3
         filmWidth = (f32)width / (f32)height;
     }
 
-    f32 fovy = 90.0f * ((f32)width / (f32)height);
+    // FIXME: This is broken, just been manually tweaking FOV value to get the
+    // same result as the rasterizer.
+    f32 fovy = 77.0f * ((f32)width / (f32)height);
     f32 filmDistance = 1.0f / Tan(Radians(fovy) * 0.5f);
     vec3 filmCenter = cameraForward * filmDistance + cameraPosition;
 
