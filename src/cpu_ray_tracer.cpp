@@ -124,25 +124,32 @@ struct BvhNode
     u32 triangleIndex;
 };
 
+struct RayTracerMesh
+{
+    BvhNode *root;
+    MeshData meshData;
+};
+
 struct RayTracer
 {
     mat4 viewMatrix;
     DebugDrawingBuffer *debugDrawBuffer;
-    MeshData meshData;
     BvhNode *nodes;
     u32 nodeCount;
-    BvhNode *root;
     b32 useAccelerationStructure;
     u32 maxDepth;
+    RayTracerMesh meshes[MAX_MESHES];
 };
 
-internal void BuildBvh(RayTracer *rayTracer, MeshData meshData)
+internal RayTracerMesh BuildBvh(RayTracer *rayTracer, MeshData meshData)
 {
+    // FIXME: This should use a tempArena rather than the stack
     u32 unmergedNodeIndices[MAX_BVH_NODES];
     u32 unmergedNodeCount = 0;
 
     // Build BvhNode for each triangle
     u32 triangleCount = meshData.indexCount / 3;
+    u32 nodesOffset = rayTracer->nodeCount;
     for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
     {
         u32 indices[3];
@@ -164,9 +171,9 @@ internal void BuildBvh(RayTracer *rayTracer, MeshData meshData)
         node->children[1] = NULL;
 
         // NOTE: Triangle index is our leaf index
-        unmergedNodeIndices[triangleIndex] = triangleIndex;
+        unmergedNodeIndices[triangleIndex] = nodesOffset + triangleIndex;
     }
-    Assert(rayTracer->nodeCount == triangleCount);
+    Assert(rayTracer->nodeCount - nodesOffset == triangleCount);
     unmergedNodeCount = triangleCount;
 
     while (unmergedNodeCount > 1)
@@ -251,8 +258,13 @@ internal void BuildBvh(RayTracer *rayTracer, MeshData meshData)
         unmergedNodeCount = newUnmergedNodeCount;
     }
 
+    RayTracerMesh result = {};
+    result.meshData = meshData;
+
     // Assume the last node created is the root node
-    rayTracer->root = rayTracer->nodes + (rayTracer->nodeCount - 1);
+    result.root = rayTracer->nodes + (rayTracer->nodeCount - 1);
+
+    return result;
 }
 
 struct RayIntersectTriangleResult
@@ -511,6 +523,8 @@ internal RayHitResult TraceRayThroughScene(
             Rotate(Conjugate(entity->rotation)) * Translate(-entity->position);
         PROFILE_END_SCOPE("model matrices");
 
+        RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
+
         //PROFILE_BEGIN_SCOPE("transform ray");
         // Ray is transformed by the inverse of the model matrix
         vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
@@ -522,14 +536,14 @@ internal RayHitResult TraceRayThroughScene(
         // Perform ray intersection test in model space
         if (rayTracer->useAccelerationStructure)
         {
-            entityResult = RayIntersectTriangleMeshAabbTree(rayTracer->root,
-                rayTracer->meshData, transformRayOrigin, transformRayDirection,
+            entityResult = RayIntersectTriangleMeshAabbTree(mesh.root,
+                mesh.meshData, transformRayOrigin, transformRayDirection,
                 rayTracer->debugDrawBuffer, rayTracer->maxDepth);
         }
         else
         {
             entityResult = RayIntersectTriangleMeshSlow(
-                rayTracer->meshData, transformRayOrigin, transformRayDirection);
+                mesh.meshData, transformRayOrigin, transformRayDirection);
         }
 
         // Transform the hit point and normal back into world space

@@ -411,12 +411,14 @@ internal void AddEntity(
     }
 }
 
-// FIXME: This assumes every entity uses the same mesh!
-internal void ComputeEntityBoundingBoxes(World *world, vec3 boxMin, vec3 boxMax)
+internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
 {
     for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
     {
         Entity *entity = world->entities + entityIndex;
+        RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
+        vec3 boxMin = mesh.root->min;
+        vec3 boxMax = mesh.root->max;
         mat4 modelMatrix = Translate(entity->position) *
                            Rotate(entity->rotation) * Scale(entity->scale);
 
@@ -474,6 +476,7 @@ int main(int argc, char **argv)
         &tempArena, AllocateMemory(tempMemorySize), tempMemorySize);
 
     // FIXME: Can't clear this memory until we've built BVH for the ray tracer
+    // THIS IS NOT ACTUALLY TEMP MEMORY, RAYTRACER RELIES ON IT!!!!
     MeshData bunnyMesh = LoadMesh("bunny.obj", &tempArena);
     MeshData monkeyMesh = LoadMesh("monkey.obj", &tempArena);
     LogMessage("Meshes data memory usage: %uk / %uk",
@@ -539,12 +542,12 @@ int main(int argc, char **argv)
 
     RayTracer rayTracer = {};
     rayTracer.nodes = AllocateArray(&memoryArena, BvhNode, MAX_BVH_NODES);
-    rayTracer.meshData = bunnyMesh;
     rayTracer.useAccelerationStructure = true;
-    BuildBvh(&rayTracer, bunnyMesh);
+    rayTracer.meshes[Mesh_Bunny] = BuildBvh(&rayTracer, bunnyMesh);
+    rayTracer.meshes[Mesh_Monkey] = BuildBvh(&rayTracer, monkeyMesh);
 
     // Compute bounding box for each entity
-    ComputeEntityBoundingBoxes(&world, rayTracer.root->min, rayTracer.root->max);
+    ComputeEntityBoundingBoxes(&world, &rayTracer);
 
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};
@@ -640,7 +643,7 @@ int main(int argc, char **argv)
             LogMessage("Camera Rotation: (%g, %g, %g)", g_camera.rotation.x,
                 g_camera.rotation.y, g_camera.rotation.z);
             LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
-            LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
+            //LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
             LogMessage("Memory Usage: %ukb / %ukb", memoryArena.size / 1024,
                     memoryArena.capacity / 1024);
             LogMessage("Entities: %u / %u", world.count, world.max);
