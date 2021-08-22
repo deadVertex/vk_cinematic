@@ -6,9 +6,11 @@ struct Entity
     vec3 scale;
     quat rotation;
     u32 mesh;
+    vec3 aabbMin;
+    vec3 aabbMax;
 };
 
-#define MAX_ENTITIES 64
+#define MAX_ENTITIES 1024
 
 struct World
 {

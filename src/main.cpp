@@ -3,6 +3,7 @@
 #include <assimp/postprocess.h>
 
 #define ENABLE_VALIDATION_LAYERS
+//#define ENABLE_PROFILING
 
 #define PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -410,6 +411,31 @@ internal void AddEntity(
     }
 }
 
+// FIXME: This assumes every entity uses the same mesh!
+internal void ComputeEntityBoundingBoxes(World *world, vec3 boxMin, vec3 boxMax)
+{
+    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+    {
+        Entity *entity = world->entities + entityIndex;
+        mat4 modelMatrix = Translate(entity->position) *
+                           Rotate(entity->rotation) * Scale(entity->scale);
+
+        // FIXME: Computing the sphere is pretty bad way of transforming the
+        // AABB, its probably worth investing in doing this properly by
+        // transforming the 8 vertices of AABB and compute a new one from that.
+        vec3 center = (boxMin + boxMax) * 0.5f;
+        vec3 halfDim = (boxMax - boxMin) * 0.5f;
+        f32 radius = Length(halfDim);
+
+        vec3 transformedCenter = TransformPoint(center, modelMatrix);
+        u32 largestAxis = CalculateLargestAxis(entity->scale);
+        f32 transformedRadius = radius * entity->scale.data[largestAxis];
+
+        entity->aabbMin = transformedCenter - Vec3(transformedRadius);
+        entity->aabbMax = transformedCenter + Vec3(transformedRadius);
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -455,11 +481,28 @@ int main(int argc, char **argv)
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), 0);
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1), 0);
 
+    u32 gridDim = 10;
+    for (u32 y = 0; y < gridDim; ++y)
+    {
+        for (u32 z = 0; z < gridDim; ++z)
+        {
+            for (u32 x = 0; x < gridDim; ++x)
+            {
+                vec3 origin = Vec3(-5.0f, 0.0f, -5.0f);
+                vec3 p = origin + Vec3((f32)x, (f32)y, (f32)z);
+                AddEntity(&world, p, Quat(), Vec3(1), 0);
+            }
+        }
+    }
+
     RayTracer rayTracer = {};
     rayTracer.nodes = (BvhNode *)AllocateMemory(sizeof(BvhNode) * MAX_BVH_NODES);
     rayTracer.meshData = bunnyMesh;
     rayTracer.useAccelerationStructure = true;
     BuildBvh(&rayTracer, bunnyMesh);
+
+    // Compute bounding box for each entity
+    ComputeEntityBoundingBoxes(&world, rayTracer.root->min, rayTracer.root->max);
 
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};

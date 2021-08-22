@@ -463,6 +463,27 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
     return result;
 }
 
+internal u32 GetEntitiesToTest(World *world, vec3 rayOrigin, vec3 rayDirection,
+    u32 *entityIndices, u32 maxEntities)
+{
+    u32 count = 0;
+    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+    {
+        Entity *entity = world->entities + entityIndex;
+        f32 t = RayIntersectAabb(
+            entity->aabbMin, entity->aabbMax, rayOrigin, rayDirection);
+        if (t >= 0.0f)
+        {
+            if (count < maxEntities)
+            {
+                entityIndices[count++] = entityIndex;
+            }
+        }
+    }
+
+    return count;
+}
+
 internal RayHitResult TraceRayThroughScene(
     RayTracer *rayTracer, World *world, vec3 rayOrigin, vec3 rayDirection)
 {
@@ -470,9 +491,17 @@ internal RayHitResult TraceRayThroughScene(
     PROFILE_FUNCTION_SCOPE();
 
     RayHitResult worldResult = {};
-    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+
+    u32 entitiesToTest[MAX_ENTITIES];
+    u32 entityCount = GetEntitiesToTest(world, rayOrigin, rayDirection,
+        entitiesToTest, ArrayCount(entitiesToTest));
+
+    for (u32 index = 0; index < entityCount; index++)
     {
+        u32 entityIndex = entitiesToTest[index];
         Entity *entity = world->entities + entityIndex;
+
+        PROFILE_BEGIN_SCOPE("model matrices");
         // TODO: Don't calculate this for every ray!
         mat4 modelMatrix = Translate(entity->position) *
                              Rotate(entity->rotation) * Scale(entity->scale);
@@ -480,11 +509,14 @@ internal RayHitResult TraceRayThroughScene(
             Scale(Vec3(1.0f / entity->scale.x, 1.0f / entity->scale.y,
                 1.0f / entity->scale.z)) *
             Rotate(Conjugate(entity->rotation)) * Translate(-entity->position);
+        PROFILE_END_SCOPE("model matrices");
 
+        //PROFILE_BEGIN_SCOPE("transform ray");
         // Ray is transformed by the inverse of the model matrix
         vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
         vec3 transformRayDirection =
             Normalize(TransformVector(rayDirection, invModelMatrix));
+        //PROFILE_END_SCOPE("transform ray");
 
         RayHitResult entityResult;
         // Perform ray intersection test in model space
