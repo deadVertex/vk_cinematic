@@ -401,7 +401,7 @@ internal void Update(
 internal void AddEntity(
     World *world, vec3 position, quat rotation, vec3 scale, u32 mesh)
 {
-    if (world->count < ArrayCount(world->entities))
+    if (world->count < world->max)
     {
         Entity *entity = world->entities + world->count++;
         entity->position = position;
@@ -477,7 +477,14 @@ int main(int argc, char **argv)
     renderer.indexCount = bunnyMesh.indexCount;
     VulkanCopyMeshDataToGpu(&renderer);
 
+    u32 memorySize = Megabytes(64);
+    MemoryArena memoryArena = {};
+    InitializeMemoryArena(&memoryArena, AllocateMemory(memorySize), memorySize);
+
     World world = {};
+    world.entities = AllocateArray(&memoryArena, Entity, MAX_ENTITIES);
+    world.max = MAX_ENTITIES;
+
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), 0);
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1), 0);
 
@@ -496,7 +503,7 @@ int main(int argc, char **argv)
     }
 
     RayTracer rayTracer = {};
-    rayTracer.nodes = (BvhNode *)AllocateMemory(sizeof(BvhNode) * MAX_BVH_NODES);
+    rayTracer.nodes = AllocateArray(&memoryArena, BvhNode, MAX_BVH_NODES);
     rayTracer.meshData = bunnyMesh;
     rayTracer.useAccelerationStructure = true;
     BuildBvh(&rayTracer, bunnyMesh);
@@ -599,6 +606,14 @@ int main(int argc, char **argv)
                 g_camera.rotation.y, g_camera.rotation.z);
             LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
             LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
+            LogMessage("Memory Usage: %ukb / %ukb", memoryArena.size / 1024,
+                    memoryArena.capacity / 1024);
+            LogMessage("Entities: %u / %u", world.count, world.max);
+            LogMessage("BVH Nodes: %u / %u", rayTracer.nodeCount, MAX_BVH_NODES);
+            LogMessage("Debug Vertices: %u / %u", debugDrawBuffer.count,
+                debugDrawBuffer.max);
+            LogMessage("Profiler Samples: %u / %u", g_Profiler.count,
+                    PROFILER_SAMPLE_BUFFER_SIZE / sizeof(ProfilerSample));
 
             DumpMetrics(&g_Metrics);
             Profiler_ProcessResults(&g_Profiler, &profilerResults);

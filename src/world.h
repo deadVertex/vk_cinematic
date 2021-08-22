@@ -14,6 +14,7 @@ struct Entity
 
 struct World
 {
-    Entity entities[MAX_ENTITIES];
+    Entity *entities;
     u32 count;
+    u32 max;
 };
