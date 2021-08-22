@@ -1,12 +1,9 @@
 #include "mesh.h"
 
-// TODO: Copy raw mesh data into vertexUploadBuffer for vulkan renderer
-// TODO: Copy into some sort of triangle mesh structure for our CPU ray tracer
-internal MeshData LoadMesh()
+internal MeshData LoadMesh(const char *path, MemoryArena *arena)
 {
     MeshData result = {};
 
-    const char *path = "bunny.obj";
     char fullPath[256];
     snprintf(fullPath, sizeof(fullPath), "%s/%s", MESH_PATH, path);
 
@@ -23,10 +20,9 @@ internal MeshData LoadMesh()
     Assert(scene->mNumMeshes > 0);
     aiMesh *mesh = scene->mMeshes[0];
 
-    // TODO: Replace with AllocateMemory?
-    VertexPNT *vertices = (VertexPNT *)calloc(mesh->mNumVertices, sizeof(VertexPNT));
+    VertexPNT *vertices = AllocateArray(arena, VertexPNT, mesh->mNumVertices);
     u32 indexCount = mesh->mNumFaces * 3; // We only support triangles
-    u32 *indices = (u32 *)calloc(indexCount, sizeof(u32));
+    u32 *indices = AllocateArray(arena, u32, indexCount);
 
     // NOTE: mesh->mVertices is always present
     Assert(mesh->mNormals);

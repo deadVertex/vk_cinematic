@@ -13,6 +13,25 @@
 //#define SHADER_PATH "src/shaders"
 #define SHADER_PATH "shaders"
 
+enum
+{
+    Mesh_Bunny,
+    Mesh_Monkey,
+    MAX_MESHES,
+};
+
+struct DrawCommand
+{
+    u32 mesh;
+};
+
+struct Mesh
+{
+    u32 indexCount;
+    u32 indexDataOffset;
+    u32 vertexDataOffset;
+};
+
 struct UniformBufferObject
 {
     mat4 viewMatrices[16];
@@ -87,6 +106,7 @@ struct VulkanPipelineDefinition
 struct MeshPushConstants
 {
     u32 modelMatrixIndex;
+    u32 vertexDataOffset;
 };
 
 struct VulkanRenderer
@@ -150,7 +170,9 @@ struct VulkanRenderer
     VkDescriptorSetLayout debugDrawDescriptorSetLayout;
     VkDescriptorSet debugDrawDescriptorSets[2];
 
-    u32 vertexCount;
-    u32 indexCount;
+    u32 vertexDataUploadBufferSize;
+    u32 indexUploadBufferSize;
     u32 debugDrawVertexCount;
+
+    Mesh meshes[MAX_MESHES];
 };

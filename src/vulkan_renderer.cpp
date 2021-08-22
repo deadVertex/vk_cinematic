@@ -744,14 +744,16 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
     VulkanCopyBuffer(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->vertexDataUploadBuffer.handle,
         renderer->vertexDataBuffer.handle,
-        sizeof(VertexPNT) * renderer->vertexCount);
+        renderer->vertexDataUploadBufferSize);
 
     VulkanCopyBuffer(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->indexUploadBuffer.handle,
-        renderer->indexBuffer.handle, sizeof(u32) * renderer->indexCount);
+        renderer->indexBuffer.handle, 
+        renderer->indexUploadBufferSize);
 }
 
-internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene, u32 drawCount)
+internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene,
+    DrawCommand *drawCmds, u32 drawCmdCount)
 {
     u32 imageIndex;
     VK_CHECK(vkAcquireNextImageKHR(renderer->device, renderer->swapchain.handle,
@@ -798,22 +800,28 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene, u32 drawCoun
         vkCmdBindPipeline(renderer->commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
-        // Bind index buffer
-        vkCmdBindIndexBuffer(renderer->commandBuffer,
-            renderer->indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-
         // Draw mesh
         //vkCmdDraw(renderer->commandBuffer, renderer->indexCount, 1, 0, 0);
-        for (u32 i = 0; i < drawCount; ++i)
+        for (u32 i = 0; i < drawCmdCount; ++i)
         {
+            DrawCommand cmd = drawCmds[i];
+            Mesh mesh = renderer->meshes[cmd.mesh];
+
+            // Bind index buffer
+            vkCmdBindIndexBuffer(renderer->commandBuffer,
+                renderer->indexBuffer.handle, mesh.indexDataOffset,
+                VK_INDEX_TYPE_UINT32);
+
             MeshPushConstants pushConstants = {};
             pushConstants.modelMatrixIndex = i;
+            pushConstants.vertexDataOffset = mesh.vertexDataOffset;
+
             vkCmdPushConstants(renderer->commandBuffer,
                 renderer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                 sizeof(pushConstants), &pushConstants);
 
             vkCmdDrawIndexed(
-                renderer->commandBuffer, renderer->indexCount, 1, 0, 0, 0);
+                renderer->commandBuffer, mesh.indexCount, 1, 0, 0, 0);
         }
 
         // Draw debug buffer

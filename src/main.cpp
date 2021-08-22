@@ -468,13 +468,46 @@ int main(int argc, char **argv)
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
 
-    MeshData bunnyMesh = LoadMesh();
+    u32 tempMemorySize = Megabytes(64);
+    MemoryArena tempArena = {};
+    InitializeMemoryArena(
+        &tempArena, AllocateMemory(tempMemorySize), tempMemorySize);
+
+    // FIXME: Can't clear this memory until we've built BVH for the ray tracer
+    MeshData bunnyMesh = LoadMesh("bunny.obj", &tempArena);
+    MeshData monkeyMesh = LoadMesh("monkey.obj", &tempArena);
+    LogMessage("Meshes data memory usage: %uk / %uk",
+        tempArena.size / 1024, tempArena.capacity / 1024);
+
+    renderer.meshes[Mesh_Bunny].indexCount = bunnyMesh.indexCount;
+    renderer.meshes[Mesh_Monkey].indexCount = monkeyMesh.indexCount;
     CopyMemory(renderer.vertexDataUploadBuffer.data, bunnyMesh.vertices,
         sizeof(VertexPNT) * bunnyMesh.vertexCount);
+    renderer.meshes[Mesh_Bunny].vertexDataOffset =
+        renderer.vertexDataUploadBufferSize / sizeof(VertexPNT);
+    renderer.vertexDataUploadBufferSize +=
+        sizeof(VertexPNT) * bunnyMesh.vertexCount;
+
+    CopyMemory((u8 *)renderer.vertexDataUploadBuffer.data +
+                   renderer.vertexDataUploadBufferSize,
+        monkeyMesh.vertices, sizeof(VertexPNT) * monkeyMesh.vertexCount);
+    renderer.meshes[Mesh_Monkey].vertexDataOffset =
+        renderer.vertexDataUploadBufferSize / sizeof(VertexPNT);
+    renderer.vertexDataUploadBufferSize +=
+        sizeof(VertexPNT) * monkeyMesh.vertexCount;
+
     CopyMemory(renderer.indexUploadBuffer.data, bunnyMesh.indices,
         sizeof(u32) * bunnyMesh.indexCount);
-    renderer.vertexCount = bunnyMesh.vertexCount;
-    renderer.indexCount = bunnyMesh.indexCount;
+    renderer.meshes[Mesh_Bunny].indexDataOffset =
+        renderer.indexUploadBufferSize;
+    renderer.indexUploadBufferSize += sizeof(u32) * bunnyMesh.indexCount;
+    CopyMemory(
+        (u8 *)renderer.indexUploadBuffer.data + renderer.indexUploadBufferSize,
+        monkeyMesh.indices, sizeof(u32) * monkeyMesh.indexCount);
+    renderer.meshes[Mesh_Monkey].indexDataOffset =
+        renderer.indexUploadBufferSize;
+    renderer.indexUploadBufferSize += sizeof(u32) * monkeyMesh.indexCount;
+
     VulkanCopyMeshDataToGpu(&renderer);
 
     u32 memorySize = Megabytes(64);
@@ -497,7 +530,9 @@ int main(int argc, char **argv)
             {
                 vec3 origin = Vec3(-5.0f, 0.0f, -5.0f);
                 vec3 p = origin + Vec3((f32)x, (f32)y, (f32)z);
-                AddEntity(&world, p, Quat(), Vec3(1), 0);
+                u32 mesh = x % 2 == 0 ? Mesh_Monkey : Mesh_Bunny;
+                vec3 scale = mesh == Mesh_Monkey ? Vec3(0.1) : Vec3(1);
+                AddEntity(&world, p, Quat(), scale, mesh);
             }
         }
     }
@@ -628,7 +663,13 @@ int main(int argc, char **argv)
 
         Update(&renderer, &rayTracer, &input, dt);
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
-        VulkanRender(&renderer, drawScene, world.count);
+        DrawCommand drawCommands[MAX_ENTITIES];
+        for (u32 i = 0; i < world.count; ++i)
+        {
+            drawCommands[i].mesh = world.entities[i].mesh;
+        }
+
+        VulkanRender(&renderer, drawScene, drawCommands, world.count);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;

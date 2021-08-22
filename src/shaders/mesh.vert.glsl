@@ -32,13 +32,13 @@ layout(binding = 4) readonly buffer ModelMatrices
 layout(push_constant) uniform PushConstants
 {
     uint modelMatrixIndex;
+    uint vertexDataOffset;
 };
 
 layout(location = 0) out vec4 fragColor;
 
 void main()
 {
-    uint vertexDataOffset = 0;
     uint uboIndex = 0;
 
     mat4 modelMatrix = modelMatrices[modelMatrixIndex];
