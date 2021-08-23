@@ -438,6 +438,26 @@ internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
     }
 }
 
+internal void CopyMeshDataToUploadBuffer(
+    VulkanRenderer *renderer, MeshData meshData, u32 mesh)
+{
+    // Vertex data
+    CopyMemory((u8 *)renderer->vertexDataUploadBuffer.data +
+                   renderer->vertexDataUploadBufferSize,
+        meshData.vertices, sizeof(VertexPNT) * meshData.vertexCount);
+    renderer->meshes[mesh].vertexDataOffset =
+        renderer->vertexDataUploadBufferSize / sizeof(VertexPNT);
+    renderer->vertexDataUploadBufferSize +=
+        sizeof(VertexPNT) * meshData.vertexCount;
+
+    // Index data
+    CopyMemory((u8 *)renderer->indexUploadBuffer.data +
+                   renderer->indexUploadBufferSize,
+        meshData.indices, sizeof(u32) * meshData.indexCount);
+    renderer->meshes[mesh].indexDataOffset = renderer->indexUploadBufferSize;
+    renderer->indexUploadBufferSize += sizeof(u32) * meshData.indexCount;
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -484,32 +504,9 @@ int main(int argc, char **argv)
 
     renderer.meshes[Mesh_Bunny].indexCount = bunnyMesh.indexCount;
     renderer.meshes[Mesh_Monkey].indexCount = monkeyMesh.indexCount;
-    CopyMemory(renderer.vertexDataUploadBuffer.data, bunnyMesh.vertices,
-        sizeof(VertexPNT) * bunnyMesh.vertexCount);
-    renderer.meshes[Mesh_Bunny].vertexDataOffset =
-        renderer.vertexDataUploadBufferSize / sizeof(VertexPNT);
-    renderer.vertexDataUploadBufferSize +=
-        sizeof(VertexPNT) * bunnyMesh.vertexCount;
 
-    CopyMemory((u8 *)renderer.vertexDataUploadBuffer.data +
-                   renderer.vertexDataUploadBufferSize,
-        monkeyMesh.vertices, sizeof(VertexPNT) * monkeyMesh.vertexCount);
-    renderer.meshes[Mesh_Monkey].vertexDataOffset =
-        renderer.vertexDataUploadBufferSize / sizeof(VertexPNT);
-    renderer.vertexDataUploadBufferSize +=
-        sizeof(VertexPNT) * monkeyMesh.vertexCount;
-
-    CopyMemory(renderer.indexUploadBuffer.data, bunnyMesh.indices,
-        sizeof(u32) * bunnyMesh.indexCount);
-    renderer.meshes[Mesh_Bunny].indexDataOffset =
-        renderer.indexUploadBufferSize;
-    renderer.indexUploadBufferSize += sizeof(u32) * bunnyMesh.indexCount;
-    CopyMemory(
-        (u8 *)renderer.indexUploadBuffer.data + renderer.indexUploadBufferSize,
-        monkeyMesh.indices, sizeof(u32) * monkeyMesh.indexCount);
-    renderer.meshes[Mesh_Monkey].indexDataOffset =
-        renderer.indexUploadBufferSize;
-    renderer.indexUploadBufferSize += sizeof(u32) * monkeyMesh.indexCount;
+    CopyMeshDataToUploadBuffer(&renderer, bunnyMesh, Mesh_Bunny);
+    CopyMeshDataToUploadBuffer(&renderer, monkeyMesh, Mesh_Monkey);
 
     VulkanCopyMeshDataToGpu(&renderer);
 
