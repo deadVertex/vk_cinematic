@@ -401,6 +401,8 @@ internal void Update(
 internal void AddEntity(
     World *world, vec3 position, quat rotation, vec3 scale, u32 mesh)
 {
+    // TODO: Support non-uniform scaling in the ray tracer
+    Assert(scale.x == scale.y && scale.x == scale.z);
     if (world->count < world->max)
     {
         Entity *entity = world->entities + world->count++;

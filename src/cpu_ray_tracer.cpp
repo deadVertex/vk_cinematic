@@ -553,6 +553,9 @@ internal RayHitResult TraceRayThroughScene(
         entityResult.normal =
             Normalize(TransformVector(entityResult.normal, modelMatrix));
 
+        // FIXME: This is assuming we only support uniform scaling
+        entityResult.t *= entity->scale.x;
+
         if (entityResult.isValid)
         {
             if (worldResult.isValid)
