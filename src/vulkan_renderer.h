@@ -17,6 +17,7 @@ enum
 {
     Mesh_Bunny,
     Mesh_Monkey,
+    Mesh_Plane,
     MAX_MESHES,
 };
 

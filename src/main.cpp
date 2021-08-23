@@ -456,6 +456,30 @@ internal void CopyMeshDataToUploadBuffer(
         meshData.indices, sizeof(u32) * meshData.indexCount);
     renderer->meshes[mesh].indexDataOffset = renderer->indexUploadBufferSize;
     renderer->indexUploadBufferSize += sizeof(u32) * meshData.indexCount;
+
+    renderer->meshes[mesh].indexCount = meshData.indexCount;
+}
+
+internal MeshData CreatePlaneMesh(MemoryArena *arena)
+{
+    VertexPNT planeVertices[4] = {
+        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(1, 0)},
+        {Vec3(0.5, 0.5, 0), Vec3(0, 0, 1), Vec2(1, 1)},
+        {Vec3(-0.5, 0.5, 0), Vec3(0, 0, 1), Vec2(0, 1)}};
+
+    u32 planeIndices[6] = {0, 1, 2, 2, 3, 0};
+
+    MeshData meshData = {};
+    meshData.vertices = (VertexPNT *)AllocateBytes(arena, sizeof(planeVertices));
+    meshData.vertexCount = 4;
+    CopyMemory(meshData.vertices, planeVertices, sizeof(planeVertices));
+
+    meshData.indices = (u32 *)AllocateBytes(arena, sizeof(planeIndices));
+    meshData.indexCount = 6;
+    CopyMemory(meshData.indices, planeIndices, sizeof(planeIndices));
+
+    return meshData;
 }
 
 int main(int argc, char **argv)
@@ -499,14 +523,13 @@ int main(int argc, char **argv)
     // THIS IS NOT ACTUALLY TEMP MEMORY, RAYTRACER RELIES ON IT!!!!
     MeshData bunnyMesh = LoadMesh("bunny.obj", &tempArena);
     MeshData monkeyMesh = LoadMesh("monkey.obj", &tempArena);
+    MeshData planeMesh = CreatePlaneMesh(&tempArena);
     LogMessage("Meshes data memory usage: %uk / %uk",
         tempArena.size / 1024, tempArena.capacity / 1024);
 
-    renderer.meshes[Mesh_Bunny].indexCount = bunnyMesh.indexCount;
-    renderer.meshes[Mesh_Monkey].indexCount = monkeyMesh.indexCount;
-
     CopyMeshDataToUploadBuffer(&renderer, bunnyMesh, Mesh_Bunny);
     CopyMeshDataToUploadBuffer(&renderer, monkeyMesh, Mesh_Monkey);
+    CopyMeshDataToUploadBuffer(&renderer, planeMesh, Mesh_Plane);
 
     VulkanCopyMeshDataToGpu(&renderer);
 
@@ -518,8 +541,9 @@ int main(int argc, char **argv)
     world.entities = AllocateArray(&memoryArena, Entity, MAX_ENTITIES);
     world.max = MAX_ENTITIES;
 
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), 0);
-    AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1), 0);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny);
+    AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1), Mesh_Bunny);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), -PI * 0.5f), Vec3(10), Mesh_Plane);
 
     u32 gridDim = 10;
     for (u32 y = 0; y < gridDim; ++y)
@@ -542,6 +566,7 @@ int main(int argc, char **argv)
     rayTracer.useAccelerationStructure = true;
     rayTracer.meshes[Mesh_Bunny] = BuildBvh(&rayTracer, bunnyMesh);
     rayTracer.meshes[Mesh_Monkey] = BuildBvh(&rayTracer, monkeyMesh);
+    rayTracer.meshes[Mesh_Plane] = BuildBvh(&rayTracer, planeMesh);
 
     // Compute bounding box for each entity
     ComputeEntityBoundingBoxes(&world, &rayTracer);
