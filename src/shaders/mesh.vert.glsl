@@ -35,7 +35,7 @@ layout(push_constant) uniform PushConstants
     uint vertexDataOffset;
 };
 
-layout(location = 0) out vec4 fragColor;
+layout(location = 0) out vec3 fragNormal;
 
 void main()
 {
@@ -64,6 +64,5 @@ void main()
                   vec4(inPosition, 1.0);
 
     // Transform normal into world space
-    vec3 normal = normalize(inNormal * invModelMatrix);
-    fragColor = vec4(normal, 1.0);
+    fragNormal = normalize(inNormal * invModelMatrix);
 }

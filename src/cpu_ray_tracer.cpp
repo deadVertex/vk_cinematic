@@ -13,6 +13,10 @@ struct RayHitResult
 
 struct Metrics
 {
+    u64 broadPhaseTestCount;
+    u64 broadPhaseHitCount;
+    u64 midPhaseTestCount;
+    u64 midPhaseHitCount;
     u64 aabbTestCount;
     u64 triangleTestCount;
     u64 rayCount;
@@ -25,6 +29,10 @@ global Metrics g_Metrics;
 
 internal void DumpMetrics(Metrics *metrics)
 {
+    LogMessage("Broad Phase Test Count: %llu", metrics->broadPhaseTestCount);
+    LogMessage("Broad Phase Hit Count: %llu", metrics->broadPhaseHitCount);
+    LogMessage("Mid Phase Test Count: %llu", metrics->midPhaseTestCount);
+    LogMessage("Mid Phase Hit Count: %llu", metrics->midPhaseHitCount);
     LogMessage("AABB Test Count: %llu", metrics->aabbTestCount);
     LogMessage("Triangle Test Count: %llu", metrics->triangleTestCount);
     LogMessage("Triangle Hit Count: %llu", metrics->triangleHitCount);
@@ -139,6 +147,7 @@ struct RayTracer
     b32 useAccelerationStructure;
     u32 maxDepth;
     RayTracerMesh meshes[MAX_MESHES];
+    RandomNumberGenerator rng;
 };
 
 internal RayTracerMesh BuildBvh(RayTracer *rayTracer, MeshData meshData)
@@ -408,6 +417,7 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
     {
         StackNode top = stack[--stackSize];
         BvhNode *node = top.node;
+        g_Metrics.midPhaseTestCount++;
         f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
 
         if (top.depth == maxDepth)
@@ -418,6 +428,7 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
 
         if (t > 0.0f)
         {
+            g_Metrics.midPhaseHitCount++;
             result.depth = MaxU32(result.depth, top.depth);
             if (node->children[0] != NULL)
             {
@@ -482,10 +493,12 @@ internal u32 GetEntitiesToTest(World *world, vec3 rayOrigin, vec3 rayDirection,
     for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
     {
         Entity *entity = world->entities + entityIndex;
+        g_Metrics.broadPhaseTestCount++;
         f32 t = RayIntersectAabb(
             entity->aabbMin, entity->aabbMax, rayOrigin, rayDirection);
         if (t >= 0.0f)
         {
+            g_Metrics.broadPhaseHitCount++;
             if (count < maxEntities)
             {
                 entityIndices[count++] = entityIndex;
@@ -640,20 +653,18 @@ internal CameraConstants CalculateCameraConstants(mat4 viewMatrix, u32 width, u3
     return result;
 }
 
-inline vec3 CalculateFilmP(
-    CameraConstants *camera, u32 width, u32 height, u32 x, u32 y)
+inline vec3 CalculateFilmP(CameraConstants *camera, u32 width, u32 height,
+    u32 x, u32 y, RandomNumberGenerator *rng)
 {
     // Map to -1 to 1 range
     f32 filmX = -1.0f + 2.0f * ((f32)x / (f32)width);
     f32 filmY = -1.0f + 2.0f * (1.0f - ((f32)y / (f32)height));
 
-    // f32 offsetX =
-    // filmX + halfPixelWidth + halfPixelWidth * RandomBilateral(rng);
-    f32 offsetX = filmX + camera->halfPixelWidth;
-    f32 offsetY = filmY + camera->halfPixelHeight;
+    f32 offsetX = filmX + camera->halfPixelWidth +
+                  camera->halfPixelWidth * RandomBilateral(rng);
 
-    // f32 offsetY = filmY + halfPixelHeight +
-    // halfPixelHeight * RandomBilateral(rng);
+    f32 offsetY = filmY + camera->halfPixelHeight +
+                  camera->halfPixelHeight * RandomBilateral(rng);
 
     vec3 filmP = camera->halfFilmWidth * offsetX * camera->cameraRight +
                  camera->halfFilmHeight * offsetY * camera->cameraUp +
@@ -670,36 +681,70 @@ internal void DoRayTracing(
     CameraConstants camera =
         CalculateCameraConstants(rayTracer->viewMatrix, width, height);
 
+    vec3 baseColor = Vec3(0.8, 0.8, 0.8);
+    vec3 lightColor = Vec3(1, 0.95, 0.8);
+    vec3 lightDirection = Normalize(Vec3(1, 1, 0.5));
+    vec3 backgroundColor = Vec3(0, 0, 0);
+
+    u32 maxBounces = 2;
+    u32 maxSamples = 128;
+
     for (u32 y = 0; y < height; ++y)
     {
         for (u32 x = 0; x < width; ++x)
         {
             g_Metrics.totalPixelCount++;
 
-            vec3 filmP = CalculateFilmP(&camera, width, height, x, y);
+            vec3 radiance = {};
+            for (u32 sample = 0; sample < maxSamples; ++sample)
+            {
+                vec3 filmP = CalculateFilmP(
+                    &camera, width, height, x, y, &rayTracer->rng);
 
-            g_Metrics.totalSampleCount++;
+                g_Metrics.totalSampleCount++;
 
-            vec3 rayOrigin = camera.cameraPosition;
-            vec3 rayDirection = Normalize(filmP - camera.cameraPosition);
+                vec3 rayOrigin = camera.cameraPosition;
+                vec3 rayDirection = Normalize(filmP - camera.cameraPosition);
 
-            //f32 t = RayIntersectSphere(
-                //Vec3(0, 0, 0), 0.5f, rayOrigin, rayDirection);
-            //vec3 outputColor = (t < F32_MAX) ? Vec3(1, 0, 0) : Vec3(0, 0, 0);
-            //f32 t = RayIntersectTriangle(rayOrigin, rayDirection,
-                        //Vec3(-0.5f, -0.5f, 0.0f),
-                        //Vec3(0.5f, -0.5f, 0.0f),
-                        //Vec3(0.0, 0.5f, 0.0f));
-            RayHitResult rayHit =
-                TraceRayThroughScene(rayTracer, world, rayOrigin, rayDirection);
-            vec3 outputColor =
-                rayHit.isValid ? rayHit.normal : Vec3(0, 0, 0);
-                //rayHit.isValid ? rayHit.normal * 0.5f + Vec3(0.5f) : Vec3(0, 0, 0);
+                vec3 contrib = Vec3(1);
+                for (u32 i = 0; i < maxBounces; ++i)
+                {
+                    RayHitResult rayHit = TraceRayThroughScene(
+                        rayTracer, world, rayOrigin, rayDirection);
 
-            outputColor = Clamp(outputColor, Vec3(0), Vec3(1));
+                    if (rayHit.t > 0.0f)
+                    {
+                        vec3 hitPoint = rayOrigin + rayDirection * rayHit.t;
+                        rayOrigin = hitPoint + rayHit.normal * 0.0000001f;
 
-            //f32 maxDepth = 10;
-            //outputColor = Vec3(1, 1, 1) * ((f32)rayHit.depth / (f32)maxDepth);
+                        vec3 offset = Vec3(RandomBilateral(&rayTracer->rng),
+                            RandomBilateral(&rayTracer->rng),
+                            RandomBilateral(&rayTracer->rng));
+                        vec3 dir = Normalize(rayHit.normal + offset);
+                        if (Dot(dir, rayHit.normal) < 0.0f)
+                        {
+                            dir = -dir;
+                        }
+
+                        rayDirection = dir;
+
+                        contrib = Hadamard(contrib,
+                            baseColor *
+                                Max(Dot(rayDirection, rayHit.normal), 0.0));
+                    }
+                    else
+                    {
+                        contrib = Hadamard(contrib,
+                            lightColor *
+                                Max(Dot(rayDirection, lightDirection), 0.0));
+                        break;
+                    }
+                }
+
+                radiance += contrib * (1.0f / (f32)maxSamples);
+            }
+
+            vec3 outputColor = Clamp(radiance, Vec3(0), Vec3(1));
 
             outputColor *= 255.0f;
             u32 bgra = (0xFF000000 | ((u32)outputColor.z) << 16 |

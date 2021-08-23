@@ -1,3 +1,29 @@
+/*
+Meshes data memory usage: 957k / 65536k
+Begin ray tracing
+Camera Position: (-1.3856, 1.41614, 2.27094)
+Camera Rotation: (-0.54, -0.46, 0)
+Ray tracing time spent: 83.4326s
+Memory Usage: 3140kb / 65536kb
+Entities: 1003 / 1024
+BVH Nodes: 41432 / 65536
+Debug Vertices: 11184810 / 11184810
+Profiler Samples: 0 / 22369621
+Broad Phase Test Count: 12045442242 <----------- 99.8% waste!!!!
+Broad Phase Hit Count: 27212892
+Mid Phase Test Count: 561488352
+Mid Phase Hit Count: 315078927
+AABB Test Count: 12606930594
+Triangle Test Count: 47941197
+Triangle Hit Count: 14701578
+Ray Count: 12009414
+Total Sample Count: 6291456
+Total Pixel Count: 49152
+Rays per second: 143942
+ *
+ *
+ *
+ */
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -566,6 +592,7 @@ int main(int argc, char **argv)
     RayTracer rayTracer = {};
     rayTracer.nodes = AllocateArray(&memoryArena, BvhNode, MAX_BVH_NODES);
     rayTracer.useAccelerationStructure = true;
+    rayTracer.rng.state = 0xF51C0E49;
     rayTracer.meshes[Mesh_Bunny] = BuildBvh(&rayTracer, bunnyMesh);
     rayTracer.meshes[Mesh_Monkey] = BuildBvh(&rayTracer, monkeyMesh);
     rayTracer.meshes[Mesh_Plane] = BuildBvh(&rayTracer, planeMesh);
