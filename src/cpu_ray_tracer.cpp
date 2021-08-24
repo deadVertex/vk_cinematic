@@ -1,31 +1,5 @@
 #include "math_lib.h"
-
-#define RAY_TRACER_WIDTH (1024 / 4)
-#define RAY_TRACER_HEIGHT (768 / 4)
-
-struct RayHitResult
-{
-    b32 isValid;
-    f32 t;
-    vec3 normal;
-    u32 depth;
-};
-
-struct Metrics
-{
-    u64 broadPhaseTestCount;
-    u64 broadPhaseHitCount;
-    u64 midPhaseTestCount;
-    u64 midPhaseHitCount;
-    u64 aabbTestCount;
-    u64 triangleTestCount;
-    u64 rayCount;
-    u64 totalSampleCount;
-    u64 totalPixelCount;
-    u64 triangleHitCount;
-};
-
-global Metrics g_Metrics;
+#include "cpu_ray_tracer.h"
 
 internal void DumpMetrics(Metrics *metrics)
 {
@@ -120,35 +94,6 @@ inline f32 RayIntersectAabb(
 
     return tmin;
 }
-
-#define MAX_BVH_NODES 0x10000
-
-// TODO: Probably want multiple triangles per leaf node
-struct BvhNode
-{
-    vec3 min;
-    vec3 max;
-    BvhNode *children[2];
-    u32 triangleIndex;
-};
-
-struct RayTracerMesh
-{
-    BvhNode *root;
-    MeshData meshData;
-};
-
-struct RayTracer
-{
-    mat4 viewMatrix;
-    DebugDrawingBuffer *debugDrawBuffer;
-    BvhNode *nodes;
-    u32 nodeCount;
-    b32 useAccelerationStructure;
-    u32 maxDepth;
-    RayTracerMesh meshes[MAX_MESHES];
-    RandomNumberGenerator rng;
-};
 
 internal RayTracerMesh BuildBvh(RayTracer *rayTracer, MeshData meshData)
 {
@@ -426,7 +371,8 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
                 t > 0.0f ? Vec3(0, 1, 0) : Vec3(0.6, 0.2, 0.6));
         }
 
-        if (t > 0.0f)
+        // FIXME: Should this not be >=?????
+        if (t >= 0.0f)
         {
             g_Metrics.midPhaseHitCount++;
             result.depth = MaxU32(result.depth, top.depth);
@@ -486,6 +432,7 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
     return result;
 }
 
+#if 0
 internal u32 GetEntitiesToTest(World *world, vec3 rayOrigin, vec3 rayDirection,
     u32 *entityIndices, u32 maxEntities)
 {
@@ -508,6 +455,59 @@ internal u32 GetEntitiesToTest(World *world, vec3 rayOrigin, vec3 rayDirection,
 
     return count;
 }
+#endif
+
+internal u32 GetEntitiesToTest(AabbTree tree, vec3 rayOrigin, vec3 rayDirection,
+        u32 *entityIndices, u32 maxEntities)
+{
+    u32 count = 0;
+
+    AabbTreeNode *stack[256];
+    u32 stackSize = 1;
+    stack[0] = tree.root;
+
+    AabbTreeNode *newStack[256];
+    u32 newStackSize = 0;
+    while (stackSize > 0)
+    {
+        AabbTreeNode *node = stack[--stackSize];
+        g_Metrics.broadPhaseTestCount++;
+        f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
+        if (t >= 0.0f)
+        {
+            if (node->children[0] != NULL)
+            {
+                // Assuming that this is always true?
+                Assert(node->children[1] != NULL);
+
+                Assert(newStackSize + 2 <= ArrayCount(newStack));        
+                newStack[newStackSize] = node->children[0];
+                newStack[newStackSize + 1] = node->children[1];
+                newStackSize += 2;
+            }
+            else
+            {
+                Assert(node->children[1] == NULL);
+                g_Metrics.broadPhaseHitCount++;
+                if (count < maxEntities)
+                {
+                    entityIndices[count++] = node->entityIndex;
+                }
+            }
+        }
+
+        if (stackSize == 0)
+        {
+            stackSize = newStackSize;
+            // TODO: Use ping pong buffers rather than copying memory!
+            CopyMemory(stack, newStack, newStackSize * sizeof(StackNode));
+
+            newStackSize = 0;
+        }
+    }
+
+    return count;
+}
 
 internal RayHitResult TraceRayThroughScene(
     RayTracer *rayTracer, World *world, vec3 rayOrigin, vec3 rayDirection)
@@ -518,8 +518,8 @@ internal RayHitResult TraceRayThroughScene(
     RayHitResult worldResult = {};
 
     u32 entitiesToTest[MAX_ENTITIES];
-    u32 entityCount = GetEntitiesToTest(world, rayOrigin, rayDirection,
-        entitiesToTest, ArrayCount(entitiesToTest));
+    u32 entityCount = GetEntitiesToTest(rayTracer->aabbTree, rayOrigin,
+        rayDirection, entitiesToTest, ArrayCount(entitiesToTest));
 
     for (u32 index = 0; index < entityCount; index++)
     {
@@ -862,3 +862,145 @@ internal void TestTransformRayVsTriangle(DebugDrawingBuffer *debugDrawBuffer)
     DrawLine(debugDrawBuffer, worldHitPoint, worldHitPoint + worldNormal,
         Vec3(1, 0, 1));
 }
+
+internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
+{
+    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+    {
+        Entity *entity = world->entities + entityIndex;
+        RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
+        vec3 boxMin = mesh.root->min;
+        vec3 boxMax = mesh.root->max;
+        mat4 modelMatrix = Translate(entity->position) *
+                           Rotate(entity->rotation) * Scale(entity->scale);
+
+        // FIXME: Computing the sphere is pretty bad way of transforming the
+        // AABB, its probably worth investing in doing this properly by
+        // transforming the 8 vertices of AABB and compute a new one from that.
+        vec3 center = (boxMin + boxMax) * 0.5f;
+        vec3 halfDim = (boxMax - boxMin) * 0.5f;
+        f32 radius = Length(halfDim);
+
+        vec3 transformedCenter = TransformPoint(center, modelMatrix);
+        u32 largestAxis = CalculateLargestAxis(entity->scale);
+        f32 transformedRadius = radius * entity->scale.data[largestAxis];
+
+        entity->aabbMin = transformedCenter - Vec3(transformedRadius);
+        entity->aabbMax = transformedCenter + Vec3(transformedRadius);
+    }
+}
+
+internal AabbTree BuildAabbTree(World *world, MemoryArena *arena)
+{
+    AabbTree tree = {};
+    tree.nodes = AllocateArray(arena, AabbTreeNode, MAX_AABB_TREE_NODES);
+    tree.max = MAX_AABB_TREE_NODES;
+
+    // FIXME: This should use a tempArena rather than the stack
+    u32 unmergedNodeIndices[MAX_AABB_TREE_NODES];
+    u32 unmergedNodeCount = 0;
+
+    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+    {
+        Entity *entity = world->entities + entityIndex;
+        Assert(tree.count < tree.max);
+        AabbTreeNode *node = tree.nodes + tree.count++;
+        node->min = entity->aabbMin;
+        node->max = entity->aabbMax;
+        node->entityIndex = entityIndex;
+        node->children[0] = NULL;
+        node->children[1] = NULL;
+
+        // NOTE: Entity index is our leaf index
+        unmergedNodeIndices[entityIndex] = entityIndex;
+    }
+    unmergedNodeCount = world->count;
+
+    while (unmergedNodeCount > 1)
+    {
+        u32 newUnmergedNodeCount = 0;
+
+        // Join nodes with their nearest neighbors to build tree
+        for (u32 index = 0; index < unmergedNodeCount; ++index)
+        {
+            u32 nodeIndex = unmergedNodeIndices[index];
+            AabbTreeNode *node = tree.nodes + nodeIndex;
+            vec3 centroid = (node->max + node->min) * 0.5f;
+
+            f32 closestDistance = F32_MAX;
+            f32 minVolume = F32_MAX;
+            AabbTreeNode *closestPartnerNode = NULL;
+            u32 closestPartnerIndex = 0;
+
+            // TODO: Spatial hashing
+            // Find a node who's centroid is closest to ours
+            for (u32 partnerIndex = 0; partnerIndex < unmergedNodeCount;
+                 ++partnerIndex)
+            {
+                if (partnerIndex == index)
+                {
+                    continue;
+                }
+
+                u32 partnerNodeIndex = unmergedNodeIndices[partnerIndex];
+                AabbTreeNode *partnerNode = tree.nodes + partnerNodeIndex;
+
+#ifdef MIN_VOLUME
+                vec3 min = Min(node->min, partnerNode->min);
+                vec3 max = Max(node->max, partnerNode->max);
+                f32 volume = (max.x - min.x) * (max.y - min.y) * (max.z - min.z);
+                if (volume < minVolume)
+                {
+                    minVolume = volume;
+                    closestPartnerNode = partnerNode;
+                    closestPartnerIndex = partnerIndex;
+                }
+#else
+                vec3 partnerCentroid =
+                    (partnerNode->max + partnerNode->min) * 0.5f;
+
+                // Find minimal distance via length squared to avoid sqrt
+                f32 dist = LengthSq(partnerCentroid - centroid);
+                if (dist < closestDistance)
+                {
+                    closestDistance = dist;
+                    closestPartnerNode = partnerNode;
+                    closestPartnerIndex = partnerIndex;
+                }
+#endif
+            }
+
+            if (closestPartnerNode != NULL)
+            {
+                // Create combined node
+                Assert(tree.count < tree.max);
+                u32 newNodeIndex = tree.count++;
+                AabbTreeNode *newNode = tree.nodes + newNodeIndex;
+                newNode->min = Min(node->min, closestPartnerNode->min);
+                newNode->max = Max(node->max, closestPartnerNode->max);
+                newNode->children[0] = node;
+                newNode->children[1] = closestPartnerNode;
+                newNode->entityIndex = 0;
+
+                // Start overwriting the old entries with combined nodes, should
+                // be roughly half the length as the original array
+                Assert(newUnmergedNodeCount <= index);
+                unmergedNodeIndices[newUnmergedNodeCount++] = newNodeIndex;
+
+                // Remove partner from unmerged node indices array
+                u32 last = unmergedNodeCount - 1;
+                unmergedNodeIndices[closestPartnerIndex] =
+                    unmergedNodeIndices[last];
+                unmergedNodeCount--;
+            }
+        }
+
+        unmergedNodeCount = newUnmergedNodeCount;
+    }
+
+    // Assume the last node created is the root node
+    tree.root = tree.nodes + (tree.count - 1);
+
+    return tree;
+}
+

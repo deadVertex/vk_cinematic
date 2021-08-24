@@ -21,6 +21,7 @@ void tearDown(void)
     // clean stuff up here
 }
 
+#if 0
 void test_repro_bug()
 {
     MeshData bunnyMesh = LoadMesh();
@@ -55,9 +56,11 @@ void test_repro_bug()
 
     TEST_ASSERT_TRUE(rayHit.isValid);
 }
+#endif
 
 int main()
 {
-    RUN_TEST(test_repro_bug);
+    //RUN_TEST(test_repro_bug);
+    RUN_TEST(Test_BuildAabbTree);
     return UNITY_END();
 }

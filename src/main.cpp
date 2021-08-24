@@ -20,8 +20,28 @@ Ray Count: 12009414
 Total Sample Count: 6291456
 Total Pixel Count: 49152
 Rays per second: 143942
+
+
+12045442242 / 12009414 = 1003 hmmmmmmmmmmmmmmmmmmmmmmmmmmm
  *
  *
+Ray tracing time spent: 29.8204s
+Memory Usage: 3236kb / 65536kb
+Entities: 1003 / 1024
+BVH Nodes: 41432 / 65536
+Debug Vertices: 11184810 / 11184810
+Profiler Samples: 0 / 22369621
+Broad Phase Test Count: 702330100 <----------------- 96.5% waste
+Broad Phase Hit Count: 24772696
+Mid Phase Test Count: 469090266
+Mid Phase Hit Count: 263603905
+AABB Test Count: 1171420366
+Triangle Test Count: 41445120
+Triangle Hit Count: 13048590
+Ray Count: 11820260
+Total Sample Count: 6291456
+Total Pixel Count: 49152
+Rays per second: 396381
  *
  */
 #include <assimp/cimport.h>
@@ -439,33 +459,6 @@ internal void AddEntity(
     }
 }
 
-internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
-{
-    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
-    {
-        Entity *entity = world->entities + entityIndex;
-        RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
-        vec3 boxMin = mesh.root->min;
-        vec3 boxMax = mesh.root->max;
-        mat4 modelMatrix = Translate(entity->position) *
-                           Rotate(entity->rotation) * Scale(entity->scale);
-
-        // FIXME: Computing the sphere is pretty bad way of transforming the
-        // AABB, its probably worth investing in doing this properly by
-        // transforming the 8 vertices of AABB and compute a new one from that.
-        vec3 center = (boxMin + boxMax) * 0.5f;
-        vec3 halfDim = (boxMax - boxMin) * 0.5f;
-        f32 radius = Length(halfDim);
-
-        vec3 transformedCenter = TransformPoint(center, modelMatrix);
-        u32 largestAxis = CalculateLargestAxis(entity->scale);
-        f32 transformedRadius = radius * entity->scale.data[largestAxis];
-
-        entity->aabbMin = transformedCenter - Vec3(transformedRadius);
-        entity->aabbMax = transformedCenter + Vec3(transformedRadius);
-    }
-}
-
 internal void CopyMeshDataToUploadBuffer(
     VulkanRenderer *renderer, MeshData meshData, u32 mesh)
 {
@@ -600,6 +593,8 @@ int main(int argc, char **argv)
     // Compute bounding box for each entity
     ComputeEntityBoundingBoxes(&world, &rayTracer);
 
+    rayTracer.aabbTree = BuildAabbTree(&world, &memoryArena);
+
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};
 
@@ -714,6 +709,9 @@ int main(int argc, char **argv)
             VulkanCopyImageFromCPU(&renderer);
             isDirty = false;
         }
+
+        DrawBox(&debugDrawBuffer, rayTracer.aabbTree.root->min,
+                rayTracer.aabbTree.root->max, Vec3(1, 0, 0));
 
         Update(&renderer, &rayTracer, &input, dt);
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
