@@ -65,7 +65,6 @@ struct Metrics
     u64 broadPhaseHitCount;
     u64 midPhaseTestCount;
     u64 midPhaseHitCount;
-    u64 aabbTestCount;
     u64 triangleTestCount;
     u64 rayCount;
     u64 totalSampleCount;

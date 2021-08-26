@@ -3,13 +3,12 @@
 
 internal void DumpMetrics(Metrics *metrics)
 {
-    LogMessage("Broad Phase Test Count: %llu", metrics->broadPhaseTestCount);
-    LogMessage("Broad Phase Hit Count: %llu", metrics->broadPhaseHitCount);
-    LogMessage("Mid Phase Test Count: %llu", metrics->midPhaseTestCount);
-    LogMessage("Mid Phase Hit Count: %llu", metrics->midPhaseHitCount);
-    LogMessage("AABB Test Count: %llu", metrics->aabbTestCount);
-    LogMessage("Triangle Test Count: %llu", metrics->triangleTestCount);
-    LogMessage("Triangle Hit Count: %llu", metrics->triangleHitCount);
+    LogMessage("Broad Phase Test Count: %llu / %llu",
+        metrics->broadPhaseHitCount, metrics->broadPhaseTestCount);
+    LogMessage("Mid Phase Test Count: %llu / %llu", metrics->midPhaseHitCount,
+        metrics->midPhaseTestCount);
+    LogMessage("Triangle Test Count: %llu / %llu", metrics->triangleHitCount,
+        metrics->triangleTestCount);
     LogMessage("Ray Count: %llu", metrics->rayCount);
     LogMessage("Total Sample Count: %llu", metrics->totalSampleCount);
     LogMessage("Total Pixel Count: %llu", metrics->totalPixelCount);
@@ -41,8 +40,6 @@ inline f32 RayIntersectSphere(vec3 center, f32 radius, vec3 rayOrigin, vec3 rayD
 inline f32 RayIntersectAabb(
     vec3 boxMin, vec3 boxMax, vec3 rayOrigin, vec3 rayDirection)
 {
-    g_Metrics.aabbTestCount++;
-
     f32 tmin = 0.0f;
     f32 tmax = F32_MAX;
 
@@ -526,6 +523,9 @@ internal RayHitResult TraceRayThroughScene(
         u32 entityIndex = entitiesToTest[index];
         Entity *entity = world->entities + entityIndex;
 
+        // TODO: Skip testing entity if our worldResult.tmin is closer than the
+        // tmin for entity bounding box.
+
         PROFILE_BEGIN_SCOPE("model matrices");
         // TODO: Don't calculate this for every ray!
         mat4 modelMatrix = Translate(entity->position) *
@@ -874,6 +874,28 @@ internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
         mat4 modelMatrix = Translate(entity->position) *
                            Rotate(entity->rotation) * Scale(entity->scale);
 
+#if COMPUTE_SLOW_ENTITY_AABBS
+        vec3 vertices[8];
+        vertices[0] = Vec3(boxMin.x, boxMin.y, boxMin.z);
+        vertices[1] = Vec3(boxMax.x, boxMin.y, boxMin.z);
+        vertices[2] = Vec3(boxMax.x, boxMin.y, boxMax.z);
+        vertices[3] = Vec3(boxMin.x, boxMin.y, boxMax.z);
+        vertices[4] = Vec3(boxMin.x, boxMax.y, boxMin.z);
+        vertices[5] = Vec3(boxMax.x, boxMax.y, boxMin.z);
+        vertices[6] = Vec3(boxMax.x, boxMax.y, boxMax.z);
+        vertices[7] = Vec3(boxMin.x, boxMax.y, boxMax.z);
+
+        vec3 transformedVertex = TransformPoint(vertices[0], modelMatrix);
+        entity->aabbMin = transformedVertex;
+        entity->aabbMax = transformedVertex;
+
+        for (u32 i = 1; i < ArrayCount(vertices); ++i)
+        {
+            transformedVertex = TransformPoint(vertices[i], modelMatrix);
+            entity->aabbMin = Min(entity->aabbMin, transformedVertex);
+            entity->aabbMax = Max(entity->aabbMax, transformedVertex);
+        }
+#else
         // FIXME: Computing the sphere is pretty bad way of transforming the
         // AABB, its probably worth investing in doing this properly by
         // transforming the 8 vertices of AABB and compute a new one from that.
@@ -887,6 +909,7 @@ internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
 
         entity->aabbMin = transformedCenter - Vec3(transformedRadius);
         entity->aabbMax = transformedCenter + Vec3(transformedRadius);
+#endif
     }
 }
 
@@ -1004,3 +1027,102 @@ internal AabbTree BuildAabbTree(World *world, MemoryArena *arena)
     return tree;
 }
 
+struct AabbTreeStackNode
+{
+    AabbTreeNode *node;
+    u32 depth;
+};
+
+internal void EvaluateTree(AabbTree tree)
+{
+    u32 maxDepth = 0;
+    AabbTreeStackNode stack[MAX_AABB_TREE_NODES];
+    u32 stackSize = 1;
+    stack[0].node = tree.root;
+    stack[0].depth = 1;
+
+    AabbTreeStackNode newStack[MAX_AABB_TREE_NODES];
+    u32 newStackSize = 0;
+    while (stackSize > 0)
+    {
+        AabbTreeStackNode entry = stack[--stackSize];
+        AabbTreeNode *node = entry.node;
+        if (node->children[0] != NULL)
+        {
+            // Assuming that this is always true?
+            Assert(node->children[1] != NULL);
+
+            Assert(newStackSize + 2 <= ArrayCount(newStack));        
+            newStack[newStackSize].node = node->children[0];
+            newStack[newStackSize].depth = entry.depth + 1;
+            newStack[newStackSize + 1].node = node->children[1];
+            newStack[newStackSize + 1].depth = entry.depth + 1;
+            newStackSize += 2;
+        }
+        else
+        {
+            // Leaf node
+            Assert(node->children[1] == NULL);
+            maxDepth = MaxU32(entry.depth, maxDepth);
+        }
+
+        if (stackSize == 0)
+        {
+            stackSize = newStackSize;
+            // TODO: Use ping pong buffers rather than copying memory!
+            CopyMemory(stack, newStack, newStackSize * sizeof(StackNode));
+
+            newStackSize = 0;
+        }
+    }
+
+    LogMessage("Tree depth: %u", maxDepth);
+}
+
+internal void DrawTree(
+    AabbTree tree, DebugDrawingBuffer *debugDrawBuffer, u32 level)
+{
+    AabbTreeStackNode stack[MAX_AABB_TREE_NODES];
+    u32 stackSize = 1;
+    stack[0].node = tree.root;
+    stack[0].depth = 1;
+
+    AabbTreeStackNode newStack[MAX_AABB_TREE_NODES];
+    u32 newStackSize = 0;
+    while (stackSize > 0)
+    {
+        AabbTreeStackNode entry = stack[--stackSize];
+        AabbTreeNode *node = entry.node;
+        if (entry.depth == level)
+        {
+            DrawBox(debugDrawBuffer, node->min, node->max, Vec3(0, 1, 0));
+        }
+
+        if (node->children[0] != NULL)
+        {
+            // Assuming that this is always true?
+            Assert(node->children[1] != NULL);
+
+            Assert(newStackSize + 2 <= ArrayCount(newStack));        
+            newStack[newStackSize].node = node->children[0];
+            newStack[newStackSize].depth = entry.depth + 1;
+            newStack[newStackSize + 1].node = node->children[1];
+            newStack[newStackSize + 1].depth = entry.depth + 1;
+            newStackSize += 2;
+        }
+        else
+        {
+            // Leaf node
+            Assert(node->children[1] == NULL);
+        }
+
+        if (stackSize == 0)
+        {
+            stackSize = newStackSize;
+            // TODO: Use ping pong buffers rather than copying memory!
+            CopyMemory(stack, newStack, newStackSize * sizeof(StackNode));
+
+            newStackSize = 0;
+        }
+    }
+}

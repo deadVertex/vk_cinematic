@@ -25,6 +25,7 @@ Rays per second: 143942
 12045442242 / 12009414 = 1003 hmmmmmmmmmmmmmmmmmmmmmmmmmmm
  *
  *
+ Basic AABB tree for broadphase
 Ray tracing time spent: 29.8204s
 Memory Usage: 3236kb / 65536kb
 Entities: 1003 / 1024
@@ -43,13 +44,70 @@ Total Sample Count: 6291456
 Total Pixel Count: 49152
 Rays per second: 396381
  *
+ *
+ *
+ *
+ Camera Position: (0.159051, 0.454406, 0.823399)
+Camera Rotation: (-0.0350002, 0.17, 0)
+Ray tracing time spent: 67.4441s
+Memory Usage: 3236kb / 65536kb
+Entities: 1002 / 1024
+BVH Nodes: 41432 / 65536
+Debug Vertices: 11184810 / 11184810
+Profiler Samples: 0 / 22369621
+Broad Phase Test Count: 614506568 <----- 96% waste (69 tests per ray...)
+Broad Phase Hit Count: 24812175
+Mid Phase Test Count: 2749985885
+Mid Phase Hit Count: 1550709582
+AABB Test Count: 3364492453
+Triangle Test Count: 188122727
+Triangle Hit Count: 38471256
+Ray Count: 8841492
+Total Sample Count: 6291456
+Total Pixel Count: 49152
+Rays per second: 131094
+
+
+With plane (faster because we 40% less triangle tests)
+Ray tracing time spent: 48.3543s
+Memory Usage: 3236kb / 65536kb
+Entities: 1003 / 1024
+BVH Nodes: 41432 / 65536
+Debug Vertices: 11184810 / 11184810
+Profiler Samples: 0 / 22369621
+Broad Phase Test Count: 558461247
+Broad Phase Hit Count: 27773346
+Mid Phase Test Count: 1596608068
+Mid Phase Hit Count: 899500138
+AABB Test Count: 2155069315
+Triangle Test Count: 115082777
+Triangle Hit Count: 26235506
+Ray Count: 10291059
+Total Sample Count: 6291456
+Total Pixel Count: 49152
+Rays per second: 212826
+
+
+With Better Entity AABBs (44% reduction in broadphase test passes)
+Ray tracing time spent: 45.5589s
+Memory Usage: 3236kb / 65536kb
+Entities: 1003 / 1024
+BVH Nodes: 41432 / 65536
+Debug Vertices: 11184810 / 11184810
+Profiler Samples: 0 / 22369621
+Broad Phase Test Count: 15658206 / 536746871
+Mid Phase Test Count: 919459268 / 1619711018
+Triangle Test Count: 26758331 / 117432862
+Ray Count: 10291059
+Total Sample Count: 6291456
+Total Pixel Count: 49152
+Rays per second: 225885
  */
+
+#include "config.h"
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-
-#define ENABLE_VALIDATION_LAYERS
-//#define ENABLE_PROFILING
 
 #define PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -421,8 +479,13 @@ internal void Update(
 {
     UpdateFreeRoamCamera(&g_camera, input, dt);
     UniformBufferObject *ubo = (UniformBufferObject *)renderer->uniformBuffer.data;
+#if defined(OVERRIDE_CAMERA_POSITION) && defined(OVERRIDE_CAMERA_ROTATION)
+    vec3 cameraPosition = OVERRIDE_CAMERA_POSITION;
+    vec3 rotation = OVERRIDE_CAMERA_ROTATION;
+#else
     vec3 cameraPosition = g_camera.position;
     vec3 rotation = g_camera.rotation;
+#endif
     quat cameraRotation =
         Quat(Vec3(0, 1, 0), rotation.y) * Quat(Vec3(1, 0, 0), rotation.x);
 
@@ -456,6 +519,16 @@ internal void AddEntity(
         entity->rotation = rotation;
         entity->scale = scale;
         entity->mesh = mesh;
+    }
+}
+
+internal void DrawEntityAabbs(World world, DebugDrawingBuffer *debugDrawBuffer)
+{
+    for (u32 entityIndex = 0; entityIndex < world.count; ++entityIndex)
+    {
+        Entity *entity = world.entities + entityIndex;
+        DrawBox(debugDrawBuffer, entity->aabbMin, entity->aabbMax,
+            Vec3(0.8, 0.4, 0.2));
     }
 }
 
@@ -595,6 +668,10 @@ int main(int argc, char **argv)
 
     rayTracer.aabbTree = BuildAabbTree(&world, &memoryArena);
 
+#if ANALYZE_BROAD_PHASE_TREE
+    EvaluateTree(rayTracer.aabbTree);
+#endif
+
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};
 
@@ -709,9 +786,13 @@ int main(int argc, char **argv)
             VulkanCopyImageFromCPU(&renderer);
             isDirty = false;
         }
+#if DRAW_ENTITY_AABBS
+        DrawEntityAabbs(world, &debugDrawBuffer);
+#endif
 
-        DrawBox(&debugDrawBuffer, rayTracer.aabbTree.root->min,
-                rayTracer.aabbTree.root->max, Vec3(1, 0, 0));
+#if DRAW_BROAD_PHASE_TREE
+        DrawTree(rayTracer.aabbTree, &debugDrawBuffer, maxDepth);
+#endif
 
         Update(&renderer, &rayTracer, &input, dt);
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
