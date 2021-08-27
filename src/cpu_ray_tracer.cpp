@@ -225,8 +225,8 @@ struct RayIntersectTriangleResult
 };
 
 // TODO: Do we need to normalize cross products?
-internal RayIntersectTriangleResult RayIntersectTriangle(
-    vec3 rayOrigin, vec3 rayDirection, vec3 a, vec3 b, vec3 c)
+internal RayIntersectTriangleResult RayIntersectTriangle(vec3 rayOrigin,
+    vec3 rayDirection, vec3 a, vec3 b, vec3 c, f32 tmin = F32_MAX)
 {
     RayIntersectTriangleResult result = {};
     result.t = -1.0f;
@@ -251,7 +251,7 @@ internal RayIntersectTriangleResult RayIntersectTriangle(
     f32 t = Dot(a - rayOrigin, normal) / denom;
     //f32 t = (distance - Dot(normal, rayOrigin)) / denom;
 
-    if (t > 0.0f)
+    if (t > 0.0f && t < tmin)
     {
         vec3 p = rayOrigin + t * rayDirection;
 
@@ -343,7 +343,7 @@ struct StackNode
 
 internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
     MeshData meshData, vec3 rayOrigin, vec3 rayDirection,
-    DebugDrawingBuffer *debugDrawBuffer, u32 maxDepth)
+    DebugDrawingBuffer *debugDrawBuffer, u32 maxDepth, f32 tmin)
 {
     RayHitResult result = {};
     result.t = F32_MAX;
@@ -368,9 +368,10 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
                 t > 0.0f ? Vec3(0, 1, 0) : Vec3(0.6, 0.2, 0.6));
         }
 
-        // FIXME: Should this not be >=?????
-        if (t >= 0.0f)
+        if (t >= 0.0f && t < tmin)
         {
+            // FIXME: Should we still count this a hit if its greater than our
+            // tmin?
             g_Metrics.midPhaseHitCount++;
             result.depth = MaxU32(result.depth, top.depth);
             if (node->children[0] != NULL)
@@ -401,7 +402,7 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
 
                 RayIntersectTriangleResult triangleIntersect =
                     RayIntersectTriangle(rayOrigin, rayDirection, vertices[0],
-                        vertices[1], vertices[2]);
+                        vertices[1], vertices[2], tmin);
                 if (triangleIntersect.t > 0.0f)
                 {
                     g_Metrics.triangleHitCount++;
@@ -455,7 +456,7 @@ internal u32 GetEntitiesToTest(World *world, vec3 rayOrigin, vec3 rayDirection,
 #endif
 
 internal u32 GetEntitiesToTest(AabbTree tree, vec3 rayOrigin, vec3 rayDirection,
-        u32 *entityIndices, u32 maxEntities)
+    u32 *entityIndices, f32 *tValues, u32 maxEntities)
 {
     u32 count = 0;
 
@@ -488,7 +489,9 @@ internal u32 GetEntitiesToTest(AabbTree tree, vec3 rayOrigin, vec3 rayDirection,
                 g_Metrics.broadPhaseHitCount++;
                 if (count < maxEntities)
                 {
-                    entityIndices[count++] = node->entityIndex;
+                    u32 index = count++;
+                    entityIndices[index] = node->entityIndex;
+                    tValues[index] = t;
                 }
             }
         }
@@ -515,74 +518,86 @@ internal RayHitResult TraceRayThroughScene(
     RayHitResult worldResult = {};
 
     u32 entitiesToTest[MAX_ENTITIES];
+    f32 entityTmins[MAX_ENTITIES];
     u32 entityCount = GetEntitiesToTest(rayTracer->aabbTree, rayOrigin,
-        rayDirection, entitiesToTest, ArrayCount(entitiesToTest));
+        rayDirection, entitiesToTest, entityTmins, ArrayCount(entitiesToTest));
 
+    f32 tmin = F32_MAX;
     for (u32 index = 0; index < entityCount; index++)
     {
         u32 entityIndex = entitiesToTest[index];
-        Entity *entity = world->entities + entityIndex;
-
-        // TODO: Skip testing entity if our worldResult.tmin is closer than the
-        // tmin for entity bounding box.
-
-        PROFILE_BEGIN_SCOPE("model matrices");
-        // TODO: Don't calculate this for every ray!
-        mat4 modelMatrix = Translate(entity->position) *
-                             Rotate(entity->rotation) * Scale(entity->scale);
-        mat4 invModelMatrix =
-            Scale(Vec3(1.0f / entity->scale.x, 1.0f / entity->scale.y,
-                1.0f / entity->scale.z)) *
-            Rotate(Conjugate(entity->rotation)) * Translate(-entity->position);
-        PROFILE_END_SCOPE("model matrices");
-
-        RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
-
-        //PROFILE_BEGIN_SCOPE("transform ray");
-        // Ray is transformed by the inverse of the model matrix
-        vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
-        vec3 transformRayDirection =
-            Normalize(TransformVector(rayDirection, invModelMatrix));
-        //PROFILE_END_SCOPE("transform ray");
-
-        RayHitResult entityResult;
-        // Perform ray intersection test in model space
-        if (rayTracer->useAccelerationStructure)
+        if (entityTmins[index] < tmin)
         {
-            entityResult = RayIntersectTriangleMeshAabbTree(mesh.root,
-                mesh.meshData, transformRayOrigin, transformRayDirection,
-                rayTracer->debugDrawBuffer, rayTracer->maxDepth);
-        }
-        else
-        {
-            entityResult = RayIntersectTriangleMeshSlow(
-                mesh.meshData, transformRayOrigin, transformRayDirection);
-        }
+            Entity *entity = world->entities + entityIndex;
 
-        // Transform the hit point and normal back into world space
-        // PROBLEM: t value needs a bit more thought, luckily its not used for
-        // anything other than checking if we intersected anythinh yet.
-        // result.point = TransformPoint(result->point, modelMatrix);
-        entityResult.normal =
-            Normalize(TransformVector(entityResult.normal, modelMatrix));
+            // TODO: Skip testing entity if our worldResult.tmin is closer than
+            // the tmin for entity bounding box.
 
-        // FIXME: This is assuming we only support uniform scaling
-        entityResult.t *= entity->scale.x;
+            PROFILE_BEGIN_SCOPE("model matrices");
+            // TODO: Don't calculate this for every ray!
+            mat4 modelMatrix = Translate(entity->position) *
+                               Rotate(entity->rotation) * Scale(entity->scale);
+            mat4 invModelMatrix =
+                Scale(Vec3(1.0f / entity->scale.x, 1.0f / entity->scale.y,
+                    1.0f / entity->scale.z)) *
+                Rotate(Conjugate(entity->rotation)) *
+                Translate(-entity->position);
+            PROFILE_END_SCOPE("model matrices");
 
-        if (entityResult.isValid)
-        {
-            if (worldResult.isValid)
+            RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
+
+            // PROFILE_BEGIN_SCOPE("transform ray");
+            // Ray is transformed by the inverse of the model matrix
+            vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
+            vec3 transformRayDirection =
+                Normalize(TransformVector(rayDirection, invModelMatrix));
+            // PROFILE_END_SCOPE("transform ray");
+
+            RayHitResult entityResult;
+            // Perform ray intersection test in model space
+            if (rayTracer->useAccelerationStructure)
             {
-                // FIXME: Probably not correct to compare t values from
-                // different spaces, just going with it for now.
-                if (entityResult.t < worldResult.t)
-                {
-                    worldResult = entityResult;
-                }
+                // FIXME: This is assuming we only support uniform scaling
+                f32 transformedTmin = tmin * (1.0f / entity->scale.x);
+
+                entityResult = RayIntersectTriangleMeshAabbTree(mesh.root,
+                    mesh.meshData, transformRayOrigin, transformRayDirection,
+                    rayTracer->debugDrawBuffer, rayTracer->maxDepth,
+                    transformedTmin);
             }
             else
             {
-                worldResult = entityResult;
+                entityResult = RayIntersectTriangleMeshSlow(
+                    mesh.meshData, transformRayOrigin, transformRayDirection);
+            }
+
+            // Transform the hit point and normal back into world space
+            // PROBLEM: t value needs a bit more thought, luckily its not used
+            // for anything other than checking if we intersected anythinh yet.
+            // result.point = TransformPoint(result->point, modelMatrix);
+            entityResult.normal =
+                Normalize(TransformVector(entityResult.normal, modelMatrix));
+
+            // FIXME: This is assuming we only support uniform scaling
+            entityResult.t *= entity->scale.x;
+
+            if (entityResult.isValid)
+            {
+                if (worldResult.isValid)
+                {
+                    // FIXME: Probably not correct to compare t values from
+                    // different spaces, just going with it for now.
+                    if (entityResult.t < worldResult.t)
+                    {
+                        worldResult = entityResult;
+                        tmin = worldResult.t;
+                    }
+                }
+                else
+                {
+                    worldResult = entityResult;
+                    tmin = worldResult.t;
+                }
             }
         }
     }
