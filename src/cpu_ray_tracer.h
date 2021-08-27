@@ -63,13 +63,30 @@ struct Metrics
 {
     u64 broadPhaseTestCount;
     u64 broadPhaseHitCount;
+
     u64 midPhaseTestCount;
     u64 midPhaseHitCount;
+
     u64 triangleTestCount;
+    u64 triangleHitCount;
+
+    u64 meshTestCount;
+    u64 meshHitCount;
+
     u64 rayCount;
     u64 totalSampleCount;
     u64 totalPixelCount;
-    u64 triangleHitCount;
+
+    u64 broadphaseCycleCount;
+    u64 buildModelMatricesCycleCount;
+    u64 transformRayCycleCount;
+    u64 rayIntersectMeshCycleCount;
+    u64 rayTraceSceneCycleCount;
+
+    u64 midPhaseTestCycleCount;
+    u64 triangleTestCycleCount;
+    u64 copyMemoryCycleCount;
+    u64 copyMemoryCallCount;
 };
 
 global Metrics g_Metrics;

@@ -9,6 +9,48 @@ internal void DumpMetrics(Metrics *metrics)
         metrics->midPhaseTestCount);
     LogMessage("Triangle Test Count: %llu / %llu", metrics->triangleHitCount,
         metrics->triangleTestCount);
+    LogMessage("Mesh Test Count: %llu / %llu", metrics->meshHitCount,
+        metrics->meshTestCount);
+
+    LogMessage("Broadphase Cycles : %llu %llu %llu %g",
+        metrics->broadphaseCycleCount, metrics->rayCount,
+        metrics->broadphaseCycleCount / metrics->rayCount,
+        (f64)metrics->broadphaseCycleCount /
+            (f64)metrics->rayTraceSceneCycleCount);
+    LogMessage("Build Model Matrix Cycles : %llu %llu %llu %llu %g",
+        metrics->buildModelMatricesCycleCount, metrics->meshTestCount,
+        metrics->buildModelMatricesCycleCount / metrics->meshTestCount,
+        metrics->buildModelMatricesCycleCount / metrics->rayCount,
+        (f64)metrics->buildModelMatricesCycleCount /
+            (f64)metrics->rayTraceSceneCycleCount);
+    LogMessage("Transform Ray Cycles : %llu %llu %llu %llu %g",
+        metrics->transformRayCycleCount, metrics->meshTestCount,
+        metrics->transformRayCycleCount / metrics->meshTestCount,
+        metrics->transformRayCycleCount / metrics->rayCount,
+        (f64)metrics->transformRayCycleCount /
+            (f64)metrics->rayTraceSceneCycleCount);
+    LogMessage("Ray Intersect Mesh Cycles : %llu %llu %llu %llu %g",
+        metrics->rayIntersectMeshCycleCount, metrics->meshTestCount,
+        metrics->rayIntersectMeshCycleCount / metrics->meshTestCount,
+        metrics->rayIntersectMeshCycleCount / metrics->rayCount,
+        (f64)metrics->rayIntersectMeshCycleCount /
+            (f64)metrics->rayTraceSceneCycleCount);
+    LogMessage("Ray Trace Scene Cycles : %llu %llu %llu",
+        metrics->rayTraceSceneCycleCount, metrics->rayCount,
+        metrics->rayTraceSceneCycleCount / metrics->rayCount);
+    LogMessage("Ray Midphase Test Cycle Count : %llu %llu %g",
+        metrics->midPhaseTestCycleCount, metrics->midPhaseTestCount,
+        (f64)metrics->midPhaseTestCycleCount /
+            (f64)metrics->rayIntersectMeshCycleCount);
+    LogMessage("Ray Triangle Test Cycle Count : %llu %llu %g",
+        metrics->triangleTestCycleCount, metrics->triangleTestCount,
+        (f64)metrics->triangleTestCycleCount /
+            (f64)metrics->rayIntersectMeshCycleCount);
+    LogMessage("Copy Memory Cycle Count : %llu %llu %g",
+        metrics->copyMemoryCycleCount, metrics->copyMemoryCallCount,
+        (f64)metrics->copyMemoryCycleCount /
+            (f64)metrics->rayIntersectMeshCycleCount);
+
     LogMessage("Ray Count: %llu", metrics->rayCount);
     LogMessage("Total Sample Count: %llu", metrics->totalSampleCount);
     LogMessage("Total Pixel Count: %llu", metrics->totalPixelCount);
@@ -360,13 +402,17 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
         StackNode top = stack[--stackSize];
         BvhNode *node = top.node;
         g_Metrics.midPhaseTestCount++;
+        u64 midPhaseTestStartCycles = __rdtsc();
         f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
+        g_Metrics.midPhaseTestCycleCount += __rdtsc() - midPhaseTestStartCycles;
 
+#if 0
         if (top.depth == maxDepth)
         {
             DrawBox(debugDrawBuffer, node->min, node->max,
                 t > 0.0f ? Vec3(0, 1, 0) : Vec3(0.6, 0.2, 0.6));
         }
+#endif
 
         if (t >= 0.0f && t < tmin)
         {
@@ -388,6 +434,7 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
             }
             else
             {
+                u64 triangleTestStartCycles = __rdtsc();
                 // Test triangle
                 u32 triangleIndex = node->triangleIndex;
                 u32 indices[3];
@@ -414,9 +461,13 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
                         // TODO: hitNormal, hitPoint, material, etc
                     }
                 }
+
+                g_Metrics.triangleTestCycleCount +=
+                    __rdtsc() - triangleTestStartCycles;
             }
         }
 
+        u64 copyMemoryStartCycles = __rdtsc();
         if (stackSize == 0)
         {
             stackSize = newStackSize;
@@ -425,6 +476,8 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
 
             newStackSize = 0;
         }
+        g_Metrics.copyMemoryCycleCount += __rdtsc() - copyMemoryStartCycles;
+        g_Metrics.copyMemoryCallCount++;
     }
 
     return result;
@@ -512,15 +565,18 @@ internal u32 GetEntitiesToTest(AabbTree tree, vec3 rayOrigin, vec3 rayDirection,
 internal RayHitResult TraceRayThroughScene(
     RayTracer *rayTracer, World *world, vec3 rayOrigin, vec3 rayDirection)
 {
+    u64 rayTraceSceneStartCycles = __rdtsc();
     g_Metrics.rayCount++;
     PROFILE_FUNCTION_SCOPE();
 
     RayHitResult worldResult = {};
 
+    u64 broadphaseStartCycles = __rdtsc();
     u32 entitiesToTest[MAX_ENTITIES];
     f32 entityTmins[MAX_ENTITIES];
     u32 entityCount = GetEntitiesToTest(rayTracer->aabbTree, rayOrigin,
         rayDirection, entitiesToTest, entityTmins, ArrayCount(entitiesToTest));
+    g_Metrics.broadphaseCycleCount += __rdtsc() - broadphaseStartCycles;
 
     f32 tmin = F32_MAX;
     for (u32 index = 0; index < entityCount; index++)
@@ -528,11 +584,14 @@ internal RayHitResult TraceRayThroughScene(
         u32 entityIndex = entitiesToTest[index];
         if (entityTmins[index] < tmin)
         {
+            g_Metrics.meshTestCount++;
+
             Entity *entity = world->entities + entityIndex;
 
             // TODO: Skip testing entity if our worldResult.tmin is closer than
             // the tmin for entity bounding box.
 
+            u64 buildModelMatricesStartCycles = __rdtsc();
             PROFILE_BEGIN_SCOPE("model matrices");
             // TODO: Don't calculate this for every ray!
             mat4 modelMatrix = Translate(entity->position) *
@@ -543,16 +602,20 @@ internal RayHitResult TraceRayThroughScene(
                 Rotate(Conjugate(entity->rotation)) *
                 Translate(-entity->position);
             PROFILE_END_SCOPE("model matrices");
+            g_Metrics.buildModelMatricesCycleCount +=
+                __rdtsc() - buildModelMatricesStartCycles;
 
             RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
 
-            // PROFILE_BEGIN_SCOPE("transform ray");
+            u64 transformRayStartCycles = __rdtsc();
             // Ray is transformed by the inverse of the model matrix
             vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
             vec3 transformRayDirection =
                 Normalize(TransformVector(rayDirection, invModelMatrix));
-            // PROFILE_END_SCOPE("transform ray");
+            g_Metrics.transformRayCycleCount +=
+                __rdtsc() - transformRayStartCycles;
 
+            u64 rayIntersectMeshStartCycles = __rdtsc();
             RayHitResult entityResult;
             // Perform ray intersection test in model space
             if (rayTracer->useAccelerationStructure)
@@ -570,6 +633,8 @@ internal RayHitResult TraceRayThroughScene(
                 entityResult = RayIntersectTriangleMeshSlow(
                     mesh.meshData, transformRayOrigin, transformRayDirection);
             }
+            g_Metrics.rayIntersectMeshCycleCount +=
+                __rdtsc() - rayIntersectMeshStartCycles;
 
             // Transform the hit point and normal back into world space
             // PROBLEM: t value needs a bit more thought, luckily its not used
@@ -583,6 +648,7 @@ internal RayHitResult TraceRayThroughScene(
 
             if (entityResult.isValid)
             {
+                g_Metrics.meshHitCount++;
                 if (worldResult.isValid)
                 {
                     // FIXME: Probably not correct to compare t values from
@@ -601,6 +667,8 @@ internal RayHitResult TraceRayThroughScene(
             }
         }
     }
+
+    g_Metrics.rayTraceSceneCycleCount += __rdtsc() - rayTraceSceneStartCycles;
 
     return worldResult;
 }
