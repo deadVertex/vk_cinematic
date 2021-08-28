@@ -390,17 +390,23 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
     RayHitResult result = {};
     result.t = F32_MAX;
 
-    StackNode stack[256];
-    u32 stackSize = 1;
-    stack[0].node = root;
-    stack[0].depth = 0;
+#define STACK_SIZE 256
+    StackNode stack[2][STACK_SIZE];
+    u32 stackSizes[2];
+    stack[0][0].node = root;
+    stack[0][0].depth = 0;
+    stackSizes[0] = 1;
+    stackSizes[1] = 0;
 
-    StackNode newStack[256];
-    u32 newStackSize = 0;
-    while (stackSize > 0)
+    u32 readIndex = 0;
+    u32 writeIndex = 1;
+
+    while (stackSizes[readIndex] > 0)
     {
-        StackNode top = stack[--stackSize];
+        u32 topIndex = --stackSizes[readIndex];
+        StackNode top = stack[readIndex][topIndex];
         BvhNode *node = top.node;
+
         g_Metrics.midPhaseTestCount++;
         u64 midPhaseTestStartCycles = __rdtsc();
         f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
@@ -425,12 +431,14 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
                 // Assuming that this is always true?
                 Assert(node->children[1] != NULL);
 
-                Assert(newStackSize + 2 <= ArrayCount(newStack));        
-                newStack[newStackSize].node = node->children[0];
-                newStack[newStackSize].depth = top.depth + 1;
-                newStack[newStackSize + 1].node = node->children[1];
-                newStack[newStackSize + 1].depth = top.depth + 1;
-                newStackSize += 2;
+                Assert(stackSizes[writeIndex] + 2 <= STACK_SIZE);
+
+                u32 entryIndex = stackSizes[writeIndex];
+                stack[writeIndex][entryIndex].node = node->children[0];
+                stack[writeIndex][entryIndex].depth = top.depth + 1;
+                stack[writeIndex][entryIndex + 1].node = node->children[1];
+                stack[writeIndex][entryIndex + 1].depth = top.depth + 1;
+                stackSizes[writeIndex] += 2;
             }
             else
             {
@@ -468,13 +476,9 @@ internal RayHitResult RayIntersectTriangleMeshAabbTree(BvhNode *root,
         }
 
         u64 copyMemoryStartCycles = __rdtsc();
-        if (stackSize == 0)
+        if (stackSizes[readIndex] == 0)
         {
-            stackSize = newStackSize;
-            // TODO: Use ping pong buffers rather than copying memory!
-            CopyMemory(stack, newStack, newStackSize * sizeof(StackNode));
-
-            newStackSize = 0;
+            SwapU32(&readIndex, &writeIndex);
         }
         g_Metrics.copyMemoryCycleCount += __rdtsc() - copyMemoryStartCycles;
         g_Metrics.copyMemoryCallCount++;
