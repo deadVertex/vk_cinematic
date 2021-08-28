@@ -3,31 +3,15 @@
 #define RAY_TRACER_WIDTH (1024 / 4)
 #define RAY_TRACER_HEIGHT (768 / 4)
 
-#define MAX_BVH_NODES 0x10000
+#define MAX_AABB_TREE_NODES 0x10000
 
 // TODO: Probably want multiple triangles per leaf node
-struct BvhNode
-{
-    vec3 min;
-    vec3 max;
-    BvhNode *children[2];
-    u32 triangleIndex;
-};
-
-struct RayTracerMesh
-{
-    BvhNode *root;
-    MeshData meshData;
-};
-
-#define MAX_AABB_TREE_NODES 2048
-
 struct AabbTreeNode
 {
     vec3 min;
     vec3 max;
     AabbTreeNode *children[2];
-    u32 entityIndex;
+    u32 leafIndex;
 };
 
 struct AabbTree
@@ -38,12 +22,16 @@ struct AabbTree
     u32 max;
 };
 
+struct RayTracerMesh
+{
+    AabbTree aabbTree;
+    MeshData meshData;
+};
+
 struct RayTracer
 {
     mat4 viewMatrix;
     DebugDrawingBuffer *debugDrawBuffer;
-    BvhNode *nodes;
-    u32 nodeCount;
     b32 useAccelerationStructure;
     u32 maxDepth;
     RayTracerMesh meshes[MAX_MESHES];
@@ -82,11 +70,6 @@ struct Metrics
     u64 transformRayCycleCount;
     u64 rayIntersectMeshCycleCount;
     u64 rayTraceSceneCycleCount;
-
-    u64 midPhaseTestCycleCount;
-    u64 triangleTestCycleCount;
-    u64 copyMemoryCycleCount;
-    u64 copyMemoryCallCount;
 };
 
 global Metrics g_Metrics;

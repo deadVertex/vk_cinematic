@@ -12,3 +12,5 @@
 #define DRAW_ENTITY_AABBS 1
 
 #define COMPUTE_SLOW_ENTITY_AABBS 1
+
+#define MIN_VOLUME

@@ -656,20 +656,27 @@ int main(int argc, char **argv)
     }
 
     RayTracer rayTracer = {};
-    rayTracer.nodes = AllocateArray(&memoryArena, BvhNode, MAX_BVH_NODES);
     rayTracer.useAccelerationStructure = true;
     rayTracer.rng.state = 0xF51C0E49;
-    rayTracer.meshes[Mesh_Bunny] = BuildBvh(&rayTracer, bunnyMesh);
-    rayTracer.meshes[Mesh_Monkey] = BuildBvh(&rayTracer, monkeyMesh);
-    rayTracer.meshes[Mesh_Plane] = BuildBvh(&rayTracer, planeMesh);
+    rayTracer.meshes[Mesh_Bunny] =
+        CreateMesh(bunnyMesh, &memoryArena, &tempArena);
+    rayTracer.meshes[Mesh_Monkey] =
+        CreateMesh(monkeyMesh, &memoryArena, &tempArena);
+    rayTracer.meshes[Mesh_Plane] =
+        CreateMesh(planeMesh, &memoryArena, &tempArena);
 
     // Compute bounding box for each entity
     ComputeEntityBoundingBoxes(&world, &rayTracer);
 
-    rayTracer.aabbTree = BuildAabbTree(&world, &memoryArena);
+    rayTracer.aabbTree = BuildWorldBroadphase(&world, &memoryArena, &tempArena);
 
 #if ANALYZE_BROAD_PHASE_TREE
+    LogMessage("Evaluate Broadphase tree");
     EvaluateTree(rayTracer.aabbTree);
+    LogMessage("Evaluate Mesh_Bunny tree");
+    EvaluateTree(rayTracer.meshes[Mesh_Bunny].aabbTree);
+    LogMessage("Evaluate Mesh_Monkey tree");
+    EvaluateTree(rayTracer.meshes[Mesh_Monkey].aabbTree);
 #endif
 
     g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
@@ -770,7 +777,6 @@ int main(int argc, char **argv)
             LogMessage("Memory Usage: %ukb / %ukb", memoryArena.size / 1024,
                     memoryArena.capacity / 1024);
             LogMessage("Entities: %u / %u", world.count, world.max);
-            LogMessage("BVH Nodes: %u / %u", rayTracer.nodeCount, MAX_BVH_NODES);
             LogMessage("Debug Vertices: %u / %u", debugDrawBuffer.count,
                 debugDrawBuffer.max);
             LogMessage("Profiler Samples: %u / %u", g_Profiler.count,
