@@ -51,29 +51,45 @@ internal RayTracerMesh CreateMesh(
     MeshData meshData, MemoryArena *arena, MemoryArena *tempArena)
 {
     u32 triangleCount = meshData.indexCount / 3;
-    vec3 *boxMin = AllocateArray(tempArena, vec3, triangleCount);
-    vec3 *boxMax = AllocateArray(tempArena, vec3, triangleCount);
+    u32 meshletCount = MaxU32(triangleCount / MESHLET_SIZE, 1);
+    vec3 *boxMin = AllocateArray(tempArena, vec3, meshletCount);
+    vec3 *boxMax = AllocateArray(tempArena, vec3, meshletCount);
 
-    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+    for (u32 meshletIndex = 0; meshletIndex < meshletCount; ++meshletIndex)
     {
-        u32 indices[3];
-        indices[0] = meshData.indices[triangleIndex * 3 + 0];
-        indices[1] = meshData.indices[triangleIndex * 3 + 1];
-        indices[2] = meshData.indices[triangleIndex * 3 + 2];
+        vec3 meshletMin = Vec3(F32_MAX);
+        vec3 meshletMax = Vec3(-F32_MAX);
 
-        vec3 vertices[3];
-        vertices[0] = meshData.vertices[indices[0]].position;
-        vertices[1] = meshData.vertices[indices[1]].position;
-        vertices[2] = meshData.vertices[indices[2]].position;
+        u32 startIndex = meshletIndex * MESHLET_SIZE;
+        u32 onePastEndIndex =
+            MinU32(startIndex + MESHLET_SIZE, triangleCount);
+        for (u32 triangleIndex = startIndex; triangleIndex < onePastEndIndex;
+             ++triangleIndex)
+        {
+            u32 indices[3];
+            indices[0] = meshData.indices[triangleIndex * 3 + 0];
+            indices[1] = meshData.indices[triangleIndex * 3 + 1];
+            indices[2] = meshData.indices[triangleIndex * 3 + 2];
 
-        boxMin[triangleIndex] = Min(vertices[0], Min(vertices[1], vertices[2]));
-        boxMax[triangleIndex] = Max(vertices[0], Max(vertices[1], vertices[2]));
+            vec3 vertices[3];
+            vertices[0] = meshData.vertices[indices[0]].position;
+            vertices[1] = meshData.vertices[indices[1]].position;
+            vertices[2] = meshData.vertices[indices[2]].position;
+
+            meshletMin = Min(
+                Min(vertices[0], Min(vertices[1], vertices[2])), meshletMin);
+            meshletMax = Max(
+                Max(vertices[0], Max(vertices[1], vertices[2])), meshletMax);
+        }
+
+        boxMin[meshletIndex] = meshletMin;
+        boxMax[meshletIndex] = meshletMax;
     }
 
     RayTracerMesh result = {};
     result.meshData = meshData;
-    result.aabbTree = BuildAabbTree(boxMin, boxMax, triangleCount,
-        triangleCount * 3, arena, tempArena);
+    result.aabbTree = BuildAabbTree(boxMin, boxMax, meshletCount,
+        meshletCount * 3, arena, tempArena);
 
     return result;
 }
@@ -86,6 +102,7 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
     result.t = F32_MAX;
 
     MeshData meshData = mesh.meshData;
+    u32 triangleCount = meshData.indexCount / 3;
 
     // TODO: Parameterize
     u32 leafIndices[256];
@@ -99,34 +116,43 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
         u32 leafIndex = leafIndices[index];
         f32 t = tValues[index];
 
+
         // TODO: Check t value against tmin
 
         // Test triangle
-        u32 triangleIndex = leafIndex;
-        u32 indices[3];
-        indices[0] = meshData.indices[triangleIndex * 3 + 0];
-        indices[1] = meshData.indices[triangleIndex * 3 + 1];
-        indices[2] = meshData.indices[triangleIndex * 3 + 2];
+        u32 meshletIndex = leafIndex;
 
-        vec3 vertices[3];
-        vertices[0] = meshData.vertices[indices[0]].position;
-        vertices[1] = meshData.vertices[indices[1]].position;
-        vertices[2] = meshData.vertices[indices[2]].position;
-
-        RayIntersectTriangleResult triangleIntersect =
-            RayIntersectTriangle(rayOrigin, rayDirection, vertices[0],
-                vertices[1], vertices[2], tmin);
-
-        if (triangleIntersect.t > 0.0f)
+        u32 startIndex = meshletIndex * MESHLET_SIZE;
+        u32 onePastEndIndex =
+            MinU32(startIndex + MESHLET_SIZE, triangleCount);
+        for (u32 triangleIndex = startIndex; triangleIndex < onePastEndIndex;
+             ++triangleIndex)
         {
-            g_Metrics.triangleHitCount++;
-            if (triangleIntersect.t < result.t)
+            u32 indices[3];
+            indices[0] = meshData.indices[triangleIndex * 3 + 0];
+            indices[1] = meshData.indices[triangleIndex * 3 + 1];
+            indices[2] = meshData.indices[triangleIndex * 3 + 2];
+
+            vec3 vertices[3];
+            vertices[0] = meshData.vertices[indices[0]].position;
+            vertices[1] = meshData.vertices[indices[1]].position;
+            vertices[2] = meshData.vertices[indices[2]].position;
+
+            RayIntersectTriangleResult triangleIntersect =
+                RayIntersectTriangle(rayOrigin, rayDirection, vertices[0],
+                        vertices[1], vertices[2], tmin);
+
+            if (triangleIntersect.t > 0.0f)
             {
-                result.t = triangleIntersect.t;
-                result.isValid = true;
-                result.normal = triangleIntersect.normal;
-                tmin = triangleIntersect.t;
-                // TODO: hitNormal, hitPoint, material, etc
+                g_Metrics.triangleHitCount++;
+                if (triangleIntersect.t < result.t)
+                {
+                    result.t = triangleIntersect.t;
+                    result.isValid = true;
+                    result.normal = triangleIntersect.normal;
+                    tmin = triangleIntersect.t;
+                    // TODO: hitNormal, hitPoint, material, etc
+                }
             }
         }
     }
@@ -663,6 +689,82 @@ internal void DrawTree(
         {
             // Leaf node
             Assert(node->children[1] == NULL);
+        }
+
+        if (stackSize == 0)
+        {
+            stackSize = newStackSize;
+            // TODO: Use ping pong buffers rather than copying memory!
+            CopyMemory(stack, newStack, newStackSize * sizeof(StackNode));
+
+            newStackSize = 0;
+        }
+    }
+}
+
+internal void DrawMesh(RayTracerMesh mesh, DebugDrawingBuffer *debugDrawBuffer)
+{
+    AabbTree tree = mesh.aabbTree;
+    MeshData meshData = mesh.meshData;
+
+    u32 triangleCount = meshData.indexCount / 3;
+
+    StackNode stack[MAX_AABB_TREE_NODES];
+    u32 stackSize = 1;
+    stack[0].node = tree.root;
+    stack[0].depth = 1;
+
+    StackNode newStack[MAX_AABB_TREE_NODES];
+    u32 newStackSize = 0;
+    while (stackSize > 0)
+    {
+        StackNode entry = stack[--stackSize];
+        AabbTreeNode *node = entry.node;
+
+        if (node->children[0] != NULL)
+        {
+            // Assuming that this is always true?
+            Assert(node->children[1] != NULL);
+
+            Assert(newStackSize + 2 <= ArrayCount(newStack));        
+            newStack[newStackSize].node = node->children[0];
+            newStack[newStackSize].depth = entry.depth + 1;
+            newStack[newStackSize + 1].node = node->children[1];
+            newStack[newStackSize + 1].depth = entry.depth + 1;
+            newStackSize += 2;
+        }
+        else
+        {
+            // Leaf node
+            Assert(node->children[1] == NULL);
+
+            // Test triangle
+            u32 meshletIndex = node->leafIndex;
+
+            RandomNumberGenerator rng;
+            rng.state = 0xA5983C1 | meshletIndex;
+            vec3 color = Vec3(RandomUnilateral(&rng), RandomUnilateral(&rng),
+                RandomUnilateral(&rng));
+
+            u32 startIndex = meshletIndex * MESHLET_SIZE;
+            u32 onePastEndIndex =
+                MinU32(startIndex + MESHLET_SIZE, triangleCount);
+            for (u32 triangleIndex = startIndex; triangleIndex < onePastEndIndex;
+                 ++triangleIndex)
+            {
+                u32 indices[3];
+                indices[0] = meshData.indices[triangleIndex * 3 + 0];
+                indices[1] = meshData.indices[triangleIndex * 3 + 1];
+                indices[2] = meshData.indices[triangleIndex * 3 + 2];
+
+                vec3 vertices[3];
+                vertices[0] = meshData.vertices[indices[0]].position;
+                vertices[1] = meshData.vertices[indices[1]].position;
+                vertices[2] = meshData.vertices[indices[2]].position;
+
+                DrawTriangle(debugDrawBuffer, vertices[0], vertices[1],
+                    vertices[2], color);
+            }
         }
 
         if (stackSize == 0)

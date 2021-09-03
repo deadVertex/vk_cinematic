@@ -9,7 +9,8 @@ internal MeshData LoadMesh(const char *path, MemoryArena *arena)
 
     const struct aiScene *scene = aiImportFile(fullPath,
         aiProcess_CalcTangentSpace | aiProcess_Triangulate |
-            aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
+            aiProcess_JoinIdenticalVertices | aiProcess_SortByPType |
+            aiProcess_ImproveCacheLocality);
 
     if (!scene)
     {

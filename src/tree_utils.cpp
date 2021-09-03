@@ -121,8 +121,6 @@ internal u32 RayIntersectAabbTree(AabbTree tree, vec3 rayOrigin,
 {
     u32 count = 0;
 
-#define STACK_SIZE 256 // TODO: Parameterize
-
     StackNode stack[2][STACK_SIZE];
     u32 stackSizes[2];
     stack[0][0].node = tree.root;

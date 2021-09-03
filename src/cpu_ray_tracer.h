@@ -5,6 +5,13 @@
 
 #define MAX_AABB_TREE_NODES 0x10000
 
+// TODO: Need to properly clusterize our triangles for this to not completely
+// destroy our perf
+#define MESHLET_SIZE 1
+
+// TODO: This should be a parameter of the tree structure for iteration
+#define STACK_SIZE 256
+
 // TODO: Probably want multiple triangles per leaf node
 struct AabbTreeNode
 {

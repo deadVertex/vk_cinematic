@@ -797,8 +797,12 @@ int main(int argc, char **argv)
 #endif
 
 #if DRAW_BROAD_PHASE_TREE
-        DrawTree(rayTracer.aabbTree, &debugDrawBuffer, maxDepth);
+        //DrawTree(rayTracer.aabbTree, &debugDrawBuffer, maxDepth);
 #endif
+        DrawTree(
+            rayTracer.meshes[Mesh_Bunny].aabbTree, &debugDrawBuffer, maxDepth);
+        DrawMesh(
+            rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
 
         Update(&renderer, &rayTracer, &input, dt);
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
