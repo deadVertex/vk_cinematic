@@ -1,3 +1,37 @@
+/* TODO:
+List:
+ - Run CPU ray tracer in separate thread and live update output image
+
+Performance testing infrastructure
+- Performance test suite
+- Runtime/startup scene configuration
+
+Functionality testing infrastructure
+- Unit tests!
+
+Visualization infrastructure
+
+Usability
+- Realtime feedback of ray tracing
+- Live code reloading?
+
+Optimizations - CPU ray tracer
+- Multiple triangles per tree leaf node
+- SIMD
+- Multi-core
+
+Analysis
+- AABB trees
+- Triangle meshes
+- Intersection functions
+- Assembly code
+
+Observability
+- More metrics
+- More logs
+- More profiling
+*/
+
 /*
 Meshes data memory usage: 957k / 65536k
 Begin ray tracing
@@ -576,6 +610,70 @@ internal MeshData CreatePlaneMesh(MemoryArena *arena)
     return meshData;
 }
 
+struct ThreadData
+{
+    u32 width;
+    u32 height;
+    u32 *imageBuffer;
+    RayTracer *rayTracer;
+    World *world;
+};
+
+// WARNING!!!!
+// DON'T MOVE CAMERA WHILE RAY TRACING
+internal void ThreadRayTracer(void *userData)
+{
+    ThreadData *threadData = (ThreadData *)userData;
+
+    LogMessage("Begin ray tracing");
+    f64 rayTracingStartTime = glfwGetTime();
+    DoRayTracing(threadData->width, threadData->height, threadData->imageBuffer,
+        threadData->rayTracer, threadData->world);
+
+    f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
+    LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
+            g_camera.position.y, g_camera.position.z);
+    LogMessage("Camera Rotation: (%g, %g, %g)", g_camera.rotation.x,
+            g_camera.rotation.y, g_camera.rotation.z);
+    LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
+    //LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
+    // TODO: Enable once this is cleaned up
+#if 0
+    LogMessage("Memory Usage: %ukb / %ukb", memoryArena.size / 1024,
+            memoryArena.capacity / 1024);
+    LogMessage("Entities: %u / %u", world.count, world.max);
+    LogMessage("Debug Vertices: %u / %u", debugDrawBuffer.count,
+            debugDrawBuffer.max);
+    LogMessage("Profiler Samples: %u / %u", g_Profiler.count,
+            PROFILER_SAMPLE_BUFFER_SIZE / sizeof(ProfilerSample));
+#endif
+
+    DumpMetrics(&g_Metrics);
+#if 0
+    Profiler_ProcessResults(&g_Profiler, &profilerResults);
+    Profiler_PrintResults(&profilerResults);
+    ClearToZero(&profilerResults, sizeof(profilerResults));
+#endif
+    LogMessage("Rays per second: %g",
+            (f64)g_Metrics.rayCount / rayTracingElapsedTime);
+    ClearToZero(&g_Metrics, sizeof(g_Metrics));
+}
+
+internal DWORD WinThreadProc(LPVOID lpParam) 
+{
+    ThreadRayTracer(lpParam);
+    return 0;
+}
+
+internal void StartRayTracingInBackgroundThread(ThreadData *threadData)
+{
+    // NOTE: Platform specific prototype code
+    DWORD threadId;
+    HANDLE threadHandle =
+        CreateThread(NULL, 0, WinThreadProc, threadData, 0, &threadId);
+    LogMessage("ThreadId is %u", threadId);
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -696,12 +794,20 @@ int main(int argc, char **argv)
                            Rotate(entity->rotation) * Scale(entity->scale);
     }
 
+    ThreadData threadData = {};
+    threadData.width = RAY_TRACER_WIDTH;
+    threadData.height = RAY_TRACER_HEIGHT;
+    threadData.imageBuffer = (u32 *)renderer.imageUploadBuffer.data;
+    threadData.rayTracer = &rayTracer;
+    threadData.world = &world;
+
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
     b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
     u32 maxDepth = 1;
     b32 drawTests = false;
+    b32 isRayTracing = false;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -718,17 +824,15 @@ int main(int argc, char **argv)
         InputBeginFrame(&input);
         glfwPollEvents();
 
-        b32 isDirty = false;
         if (WasPressed(input.buttonStates[KEY_SPACE]))
         {
             drawScene = !drawScene;
-            isDirty = true;
-        }
 
-        if (WasPressed(input.buttonStates[KEY_TAB]))
-        {
-            rayTracer.useAccelerationStructure = !rayTracer.useAccelerationStructure;
-            isDirty = true;
+            if (!isRayTracing)
+            {
+                isRayTracing = true;
+                StartRayTracingInBackgroundThread(&threadData);
+            }
         }
 
         if (LengthSq(g_camera.position - lastCameraPosition) > 0.0001f ||
@@ -736,7 +840,8 @@ int main(int argc, char **argv)
         {
             lastCameraPosition = g_camera.position;
             lastCameraRotation = g_camera.rotation;
-            isDirty = true;
+            // FIXME: Re-enable this
+            //isDirty = true;
         }
 
         if (WasPressed(input.buttonStates[KEY_UP]))
@@ -760,38 +865,12 @@ int main(int argc, char **argv)
             //TestTransformRayVsAabb(&debugDrawBuffer);
             TestTransformRayVsTriangle(&debugDrawBuffer);
         }
-        
-        if (!drawScene && isDirty)
-        {
-            LogMessage("Begin ray tracing");
-            f64 rayTracingStartTime = glfwGetTime();
-            DoRayTracing(RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT,
-                (u32 *)renderer.imageUploadBuffer.data, &rayTracer, &world);
-            f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
-            LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
-                g_camera.position.y, g_camera.position.z);
-            LogMessage("Camera Rotation: (%g, %g, %g)", g_camera.rotation.x,
-                g_camera.rotation.y, g_camera.rotation.z);
-            LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
-            //LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
-            LogMessage("Memory Usage: %ukb / %ukb", memoryArena.size / 1024,
-                    memoryArena.capacity / 1024);
-            LogMessage("Entities: %u / %u", world.count, world.max);
-            LogMessage("Debug Vertices: %u / %u", debugDrawBuffer.count,
-                debugDrawBuffer.max);
-            LogMessage("Profiler Samples: %u / %u", g_Profiler.count,
-                    PROFILER_SAMPLE_BUFFER_SIZE / sizeof(ProfilerSample));
 
-            DumpMetrics(&g_Metrics);
-            Profiler_ProcessResults(&g_Profiler, &profilerResults);
-            Profiler_PrintResults(&profilerResults);
-            ClearToZero(&profilerResults, sizeof(profilerResults));
-            LogMessage("Rays per second: %g",
-                    (f64)g_Metrics.rayCount / rayTracingElapsedTime);
-            ClearToZero(&g_Metrics, sizeof(g_Metrics));
+        if (isRayTracing)
+        {
             VulkanCopyImageFromCPU(&renderer);
-            isDirty = false;
         }
+        
 #if DRAW_ENTITY_AABBS
         DrawEntityAabbs(world, &debugDrawBuffer);
 #endif
