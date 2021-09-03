@@ -729,6 +729,11 @@ internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
     u32 width = RAY_TRACER_WIDTH;
     u32 height = RAY_TRACER_HEIGHT;
 
+    VulkanTransitionImageLayout(renderer->image.handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue);
+
     VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
         renderer->image.handle, width, height, 0);

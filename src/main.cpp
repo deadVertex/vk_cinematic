@@ -1,6 +1,6 @@
 /* TODO:
 List:
- - Run CPU ray tracer in separate thread and live update output image
+ - Run CPU ray tracer in separate thread and live update output image [X]
 
 Performance testing infrastructure
 - Performance test suite
