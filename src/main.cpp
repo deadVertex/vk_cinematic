@@ -1,6 +1,7 @@
 /* TODO:
 List:
  - Run CPU ray tracer in separate thread and live update output image [X]
+   - Restart CPU ray tracer without restarting application
 
 Performance testing infrastructure
 - Performance test suite
@@ -626,6 +627,7 @@ internal void ThreadRayTracer(void *userData)
     ThreadData *threadData = (ThreadData *)userData;
 
     LogMessage("Begin ray tracing");
+    ClearToZero(&g_Metrics, sizeof(g_Metrics));
     f64 rayTracingStartTime = glfwGetTime();
     DoRayTracing(threadData->width, threadData->height, threadData->imageBuffer,
         threadData->rayTracer, threadData->world);
@@ -665,13 +667,44 @@ internal DWORD WinThreadProc(LPVOID lpParam)
     return 0;
 }
 
-internal void StartRayTracingInBackgroundThread(ThreadData *threadData)
+struct ThreadManager
+{
+#ifdef PLATFORM_WINDOWS
+    HANDLE threadHandle;
+    DWORD threadId;
+#endif
+};
+
+internal void StartRayTracingInBackgroundThread(
+    ThreadManager *threadManager, ThreadData *threadData)
 {
     // NOTE: Platform specific prototype code
-    DWORD threadId;
-    HANDLE threadHandle =
-        CreateThread(NULL, 0, WinThreadProc, threadData, 0, &threadId);
-    LogMessage("ThreadId is %u", threadId);
+    threadManager->threadHandle = CreateThread(
+        NULL, 0, WinThreadProc, threadData, 0, &threadManager->threadId);
+    Assert(threadManager->threadHandle != INVALID_HANDLE_VALUE);
+    LogMessage("ThreadId is %u", threadManager->threadId);
+}
+
+// FIXME: This is a really bad thing to do as the memory the thread was using
+// could be left in a completely invalid state. Only using this temporarily
+// because I know that the code we're calling in the thread has no
+// external dependencies and does not modify any memory external to it.
+internal void TerminateRayTracingThread(ThreadManager *manager)
+{
+    if (manager->threadHandle != INVALID_HANDLE_VALUE)
+    {
+        BOOL success = TerminateThread(manager->threadHandle, 0);
+        Assert(success);
+        manager->threadHandle = INVALID_HANDLE_VALUE;
+    }
+}
+
+internal ThreadManager CreateThreadManager()
+{
+    ThreadManager threadManager = {};
+    threadManager.threadHandle = INVALID_HANDLE_VALUE;
+
+    return threadManager;
 }
 
 int main(int argc, char **argv)
@@ -801,6 +834,8 @@ int main(int argc, char **argv)
     threadData.rayTracer = &rayTracer;
     threadData.world = &world;
 
+    ThreadManager threadManager = CreateThreadManager();
+
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
     b32 drawScene = true;
@@ -831,7 +866,12 @@ int main(int argc, char **argv)
             if (!isRayTracing)
             {
                 isRayTracing = true;
-                StartRayTracingInBackgroundThread(&threadData);
+                StartRayTracingInBackgroundThread(&threadManager, &threadData);
+            }
+            else
+            {
+                TerminateRayTracingThread(&threadManager);
+                isRayTracing = false;
             }
         }
 
