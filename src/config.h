@@ -13,4 +13,7 @@
 
 #define COMPUTE_SLOW_ENTITY_AABBS 1
 
+#define TILE_WIDTH 64
+#define TILE_HEIGHT 64
+
 //#define MIN_VOLUME

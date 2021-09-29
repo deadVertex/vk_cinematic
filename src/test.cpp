@@ -1,15 +1,21 @@
 #include "unity.h"
 
+#if 0
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#endif
 
+#if 0
 #include "platform.h"
 #include "math_lib.h"
 #include "mesh.h"
 #include "profiler.h"
 #include "cpu_ray_tracer.cpp"
 #include "mesh.cpp"
+#endif
+
+#include "cpu_ray_tracer.h"
 
 void setUp(void)
 {
@@ -58,9 +64,53 @@ void test_repro_bug()
 }
 #endif
 
+void TestComputeTiles()
+{
+    Tile tiles[64] = {};
+    u32 tileCount =
+        ComputeTiles(10, 10, 2, 2, tiles, ArrayCount(tiles));
+
+    TEST_ASSERT_EQUAL_UINT32(tiles[0].minX, 0);
+    TEST_ASSERT_EQUAL_UINT32(tiles[0].minY, 0);
+    TEST_ASSERT_EQUAL_UINT32(tiles[0].maxX, 2);
+    TEST_ASSERT_EQUAL_UINT32(tiles[0].maxY, 2);
+    TEST_ASSERT_EQUAL_UINT32(tiles[1].minX, 2);
+    TEST_ASSERT_EQUAL_UINT32(tiles[1].minY, 0);
+    TEST_ASSERT_EQUAL_UINT32(tiles[1].maxX, 4);
+    TEST_ASSERT_EQUAL_UINT32(tiles[1].maxY, 2);
+
+    TEST_ASSERT_EQUAL_UINT32(tileCount, 5 * 5);
+}
+
+void TestComputeTilesNonDivisible()
+{
+    Tile tiles[64] = {};
+    u32 tileCount =
+        ComputeTiles(9, 9, 2, 2, tiles, ArrayCount(tiles));
+
+    TEST_ASSERT_EQUAL_UINT32(tileCount, 5 * 5);
+
+    TEST_ASSERT_EQUAL_UINT32(tiles[24].minX, 8);
+    TEST_ASSERT_EQUAL_UINT32(tiles[24].minY, 8);
+    TEST_ASSERT_EQUAL_UINT32(tiles[24].maxX, 9);
+    TEST_ASSERT_EQUAL_UINT32(tiles[24].maxY, 9);
+}
+
+void TestComputeTilesInsufficientSpace()
+{
+    Tile tiles[10] = {};
+    u32 tileCount =
+        ComputeTiles(10, 10, 2, 2, tiles, ArrayCount(tiles));
+
+    TEST_ASSERT_EQUAL_UINT32(tileCount, ArrayCount(tiles));
+}
+
 int main()
 {
     //RUN_TEST(test_repro_bug);
-    RUN_TEST(Test_BuildAabbTree);
+    //RUN_TEST(Test_BuildAabbTree);
+    RUN_TEST(TestComputeTiles);
+    RUN_TEST(TestComputeTilesNonDivisible);
+    RUN_TEST(TestComputeTilesInsufficientSpace);
     return UNITY_END();
 }

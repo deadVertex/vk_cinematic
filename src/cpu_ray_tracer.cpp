@@ -347,11 +347,12 @@ inline vec3 CalculateFilmP(CameraConstants *camera, u32 width, u32 height,
     return filmP;
 }
 
-internal void DoRayTracing(
-    u32 width, u32 height, u32 *pixels, RayTracer *rayTracer, World *world)
+internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
+    RayTracer *rayTracer, World *world, Tile tile)
 {
     PROFILE_FUNCTION_SCOPE();
 
+    // TODO: Don't recompute this for every tile
     CameraConstants camera =
         CalculateCameraConstants(rayTracer->viewMatrix, width, height);
 
@@ -363,9 +364,9 @@ internal void DoRayTracing(
     u32 maxBounces = 2;
     u32 maxSamples = 128;
 
-    for (u32 y = 0; y < height; ++y)
+    for (u32 y = tile.minY; y < tile.maxY; ++y)
     {
-        for (u32 x = 0; x < width; ++x)
+        for (u32 x = tile.minX; x < tile.maxX; ++x)
         {
             g_Metrics.totalPixelCount++;
 

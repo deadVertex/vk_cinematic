@@ -13,14 +13,6 @@
 //#define SHADER_PATH "src/shaders"
 #define SHADER_PATH "shaders"
 
-enum
-{
-    Mesh_Bunny,
-    Mesh_Monkey,
-    Mesh_Plane,
-    MAX_MESHES,
-};
-
 struct DrawCommand
 {
     u32 mesh;

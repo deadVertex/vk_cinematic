@@ -1,7 +1,17 @@
 /* TODO:
 List:
  - Run CPU ray tracer in separate thread and live update output image [X]
-   - Restart CPU ray tracer without restarting application
+   - Restart CPU ray tracer without restarting application [X]
+ - Tiled rendering for CPU ray tracer
+
+Bugs:
+ - Resizing window crashes app
+
+Features:
+ - ACES tone mapping
+ - Bloom
+ - gltf importing
+ - Cube map texture loading
 
 Performance testing infrastructure
 - Performance test suite
@@ -629,8 +639,21 @@ internal void ThreadRayTracer(void *userData)
     LogMessage("Begin ray tracing");
     ClearToZero(&g_Metrics, sizeof(g_Metrics));
     f64 rayTracingStartTime = glfwGetTime();
-    DoRayTracing(threadData->width, threadData->height, threadData->imageBuffer,
-        threadData->rayTracer, threadData->world);
+
+    // TODO: Don't need to compute and store and array for this, could just
+    // store a queue of tile indices that the worker threads read from. They
+    // can then construct the tile data for each index from just the image
+    // dimensions and tile dimensions.
+    Tile tiles[64];
+    u32 tileCount = ComputeTiles(threadData->width, threadData->height,
+        TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
+
+    for (u32 i = 0; i < tileCount; ++i)
+    {
+        DoRayTracing(threadData->width, threadData->height,
+            threadData->imageBuffer, threadData->rayTracer, threadData->world,
+            tiles[i]);
+    }
 
     f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
     LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
