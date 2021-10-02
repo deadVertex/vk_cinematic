@@ -108,11 +108,17 @@ void TestComputeTilesInsufficientSpace()
 void TestWorkQueuePop()
 {
     WorkQueue queue = {};
+    queue.tasks[0].tile.minX = 1;
+    queue.tasks[1].tile.minX = 2;
+
     queue.tail = 5;
     queue.head = 0;
 
-    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), queue.tasks);
-    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), queue.tasks + 1);
+    Task first = WorkQueuePop(&queue);
+    Task second = WorkQueuePop(&queue);
+
+    TEST_ASSERT_EQUAL_UINT32(first.tile.minX, 1);
+    TEST_ASSERT_EQUAL_UINT32(second.tile.minX, 2);
 }
 
 int main()

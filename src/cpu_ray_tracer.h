@@ -149,15 +149,15 @@ struct Task
 struct WorkQueue
 {
     i32 volatile head;
-    i32 tail;
+    i32 volatile tail;
     Task tasks[MAX_TASKS];
 };
 
-inline Task* WorkQueuePop(WorkQueue *queue)
+inline Task WorkQueuePop(WorkQueue *queue)
 {
     Assert(queue->head != queue->tail);
     //u32 index = queue->head++;
     // FIXME: This is windows specific, need our intrinsics header
     i32 index = _InterlockedExchangeAdd((volatile long *)&queue->head, 1);
-    return queue->tasks + index;
+    return queue->tasks[index];
 }

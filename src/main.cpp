@@ -3,10 +3,12 @@ List:
  - Run CPU ray tracer in separate thread and live update output image [X]
    - Restart CPU ray tracer without restarting application [X]
  - Tiled rendering for CPU ray tracer [X]
- - Multi threaded tile-based rendering [ ]
+ - Multi threaded tile-based rendering [X]
 
 Bugs:
  - Resizing window crashes app
+ - Race condition when submitting work to queue when queue is empty but worker
+   threads are still working on the tasks they've pulled from the queue.
 
 Features:
  - ACES tone mapping
@@ -691,13 +693,13 @@ internal void WorkerThread(WorkQueue *queue)
         if (queue->head != queue->tail)
         {
             // Work to do
-            Task *task = WorkQueuePop(queue);
+            Task task = WorkQueuePop(queue);
 
-            ThreadData *threadData = task->threadData;
+            ThreadData *threadData = task.threadData;
 
             DoRayTracing(threadData->width, threadData->height,
                 threadData->imageBuffer, threadData->rayTracer,
-                threadData->world, task->tile);
+                threadData->world, task.tile);
         }
         else
         {
@@ -746,6 +748,8 @@ internal ThreadPool CreateThreadPool(WorkQueue *queue)
 internal void AddRayTracingWorkQueue(
     WorkQueue *workQueue, ThreadData *threadData)
 {
+    Assert(workQueue->head == workQueue->tail);
+
     // TODO: Don't need to compute and store and array for this, could just
     // store a queue of tile indices that the worker threads read from. They
     // can then construct the tile data for each index from just the image
@@ -761,25 +765,13 @@ internal void AddRayTracingWorkQueue(
         workQueue->tasks[i].tile = tiles[i];
     }
 
-    // FIXME: This will only work once!
-    workQueue->tail = tileCount;
-}
+    // TODO: Should have a nicer method for clearing the image
+    ClearToZero(threadData->imageBuffer,
+        sizeof(u32) * threadData->width * threadData->height);
 
-#if 0
-// FIXME: This is a really bad thing to do as the memory the thread was using
-// could be left in a completely invalid state. Only using this temporarily
-// because I know that the code we're calling in the thread has no
-// external dependencies and does not modify any memory external to it.
-internal void TerminateRayTracingThread(ThreadManager *manager)
-{
-    if (manager->threadHandle != INVALID_HANDLE_VALUE)
-    {
-        BOOL success = TerminateThread(manager->threadHandle, 0);
-        Assert(success);
-        manager->threadHandle = INVALID_HANDLE_VALUE;
-    }
+    workQueue->tail = tileCount;
+    workQueue->head = 0; // ooof
 }
-#endif
 
 int main(int argc, char **argv)
 {
@@ -913,7 +905,6 @@ int main(int argc, char **argv)
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
-    b32 drawScene = true;
     f32 prevFrameTime = 0.0f;
     u32 maxDepth = 1;
     b32 drawTests = false;
@@ -922,7 +913,7 @@ int main(int argc, char **argv)
     {
         f32 dt = prevFrameTime;
         dt = Min(dt, 0.25f);
-        if (drawScene)
+        if (isRayTracing)
         {
             dt = 0.016f;
         }
@@ -936,20 +927,18 @@ int main(int argc, char **argv)
 
         if (WasPressed(input.buttonStates[KEY_SPACE]))
         {
-            drawScene = !drawScene;
-
             if (!isRayTracing)
             {
-                isRayTracing = true;
-                AddRayTracingWorkQueue(&workQueue, &threadData);
+                // Only allow submitting new work to the queue if it is empty
+                if (workQueue.head == workQueue.tail)
+                {
+                    isRayTracing = true;
+                    AddRayTracingWorkQueue(&workQueue, &threadData);
+                }
             }
             else
             {
-                // Disabling thread termination for now
-#if 0
-                TerminateRayTracingThread(&threadManager);
                 isRayTracing = false;
-#endif
             }
         }
 
@@ -977,7 +966,7 @@ int main(int argc, char **argv)
         if (drawTests)
         {
             // Force drawing through the vulkan renderer
-            drawScene = true;
+            isRayTracing = false;
 
             // Run tests
             //TestTransformRayVsAabb(&debugDrawBuffer);
@@ -1009,7 +998,7 @@ int main(int argc, char **argv)
             drawCommands[i].mesh = world.entities[i].mesh;
         }
 
-        VulkanRender(&renderer, drawScene, drawCommands, world.count);
+        VulkanRender(&renderer, !isRayTracing, drawCommands, world.count);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;
