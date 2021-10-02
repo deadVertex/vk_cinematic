@@ -127,3 +127,19 @@ inline u32 ComputeTiles(u32 totalWidth, u32 totalHeight, u32 tileWidth,
     u32 totalTileCount = MinU32(tileCountY * tileCountX, maxTiles);
     return totalTileCount;
 }
+
+struct WorkQueue
+{
+    i32 volatile head;
+    i32 tail;
+    Tile *tiles;
+};
+
+inline Tile* WorkQueuePop(WorkQueue *queue)
+{
+    Assert(queue->head != queue->tail);
+    //u32 index = queue->head++;
+    // FIXME: This is windows specific, need our intrinsics header
+    i32 index = _InterlockedExchangeAdd((volatile long *)&queue->head, 1);
+    return queue->tiles + index;
+}

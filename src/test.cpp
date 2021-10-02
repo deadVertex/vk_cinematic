@@ -105,6 +105,18 @@ void TestComputeTilesInsufficientSpace()
     TEST_ASSERT_EQUAL_UINT32(tileCount, ArrayCount(tiles));
 }
 
+void TestWorkQueuePop()
+{
+    Tile tiles[4];
+    WorkQueue queue = {};
+    queue.tail = ArrayCount(tiles);
+    queue.tiles = tiles;
+    queue.head = 0;
+
+    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), tiles);
+    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), tiles + 1);
+}
+
 int main()
 {
     //RUN_TEST(test_repro_bug);
@@ -112,5 +124,6 @@ int main()
     RUN_TEST(TestComputeTiles);
     RUN_TEST(TestComputeTilesNonDivisible);
     RUN_TEST(TestComputeTilesInsufficientSpace);
+    RUN_TEST(TestWorkQueuePop);
     return UNITY_END();
 }

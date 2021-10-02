@@ -2,7 +2,8 @@
 List:
  - Run CPU ray tracer in separate thread and live update output image [X]
    - Restart CPU ray tracer without restarting application [X]
- - Tiled rendering for CPU ray tracer
+ - Tiled rendering for CPU ray tracer [X]
+ - Multi threaded tile-based rendering [ ]
 
 Bugs:
  - Resizing window crashes app
@@ -648,11 +649,17 @@ internal void ThreadRayTracer(void *userData)
     u32 tileCount = ComputeTiles(threadData->width, threadData->height,
         TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
 
-    for (u32 i = 0; i < tileCount; ++i)
+    WorkQueue queue = {};
+    queue.tail = tileCount;
+    queue.tiles = tiles;
+
+    while (queue.head != queue.tail)
     {
+        Tile *tile = WorkQueuePop(&queue);
+
         DoRayTracing(threadData->width, threadData->height,
             threadData->imageBuffer, threadData->rayTracer, threadData->world,
-            tiles[i]);
+            *tile);
     }
 
     f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
