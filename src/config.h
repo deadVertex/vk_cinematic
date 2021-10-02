@@ -16,4 +16,6 @@
 #define TILE_WIDTH 64
 #define TILE_HEIGHT 64
 
+#define MAX_THREADS 8
+
 //#define MIN_VOLUME

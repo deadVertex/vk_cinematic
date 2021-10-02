@@ -107,14 +107,12 @@ void TestComputeTilesInsufficientSpace()
 
 void TestWorkQueuePop()
 {
-    Tile tiles[4];
     WorkQueue queue = {};
-    queue.tail = ArrayCount(tiles);
-    queue.tiles = tiles;
+    queue.tail = 5;
     queue.head = 0;
 
-    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), tiles);
-    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), tiles + 1);
+    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), queue.tasks);
+    TEST_ASSERT_EQUAL_PTR(WorkQueuePop(&queue), queue.tasks + 1);
 }
 
 int main()

@@ -622,15 +622,6 @@ internal MeshData CreatePlaneMesh(MemoryArena *arena)
     return meshData;
 }
 
-struct ThreadData
-{
-    u32 width;
-    u32 height;
-    u32 *imageBuffer;
-    RayTracer *rayTracer;
-    World *world;
-};
-
 // WARNING!!!!
 // DON'T MOVE CAMERA WHILE RAY TRACING
 internal void ThreadRayTracer(void *userData)
@@ -641,6 +632,7 @@ internal void ThreadRayTracer(void *userData)
     ClearToZero(&g_Metrics, sizeof(g_Metrics));
     f64 rayTracingStartTime = glfwGetTime();
 
+#if 0
     // TODO: Don't need to compute and store and array for this, could just
     // store a queue of tile indices that the worker threads read from. They
     // can then construct the tile data for each index from just the image
@@ -661,6 +653,7 @@ internal void ThreadRayTracer(void *userData)
             threadData->imageBuffer, threadData->rayTracer, threadData->world,
             *tile);
     }
+#endif
 
     f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
     LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
@@ -691,30 +684,88 @@ internal void ThreadRayTracer(void *userData)
     ClearToZero(&g_Metrics, sizeof(g_Metrics));
 }
 
-internal DWORD WinThreadProc(LPVOID lpParam) 
+internal void WorkerThread(WorkQueue *queue)
 {
-    ThreadRayTracer(lpParam);
-    return 0;
+    while (1)
+    {
+        if (queue->head != queue->tail)
+        {
+            // Work to do
+            Task *task = WorkQueuePop(queue);
+
+            ThreadData *threadData = task->threadData;
+
+            DoRayTracing(threadData->width, threadData->height,
+                threadData->imageBuffer, threadData->rayTracer,
+                threadData->world, task->tile);
+        }
+        else
+        {
+            // FIXME: Use a semaphore for signalling
+            Sleep(1000);
+        }
+    }
 }
 
-struct ThreadManager
+internal DWORD WinWorkerThreadProc(LPVOID lpParam) 
+{
+    WorkerThread((WorkQueue *)lpParam);
+}
+
+struct ThreadMetaData
 {
 #ifdef PLATFORM_WINDOWS
-    HANDLE threadHandle;
-    DWORD threadId;
+    HANDLE handle;
+    DWORD id;
 #endif
 };
 
-internal void StartRayTracingInBackgroundThread(
-    ThreadManager *threadManager, ThreadData *threadData)
+struct ThreadPool
 {
-    // NOTE: Platform specific prototype code
-    threadManager->threadHandle = CreateThread(
-        NULL, 0, WinThreadProc, threadData, 0, &threadManager->threadId);
-    Assert(threadManager->threadHandle != INVALID_HANDLE_VALUE);
-    LogMessage("ThreadId is %u", threadManager->threadId);
+    ThreadMetaData threads[MAX_THREADS];
+};
+
+internal ThreadPool CreateThreadPool(WorkQueue *queue)
+{
+    ThreadPool pool = {};
+
+    for (u32 threadIndex = 0; threadIndex < MAX_THREADS; ++threadIndex)
+    {
+        ThreadMetaData metaData = {};
+        metaData.handle =
+            CreateThread(NULL, 0, WinWorkerThreadProc, queue, 0, &metaData.id);
+        Assert(metaData.handle != INVALID_HANDLE_VALUE);
+        LogMessage("ThreadId is %u", metaData.id);
+
+        pool.threads[threadIndex] = metaData;
+    }
+
+    return pool;
 }
 
+internal void AddRayTracingWorkQueue(
+    WorkQueue *workQueue, ThreadData *threadData)
+{
+    // TODO: Don't need to compute and store and array for this, could just
+    // store a queue of tile indices that the worker threads read from. They
+    // can then construct the tile data for each index from just the image
+    // dimensions and tile dimensions.
+    Tile tiles[64];
+    u32 tileCount = ComputeTiles(threadData->width, threadData->height,
+        TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
+
+    Assert(tileCount < MAX_TASKS);
+    for (u32 i = 0; i < tileCount; ++i)
+    {
+        workQueue->tasks[i].threadData = threadData;
+        workQueue->tasks[i].tile = tiles[i];
+    }
+
+    // FIXME: This will only work once!
+    workQueue->tail = tileCount;
+}
+
+#if 0
 // FIXME: This is a really bad thing to do as the memory the thread was using
 // could be left in a completely invalid state. Only using this temporarily
 // because I know that the code we're calling in the thread has no
@@ -728,14 +779,7 @@ internal void TerminateRayTracingThread(ThreadManager *manager)
         manager->threadHandle = INVALID_HANDLE_VALUE;
     }
 }
-
-internal ThreadManager CreateThreadManager()
-{
-    ThreadManager threadManager = {};
-    threadManager.threadHandle = INVALID_HANDLE_VALUE;
-
-    return threadManager;
-}
+#endif
 
 int main(int argc, char **argv)
 {
@@ -864,7 +908,8 @@ int main(int argc, char **argv)
     threadData.rayTracer = &rayTracer;
     threadData.world = &world;
 
-    ThreadManager threadManager = CreateThreadManager();
+    WorkQueue workQueue = {};
+    ThreadPool threadPool = CreateThreadPool(&workQueue);
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
@@ -896,12 +941,15 @@ int main(int argc, char **argv)
             if (!isRayTracing)
             {
                 isRayTracing = true;
-                StartRayTracingInBackgroundThread(&threadManager, &threadData);
+                AddRayTracingWorkQueue(&workQueue, &threadData);
             }
             else
             {
+                // Disabling thread termination for now
+#if 0
                 TerminateRayTracingThread(&threadManager);
                 isRayTracing = false;
+#endif
             }
         }
 
