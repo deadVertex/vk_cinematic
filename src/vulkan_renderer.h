@@ -9,6 +9,7 @@
 #define IMAGE_BUFFER_SIZE Megabytes(64)
 #define DEBUG_VERTEX_BUFFER_SIZE Megabytes(256)
 #define MODEL_MATRICES_BUFFER_SIZE Megabytes(4)
+#define MATERIAL_BUFFER_SIZE Kilobytes(4) // TODO: Combine this UBO?
 
 //#define SHADER_PATH "src/shaders"
 #define SHADER_PATH "shaders"
@@ -16,6 +17,7 @@
 struct DrawCommand
 {
     u32 mesh;
+    u32 material;
 };
 
 struct Mesh
@@ -100,6 +102,7 @@ struct MeshPushConstants
 {
     u32 modelMatrixIndex;
     u32 vertexDataOffset;
+    u32 materialIndex;
 };
 
 struct VulkanRenderer
@@ -132,6 +135,7 @@ struct VulkanRenderer
     VulkanBuffer indexBuffer;
     VulkanBuffer imageUploadBuffer;
     VulkanBuffer modelMatricesBuffer;
+    VulkanBuffer materialBuffer;
 
     VulkanBuffer debugVertexDataBuffer;
 

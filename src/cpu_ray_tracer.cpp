@@ -237,6 +237,8 @@ internal RayHitResult TraceRayThroughScene(
             // FIXME: This is assuming we only support uniform scaling
             entityResult.t *= entity->scale.x;
 
+            entityResult.materialIndex = entity->material;
+
             if (entityResult.isValid)
             {
                 g_Metrics.meshHitCount++;
@@ -356,7 +358,6 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
     CameraConstants camera =
         CalculateCameraConstants(rayTracer->viewMatrix, width, height);
 
-    vec3 baseColor = Vec3(0.8, 0.8, 0.8);
     vec3 lightColor = Vec3(1, 0.95, 0.8);
     vec3 lightDirection = Normalize(Vec3(1, 1, 0.5));
     vec3 backgroundColor = Vec3(0, 0, 0);
@@ -389,6 +390,10 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
 
                     if (rayHit.t > 0.0f)
                     {
+                        Material material =
+                            rayTracer->materials[rayHit.materialIndex];
+                        vec3 baseColor = material.baseColor;
+
                         vec3 hitPoint = rayOrigin + rayDirection * rayHit.t;
                         rayOrigin = hitPoint + rayHit.normal * 0.0000001f;
 

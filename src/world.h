@@ -6,6 +6,7 @@ struct Entity
     vec3 scale;
     quat rotation;
     u32 mesh;
+    u32 material;
     vec3 aabbMin;
     vec3 aabbMax;
 };

@@ -49,6 +49,7 @@ struct RayTracer
     b32 useAccelerationStructure;
     u32 maxDepth;
     RayTracerMesh meshes[MAX_MESHES];
+    Material materials[MAX_MATERIALS];
     RandomNumberGenerator rng;
     AabbTree aabbTree;
 };
@@ -59,6 +60,7 @@ struct RayHitResult
     f32 t;
     vec3 normal;
     u32 depth;
+    u32 materialIndex;
 };
 
 struct Metrics

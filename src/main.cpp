@@ -32,7 +32,7 @@ Usability
 Optimizations - CPU ray tracer
 - Multiple triangles per tree leaf node
 - SIMD
-- Multi-core
+- Multi-core [X]
 
 Analysis
 - AABB trees
@@ -555,8 +555,8 @@ internal void Update(
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
-internal void AddEntity(
-    World *world, vec3 position, quat rotation, vec3 scale, u32 mesh)
+internal void AddEntity(World *world, vec3 position, quat rotation, vec3 scale,
+    u32 mesh, u32 material)
 {
     // TODO: Support non-uniform scaling in the ray tracer
     Assert(scale.x == scale.y && scale.x == scale.z);
@@ -567,6 +567,7 @@ internal void AddEntity(
         entity->rotation = rotation;
         entity->scale = scale;
         entity->mesh = mesh;
+        entity->material = material;
     }
 }
 
@@ -832,9 +833,11 @@ int main(int argc, char **argv)
     world.entities = AllocateArray(&memoryArena, Entity, MAX_ENTITIES);
     world.max = MAX_ENTITIES;
 
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny);
-    AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1), Mesh_Bunny);
-    AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), -PI * 0.5f), Vec3(10), Mesh_Plane);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
+    AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
+        Mesh_Bunny, Material_Red);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), -PI * 0.5f), Vec3(10),
+        Mesh_Plane, Material_Red);
 
     u32 gridDim = 10;
     for (u32 y = 0; y < gridDim; ++y)
@@ -847,7 +850,7 @@ int main(int argc, char **argv)
                 vec3 p = origin + Vec3((f32)x, (f32)y, (f32)z);
                 u32 mesh = x % 2 == 0 ? Mesh_Monkey : Mesh_Bunny;
                 vec3 scale = mesh == Mesh_Monkey ? Vec3(0.1) : Vec3(1);
-                AddEntity(&world, p, Quat(), scale, mesh);
+                AddEntity(&world, p, Quat(), scale, mesh, Material_Blue);
             }
         }
     }
@@ -892,6 +895,15 @@ int main(int argc, char **argv)
         modelMatrices[i] = Translate(entity->position) *
                            Rotate(entity->rotation) * Scale(entity->scale);
     }
+
+    // Write out basic material data
+    Material *materials = (Material *)renderer.materialBuffer.data;
+    materials[Material_Red].baseColor = Vec3(1, 0, 0);
+    materials[Material_Blue].baseColor = Vec3(0, 0, 1);
+
+    // FIXME: Don't duplicate
+    rayTracer.materials[Material_Red].baseColor = Vec3(1, 0, 0);
+    rayTracer.materials[Material_Blue].baseColor = Vec3(0, 0, 1);
 
     ThreadData threadData = {};
     threadData.width = RAY_TRACER_WIDTH;
@@ -996,6 +1008,7 @@ int main(int argc, char **argv)
         for (u32 i = 0; i < world.count; ++i)
         {
             drawCommands[i].mesh = world.entities[i].mesh;
+            drawCommands[i].material = world.entities[i].material;
         }
 
         VulkanRender(&renderer, !isRayTracing, drawCommands, world.count);

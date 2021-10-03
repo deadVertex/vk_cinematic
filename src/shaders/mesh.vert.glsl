@@ -33,9 +33,11 @@ layout(push_constant) uniform PushConstants
 {
     uint modelMatrixIndex;
     uint vertexDataOffset;
+    uint materialIndex;
 };
 
 layout(location = 0) out vec3 fragNormal;
+layout(location = 1) out uint fragMaterialIndex;
 
 void main()
 {
@@ -65,4 +67,6 @@ void main()
 
     // Transform normal into world space
     fragNormal = normalize(inNormal * invModelMatrix);
+
+    fragMaterialIndex = materialIndex;
 }

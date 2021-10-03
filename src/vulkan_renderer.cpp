@@ -289,7 +289,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[5] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[6] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -312,6 +312,10 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     layoutBindings[4].descriptorCount = 1;
     layoutBindings[4].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    layoutBindings[5].binding = 5;
+    layoutBindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[5].descriptorCount = 1;
+    layoutBindings[5].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -491,6 +495,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+    renderer->materialBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            MATERIAL_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
     // Load shaders
     renderer->testVertexShader = LoadShader(renderer->device, "mesh.vert.spv");
     renderer->testFragmentShader = LoadShader(renderer->device, "mesh.frag.spv");
@@ -659,11 +669,15 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         modelMatrixBufferInfo.buffer = renderer->modelMatricesBuffer.handle;
         modelMatrixBufferInfo.range = VK_WHOLE_SIZE;
 
+        VkDescriptorBufferInfo materialBufferInfo = {};
+        materialBufferInfo.buffer = renderer->materialBuffer.handle;
+        materialBufferInfo.range = VK_WHOLE_SIZE;
+
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = renderer->imageView;
 
-        VkWriteDescriptorSet descriptorWrites[4] = {};
+        VkWriteDescriptorSet descriptorWrites[5] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -689,6 +703,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[3].descriptorCount = 1;
         descriptorWrites[3].pBufferInfo = &modelMatrixBufferInfo;
+        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[4].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[4].dstBinding = 5;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[4].descriptorCount = 1;
+        descriptorWrites[4].pBufferInfo = &materialBufferInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
@@ -820,6 +840,7 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene,
             MeshPushConstants pushConstants = {};
             pushConstants.modelMatrixIndex = i;
             pushConstants.vertexDataOffset = mesh.vertexDataOffset;
+            pushConstants.materialIndex = cmd.material;
 
             vkCmdPushConstants(renderer->commandBuffer,
                 renderer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
