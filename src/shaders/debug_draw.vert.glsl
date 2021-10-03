@@ -5,6 +5,7 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 viewMatrices[16];
     mat4 projectionMatrices[16];
     vec3 cameraPosition;
+    uint showComparision;
 } ubo;
 
 struct VertexPC

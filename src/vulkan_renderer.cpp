@@ -777,7 +777,7 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
         renderer->indexUploadBufferSize);
 }
 
-internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene,
+internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
     DrawCommand *drawCmds, u32 drawCmdCount)
 {
     u32 imageIndex;
@@ -815,7 +815,7 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene,
     vkCmdSetViewport(renderer->commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(renderer->commandBuffer, 0, 1, &scissor);
 
-    if (drawScene)
+    if (outputFlags & Output_VulkanRenderer)
     {
         // Bind pipeline
         vkCmdBindDescriptorSets(renderer->commandBuffer,
@@ -861,7 +861,8 @@ internal void VulkanRender(VulkanRenderer *renderer, b32 drawScene,
         vkCmdDraw(
             renderer->commandBuffer, renderer->debugDrawVertexCount, 1, 0, 0);
     }
-    else
+
+    if (outputFlags & Output_CpuRayTracer)
     {
         // CPU ray tracing
         // Bind pipeline

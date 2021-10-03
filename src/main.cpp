@@ -4,6 +4,8 @@ List:
    - Restart CPU ray tracer without restarting application [X]
  - Tiled rendering for CPU ray tracer [X]
  - Multi threaded tile-based rendering [X]
+ - Materials [X]
+ - Split view (for comparisions between rasterizer and ray tracer) [X]
 
 Bugs:
  - Resizing window crashes app
@@ -11,7 +13,6 @@ Bugs:
    threads are still working on the tasks they've pulled from the queue.
 
 Features:
- - Materials
  - ACES tone mapping
  - Bloom
  - gltf importing
@@ -989,6 +990,7 @@ int main(int argc, char **argv)
     u32 maxDepth = 1;
     b32 drawTests = false;
     b32 isRayTracing = false;
+    b32 showComparision = false;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -1043,6 +1045,11 @@ int main(int argc, char **argv)
             }
         }
 
+        if (WasPressed(input.buttonStates[KEY_F1]))
+        {
+            showComparision = !showComparision;
+        }
+
         if (drawTests)
         {
             // Force drawing through the vulkan renderer
@@ -1071,6 +1078,11 @@ int main(int argc, char **argv)
             rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
 
         Update(&renderer, &rayTracer, &input, dt);
+
+        // TODO: Don't do this here
+        UniformBufferObject *ubo = (UniformBufferObject *)renderer.uniformBuffer.data;
+        ubo->showComparision = showComparision;
+
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
         DrawCommand drawCommands[MAX_ENTITIES];
         for (u32 i = 0; i < world.count; ++i)
@@ -1079,7 +1091,12 @@ int main(int argc, char **argv)
             drawCommands[i].material = world.entities[i].material;
         }
 
-        VulkanRender(&renderer, !isRayTracing, drawCommands, world.count);
+        u32 outputFlags = Output_VulkanRenderer;
+        if (isRayTracing)
+        {
+            outputFlags |= Output_CpuRayTracer;
+        }
+        VulkanRender(&renderer, outputFlags, drawCommands, world.count);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;

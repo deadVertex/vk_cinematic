@@ -14,6 +14,13 @@
 //#define SHADER_PATH "src/shaders"
 #define SHADER_PATH "shaders"
 
+enum
+{
+    Output_None = 0,
+    Output_VulkanRenderer = 1,
+    Output_CpuRayTracer = 2,
+};
+
 struct DrawCommand
 {
     u32 mesh;
@@ -32,6 +39,7 @@ struct UniformBufferObject
     mat4 viewMatrices[16];
     mat4 projectionMatrices[16];
     vec3 cameraPosition;
+    u32 showComparision;
 };
 
 struct VulkanQueueFamilyIndices
