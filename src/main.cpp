@@ -11,6 +11,7 @@ Bugs:
    threads are still working on the tasks they've pulled from the queue.
 
 Features:
+ - Materials
  - ACES tone mapping
  - Bloom
  - gltf importing
@@ -774,6 +775,71 @@ internal void AddRayTracingWorkQueue(
     workQueue->head = 0; // ooof
 }
 
+struct SceneMeshData
+{
+    MeshData meshes[MAX_MESHES];
+};
+
+internal void LoadMeshData(SceneMeshData *scene, MemoryArena *meshDataArena)
+{
+    scene->meshes[Mesh_Bunny] = LoadMesh("bunny.obj", meshDataArena);
+    scene->meshes[Mesh_Monkey] = LoadMesh("monkey.obj", meshDataArena);
+    scene->meshes[Mesh_Plane] = CreatePlaneMesh(meshDataArena);
+
+    LogMessage("Meshes data memory usage: %uk / %uk", meshDataArena->size / 1024,
+        meshDataArena->capacity / 1024);
+}
+
+internal void UploadMeshDataToGpu(
+    VulkanRenderer *renderer, SceneMeshData *sceneMeshData)
+{
+    CopyMeshDataToUploadBuffer(
+        renderer, sceneMeshData->meshes[Mesh_Bunny], Mesh_Bunny);
+    CopyMeshDataToUploadBuffer(
+        renderer, sceneMeshData->meshes[Mesh_Monkey], Mesh_Monkey);
+    CopyMeshDataToUploadBuffer(
+        renderer, sceneMeshData->meshes[Mesh_Plane], Mesh_Plane);
+
+    VulkanCopyMeshDataToGpu(renderer);
+}
+
+internal void UploadMeshDataToCpuRayTracer(RayTracer *rayTracer,
+    SceneMeshData *sceneMeshData, MemoryArena *memoryArena,
+    MemoryArena *tempArena)
+{
+    rayTracer->meshes[Mesh_Bunny] =
+        CreateMesh(sceneMeshData->meshes[Mesh_Bunny], memoryArena, tempArena);
+    rayTracer->meshes[Mesh_Monkey] =
+        CreateMesh(sceneMeshData->meshes[Mesh_Monkey], memoryArena, tempArena);
+    rayTracer->meshes[Mesh_Plane] =
+        CreateMesh(sceneMeshData->meshes[Mesh_Plane], memoryArena, tempArena);
+}
+
+internal void UploadMaterialDataToGpu(
+    VulkanRenderer *renderer, Material *materialData)
+{
+    Material *materials = (Material *)renderer->materialBuffer.data;
+    CopyMemory(materials, materialData, sizeof(Material) * MAX_MATERIALS);
+}
+
+internal void UploadMaterialDataToCpuRayTracer(
+    RayTracer *rayTracer, Material *materialData)
+{
+    CopyMemory(
+        rayTracer->materials, materialData, sizeof(Material) * MAX_MATERIALS);
+}
+
+internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World *world)
+{
+    mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
+    for (u32 i = 0; i < world->count; ++i)
+    {
+        Entity *entity = world->entities + i;
+        modelMatrices[i] = Translate(entity->position) *
+                           Rotate(entity->rotation) * Scale(entity->scale);
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -802,33 +868,56 @@ int main(int argc, char **argv)
     glfwSetKeyCallback(g_Window, KeyCallback);
     glfwSetMouseButtonCallback(g_Window, MouseButtonCallback);
     glfwSetCursorPosCallback(g_Window, CursorPositionCallback);
-
-    VulkanRenderer renderer = {};
-    VulkanInit(&renderer, g_Window);
-
+    
+    // Create Memory arenas
     u32 tempMemorySize = Megabytes(64);
     MemoryArena tempArena = {};
     InitializeMemoryArena(
         &tempArena, AllocateMemory(tempMemorySize), tempMemorySize);
 
-    // FIXME: Can't clear this memory until we've built BVH for the ray tracer
-    // THIS IS NOT ACTUALLY TEMP MEMORY, RAYTRACER RELIES ON IT!!!!
-    MeshData bunnyMesh = LoadMesh("bunny.obj", &tempArena);
-    MeshData monkeyMesh = LoadMesh("monkey.obj", &tempArena);
-    MeshData planeMesh = CreatePlaneMesh(&tempArena);
-    LogMessage("Meshes data memory usage: %uk / %uk",
-        tempArena.size / 1024, tempArena.capacity / 1024);
+    u32 meshDataMemorySize = Megabytes(4);
+    MemoryArena meshDataArena = {};
+    InitializeMemoryArena(
+        &meshDataArena, AllocateMemory(meshDataMemorySize), meshDataMemorySize);
 
-    CopyMeshDataToUploadBuffer(&renderer, bunnyMesh, Mesh_Bunny);
-    CopyMeshDataToUploadBuffer(&renderer, monkeyMesh, Mesh_Monkey);
-    CopyMeshDataToUploadBuffer(&renderer, planeMesh, Mesh_Plane);
-
-    VulkanCopyMeshDataToGpu(&renderer);
-
+    // FIXME: What is this arena actually used for?
     u32 memorySize = Megabytes(64);
     MemoryArena memoryArena = {};
     InitializeMemoryArena(&memoryArena, AllocateMemory(memorySize), memorySize);
 
+
+    // Create Vulkan Renderer
+    VulkanRenderer renderer = {};
+    VulkanInit(&renderer, g_Window);
+
+    // Create CPU Ray tracer
+    RayTracer rayTracer = {};
+    rayTracer.useAccelerationStructure = true;
+    rayTracer.rng.state = 0xF51C0E49;
+
+    // Load mesh data
+    SceneMeshData sceneMeshData = {};
+    LoadMeshData(&sceneMeshData, &meshDataArena);
+
+    // Publish mesh data to vulkan renderer
+    UploadMeshDataToGpu(&renderer, &sceneMeshData);
+
+    // Publish mesh data to CPU ray tracer
+    UploadMeshDataToCpuRayTracer(
+        &rayTracer, &sceneMeshData, &memoryArena, &tempArena);
+
+    // Define materials, in the future this will come from file
+    Material materialData[MAX_MATERIALS] = {};
+    materialData[Material_Red].baseColor = Vec3(1, 0, 0);
+    materialData[Material_Blue].baseColor = Vec3(0, 0, 1);
+
+    // Publish material data to vulkan renderer
+    UploadMaterialDataToGpu(&renderer, materialData);
+
+    // Publish material data to CPU ray tracer
+    UploadMaterialDataToCpuRayTracer(&rayTracer, materialData);
+
+    // Create world
     World world = {};
     world.entities = AllocateArray(&memoryArena, Entity, MAX_ENTITIES);
     world.max = MAX_ENTITIES;
@@ -855,20 +944,16 @@ int main(int argc, char **argv)
         }
     }
 
-    RayTracer rayTracer = {};
-    rayTracer.useAccelerationStructure = true;
-    rayTracer.rng.state = 0xF51C0E49;
-    rayTracer.meshes[Mesh_Bunny] =
-        CreateMesh(bunnyMesh, &memoryArena, &tempArena);
-    rayTracer.meshes[Mesh_Monkey] =
-        CreateMesh(monkeyMesh, &memoryArena, &tempArena);
-    rayTracer.meshes[Mesh_Plane] =
-        CreateMesh(planeMesh, &memoryArena, &tempArena);
-
     // Compute bounding box for each entity
+    // TODO: Should not rely on CPU ray tracer for computing bounding boxes,
+    // they should be calculated as part of mesh loading.
     ComputeEntityBoundingBoxes(&world, &rayTracer);
 
+    // Upload world to CPU ray tracer
     rayTracer.aabbTree = BuildWorldBroadphase(&world, &memoryArena, &tempArena);
+
+    // Upload world to vulkan renderer
+    UploadWorldDataToGpu(&renderer, &world);
 
 #if ANALYZE_BROAD_PHASE_TREE
     LogMessage("Evaluate Broadphase tree");
@@ -879,31 +964,14 @@ int main(int argc, char **argv)
     EvaluateTree(rayTracer.meshes[Mesh_Monkey].aabbTree);
 #endif
 
-    g_Profiler.samples = (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
+    g_Profiler.samples =
+        (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
     ProfilerResults profilerResults = {};
 
     DebugDrawingBuffer debugDrawBuffer = {};
     debugDrawBuffer.vertices = (VertexPC *)renderer.debugVertexDataBuffer.data;
     debugDrawBuffer.max = DEBUG_VERTEX_BUFFER_SIZE / sizeof(VertexPC);
     rayTracer.debugDrawBuffer = &debugDrawBuffer;
-
-    // Sync model matrices with world
-    mat4 *modelMatrices = (mat4 *)renderer.modelMatricesBuffer.data;
-    for (u32 i = 0; i < world.count; ++i)
-    {
-        Entity *entity = world.entities + i;
-        modelMatrices[i] = Translate(entity->position) *
-                           Rotate(entity->rotation) * Scale(entity->scale);
-    }
-
-    // Write out basic material data
-    Material *materials = (Material *)renderer.materialBuffer.data;
-    materials[Material_Red].baseColor = Vec3(1, 0, 0);
-    materials[Material_Blue].baseColor = Vec3(0, 0, 1);
-
-    // FIXME: Don't duplicate
-    rayTracer.materials[Material_Red].baseColor = Vec3(1, 0, 0);
-    rayTracer.materials[Material_Blue].baseColor = Vec3(0, 0, 1);
 
     ThreadData threadData = {};
     threadData.width = RAY_TRACER_WIDTH;
