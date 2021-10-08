@@ -12,7 +12,9 @@ include_directories($ENV{VULKAN_SDK}/Include)
 #add_subdirectory(dependencies)
 
 # FIXME: Only for windows
+if (WIN32)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7")
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -opt:ref -incremental:no")
+endif()
 
 add_subdirectory(src)
