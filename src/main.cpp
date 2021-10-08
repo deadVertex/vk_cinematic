@@ -6,6 +6,8 @@ List:
  - Multi threaded tile-based rendering [X]
  - Materials [X]
  - Split view (for comparisions between rasterizer and ray tracer) [X]
+ - Linear space rendering (CPU ray tracer) [ ]
+ - Linear space rendering (vulkan rasterizer) [ ]
 
 Bugs:
  - Resizing window crashes app
@@ -13,6 +15,7 @@ Bugs:
    threads are still working on the tasks they've pulled from the queue.
 
 Features:
+ - Linear space rendering [ ]
  - ACES tone mapping
  - Bloom
  - gltf importing
@@ -30,6 +33,8 @@ Visualization infrastructure
 Usability
 - Realtime feedback of ray tracing
 - Live code reloading?
+- Scene definition from file
+- Resource definition from file
 
 Optimizations - CPU ray tracer
 - Multiple triangles per tree leaf node
@@ -46,6 +51,9 @@ Observability
 - More metrics
 - More logs
 - More profiling
+
+Optimizations
+- Don't ray trace whole screen when using comparison view
 */
 
 /*

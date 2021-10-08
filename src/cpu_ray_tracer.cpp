@@ -349,6 +349,19 @@ inline vec3 CalculateFilmP(CameraConstants *camera, u32 width, u32 height,
     return filmP;
 }
 
+inline vec3 PerformToneMapping(vec3 input)
+{
+    input *= 1.0f; // expose adjustment
+
+    // Reinhard operator
+    input.x = input.x / (1.0f + input.x);
+    input.y = input.y / (1.0f + input.y);
+    input.z = input.z / (1.0f + input.z);
+
+    vec3 retColor = Pow(input, Vec3(1.0f / 2.2f));
+    return retColor;
+}
+
 internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
     RayTracer *rayTracer, World *world, Tile tile)
 {
@@ -424,7 +437,10 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                 radiance += contrib * (1.0f / (f32)maxSamples);
             }
 
-            vec3 outputColor = Clamp(radiance, Vec3(0), Vec3(1));
+            // Tone map value with S-curve (need to calculate avg luminance for the whole image!)
+            // Convert from linear space to display space (assuming sRGB gamma for now)
+            vec3 toneMappedValue = PerformToneMapping(radiance);
+            vec3 outputColor = Clamp(toneMappedValue, Vec3(0), Vec3(1));
 
             outputColor *= 255.0f;
             u32 bgra = (0xFF000000 | ((u32)outputColor.z) << 16 |
