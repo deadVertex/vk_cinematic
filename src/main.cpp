@@ -162,17 +162,26 @@ Total Pixel Count: 49152
 Rays per second: 225885
  */
 
+#define PLATFORM_LINUX // FIXME: Should come from cmake
+#include <cstdarg>
+
 #include "config.h"
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#define PLATFORM_WINDOWS
+#ifdef PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#elif defined(PLATFORM_LINUX)
+#include <unistd.h>
+#endif
 
+// Move to vulkan specific module?
 #include <vulkan/vulkan.h>
+#ifdef PLATFORM_WINDOWS
 #include <vulkan/vulkan_win32.h>
+#endif
 
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -217,8 +226,10 @@ internal DebugLogMessage(LogMessage_)
     va_start(args, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
+#ifdef PLATFORM_WINDOWS
     OutputDebugString(buffer);
     OutputDebugString("\n");
+#endif
     puts(buffer);
 }
 
@@ -715,15 +726,22 @@ internal void WorkerThread(WorkQueue *queue)
         else
         {
             // FIXME: Use a semaphore for signalling
+#ifdef PLATFORM_WINDOWS
             Sleep(1000);
+#elif defined(PLATFORM_LINUX)
+            usleep(1000);
+#endif
         }
     }
 }
 
+#ifdef PLATFORM_WINDOWS
 internal DWORD WinWorkerThreadProc(LPVOID lpParam) 
 {
     WorkerThread((WorkQueue *)lpParam);
 }
+#elif defined(PLATFORM_LINUX)
+#endif
 
 struct ThreadMetaData
 {
@@ -742,6 +760,7 @@ internal ThreadPool CreateThreadPool(WorkQueue *queue)
 {
     ThreadPool pool = {};
 
+#ifdef PLATFORM_WINDOWS
     for (u32 threadIndex = 0; threadIndex < MAX_THREADS; ++threadIndex)
     {
         ThreadMetaData metaData = {};
@@ -752,6 +771,9 @@ internal ThreadPool CreateThreadPool(WorkQueue *queue)
 
         pool.threads[threadIndex] = metaData;
     }
+#endif
+
+    // TODO: Implement for PLATFORM_LINUX
 
     return pool;
 }

@@ -367,8 +367,10 @@ VulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 {
     // LogMessage is truncating the error message
     //LogMessage("%s", pCallbackData->pMessage);
+#ifdef PLATFORM_WINDOWS
     OutputDebugString(pCallbackData->pMessage);
     OutputDebugString("\n");
+#endif
     puts(pCallbackData->pMessage);
 
     //Assert(!(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT));

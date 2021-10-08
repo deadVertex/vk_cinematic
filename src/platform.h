@@ -4,7 +4,11 @@
 #include <cstdio>
 #include <cstdlib>
 
+#ifdef PLATFORM_WINDOWS
 #include <intrin.h>
+#else // FIXME: This is GCC specific
+#include <x86intrin.h>
+#endif
 
 #ifdef NO_STDLIB
 #define Abort() (*(volatile int *)0 = 0)
