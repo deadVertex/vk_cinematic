@@ -14,7 +14,7 @@ foreach(source IN LISTS SHADERS)
     set(shader_binary "${SHADER_BINARY_DIR}/${FILENAME_WLE}.spv")
     add_custom_command(
         COMMAND
-            glslangvalidator "${source}" -V -o "${shader_binary}"
+            glslangValidator "${source}" -V -o "${shader_binary}"
         OUTPUT "${shader_binary}"
         DEPENDS "${source}"
         COMMENT "Compiling ${FILENAME}"

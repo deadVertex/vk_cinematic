@@ -6,5 +6,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     g++=4:9.3.0-1ubuntu2 \
     libassimp-dev=5.0.1~ds0-1build1 \
     libglfw3-dev=3.3.2-1 \
+    libvulkan-dev=1.2.131.2-1 \
+    glslang-tools=8.13.3559-4 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

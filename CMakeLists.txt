@@ -6,6 +6,7 @@ project(vk_cinematic LANGUAGES CXX)
 # TODO: find_package for assimp, glfw3, vulkan, etc
 find_package(assimp REQUIRED PATHS dependencies/assimp/build/install)
 find_package(glfw3 REQUIRED PATHS dependencies/glfw/build/install)
+find_package(Vulkan REQUIRED FATAL_ERROR)
 
 include_directories($ENV{VULKAN_SDK}/Include)
 

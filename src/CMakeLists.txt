@@ -11,4 +11,5 @@ link_directories(${ASSIMP_LIBRARY_DIRS})
 # TODO: Apparently CMake supports unity builds?!?!?
 add_executable(main main.cpp)
 
-target_link_libraries(main glfw ${ASSIMP_LIBRARIES} "$ENV{VULKAN_SDK}/Lib/vulkan-1.lib")
+# cmake is case-sensitive?!?!?!?!?!?! VULKAN_LIBRARIES doesn't work
+target_link_libraries(main glfw ${ASSIMP_LIBRARIES} ${Vulkan_LIBRARIES})

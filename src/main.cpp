@@ -296,6 +296,25 @@ DebugReadEntireFile(ReadEntireFile)
     return result;
 }
 
+#elif defined(PLATFORM_LINUX)
+internal void *AllocateMemory(u64 size, u64 baseAddress)
+{
+    void *result = NULL;
+    // TODO: Implement
+    return result;
+}
+
+internal void FreeMemory(void *p)
+{
+    // TODO: Implement
+}
+
+DebugReadEntireFile(ReadEntireFile)
+{
+    DebugReadFileResult result = {};
+    // TODO: Implement
+    return result;
+}
 #endif
 
 #define KEY_HELPER(NAME)                                                       \
