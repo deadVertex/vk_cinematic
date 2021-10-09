@@ -162,9 +162,11 @@ inline Task WorkQueuePop(WorkQueue *queue)
 #ifdef PLATFORM_WINDOWS
     // FIXME: This is windows specific, need our intrinsics header
     i32 index = _InterlockedExchangeAdd((volatile long *)&queue->head, 1);
-#else // FIXME: This is GCC specific
+#elif defined(PLATFORM_LINUX)
     // TODO: Probably not the right memory model - https://gcc.gnu.org/wiki/Atomic/GCCMM/AtomicSync
     i32 index = __atomic_fetch_add(&queue->head, 1, __ATOMIC_SEQ_CST);
+#else
+#error "UNSUPPORTED PLATFORM"
 #endif
     return queue->tasks[index];
 }

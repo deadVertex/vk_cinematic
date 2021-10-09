@@ -162,7 +162,6 @@ Total Pixel Count: 49152
 Rays per second: 225885
  */
 
-#define PLATFORM_LINUX // FIXME: Should come from cmake
 #include <cstdarg>
 
 #include "config.h"
@@ -815,6 +814,7 @@ internal void WorkerThread(WorkQueue *queue)
 internal DWORD WinWorkerThreadProc(LPVOID lpParam) 
 {
     WorkerThread((WorkQueue *)lpParam);
+    return 0;
 }
 #elif defined(PLATFORM_LINUX)
 internal void* LinuxWorkerThreadProc(void *arg)

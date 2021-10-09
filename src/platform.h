@@ -6,7 +6,7 @@
 
 #ifdef PLATFORM_WINDOWS
 #include <intrin.h>
-#else // FIXME: This is GCC specific
+#elif defined(PLATFORM_LINUX)
 #include <x86intrin.h>
 #endif
 
