@@ -33,12 +33,8 @@ void TestLoadMesh()
     void *memory = malloc(memoryCapacity);
     InitializeMemoryArena(&memoryArena, memory, memoryCapacity);
 
-    // TODO: This probably needs to be exposed as a commandline arg so we can
-    // run our integration tests regardless of working dir.
-    const char *assetDir = "../assets";
-
     const char *meshName = "bunny.obj";
-    MeshData meshData = LoadMesh(meshName, &memoryArena, assetDir);
+    MeshData meshData = LoadMesh(meshName, &memoryArena, g_AssetDir);
     TEST_ASSERT_GREATER_THAN_UINT(0, meshData.vertexCount);
 
     free(memory);
