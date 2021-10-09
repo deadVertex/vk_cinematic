@@ -1,6 +1,6 @@
 #pragma once
 
-#define MESH_PATH "../assets"
+#define MESH_PATH "../../assets"
 
 #pragma pack(push)
 struct VertexPC

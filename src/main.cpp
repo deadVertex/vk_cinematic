@@ -175,6 +175,9 @@ Rays per second: 225885
 #include <windows.h>
 #elif defined(PLATFORM_LINUX)
 #include <unistd.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #endif
 
 // Move to vulkan specific module?
@@ -297,22 +300,75 @@ DebugReadEntireFile(ReadEntireFile)
 }
 
 #elif defined(PLATFORM_LINUX)
-internal void *AllocateMemory(u64 size, u64 baseAddress)
+internal void *AllocateMemory(u64 numBytes, u64 baseAddress)
 {
-    void *result = NULL;
-    // TODO: Implement
+    void *result = mmap((void *)baseAddress, numBytes, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    Assert(result != MAP_FAILED);
+
     return result;
 }
 
 internal void FreeMemory(void *p)
 {
-    // TODO: Implement
+    munmap(p, 0);
 }
 
-DebugReadEntireFile(ReadEntireFile)
+// NOTE: bytesToRead must equal the size of the file, if great we will enter an
+// infinite loop.
+internal bool ReadFile(int file, void *buf, int bytesToRead)
+{
+    while (bytesToRead)
+    {
+        int bytesRead = read(file, buf, bytesToRead);
+        if (bytesRead == -1)
+        {
+            return false;
+        }
+        bytesToRead -= bytesRead;
+        buf = (u8 *)buf + bytesRead;
+    }
+    return true;
+}
+
+internal DebugReadEntireFile(ReadEntireFile)
 {
     DebugReadFileResult result = {};
-    // TODO: Implement
+    int file = open(path, O_RDONLY);
+    if (file != -1)
+    {
+        struct stat fileStatus;
+        if (fstat(file, &fileStatus) != -1)
+        {
+            result.length = SafeTruncateU64ToU32(fileStatus.st_size);
+            result.contents = AllocateMemory(result.length);
+            if (result.contents)
+            {
+                if (!ReadFile(file, result.contents, result.length))
+                {
+                    LogMessage("Failed to read file %s", path);
+                    FreeMemory(result.contents);
+                    result.contents = nullptr;
+                    result.length = 0;
+                }
+            }
+            else
+            {
+                LogMessage("Failed to allocate %d bytes for file %s",
+                          result.length, path);
+                result.length = 0;
+            }
+        }
+        else
+        {
+            LogMessage("Failed to read file size for file %s", path);
+        }
+        close(file);
+    }
+    else
+    {
+        LogMessage("Failed to open file %s", path);
+    }
     return result;
 }
 #endif
