@@ -1,6 +1,7 @@
 #include <cstring>
 
-internal b32 ParseCommandLineArgs(int argc, char **argv, char **assetDir)
+internal b32 ParseCommandLineArgs(
+    int argc, const char **argv, const char **assetDir)
 {
     if (argc >= 3)
     {

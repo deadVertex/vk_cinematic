@@ -969,8 +969,8 @@ int main(int argc, char **argv)
     LogMessage = &LogMessage_;
 
     // Parse command line args
-    char *assetDir = "./";
-    ParseCommandLineArgs(argc, argv, &assetDir);
+    const char *assetDir = "./";
+    ParseCommandLineArgs(argc, (const char **)argv, &assetDir);
     LogMessage("Asset directoy set to %s", assetDir);
 
     LogMessage("Compiled agist GLFW %i.%i.%i", GLFW_VERSION_MAJOR,

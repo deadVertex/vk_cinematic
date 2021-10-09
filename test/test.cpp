@@ -127,8 +127,8 @@ void TestWorkQueuePop()
 
 void TestParseCommandLineArgs()
 {
-    char *assetDir = NULL;
-    char *argv[] = {
+    const char *assetDir = NULL;
+    const char *argv[] = {
         "/path/to/my/app",
         "--asset-dir",
         "/my/asset/dir"
@@ -141,7 +141,7 @@ void TestParseCommandLineArgs()
 
 void TestParseCommandLineArgsEmpty()
 {
-    char *assetDir = NULL;
+    const char *assetDir = NULL;
     TEST_ASSERT_FALSE(ParseCommandLineArgs(0, NULL, &assetDir));
 }
 
