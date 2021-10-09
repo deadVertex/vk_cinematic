@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.13)
 
 project(vk_cinematic)
 
+#enable_testing()
+
 # TODO: find_package for assimp, glfw3, vulkan, etc
 find_package(assimp REQUIRED PATHS dependencies/assimp/build/install)
 find_package(glfw3 REQUIRED PATHS dependencies/glfw/build/install)
@@ -16,7 +18,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -MT -F16777216 -nologo -Gm- -GR- -EHa -W
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -opt:ref -incremental:no")
 endif()
 
-include(CTest)
+#include(CTest)
 
 add_subdirectory(thirdparty/unity)
 add_subdirectory(src)
