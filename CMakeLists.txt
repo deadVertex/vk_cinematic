@@ -1,14 +1,12 @@
 # TODO: Not sure about this min version, copied from other personal project
 cmake_minimum_required(VERSION 3.13)
 
-project(vk_cinematic LANGUAGES CXX)
+project(vk_cinematic)
 
 # TODO: find_package for assimp, glfw3, vulkan, etc
 find_package(assimp REQUIRED PATHS dependencies/assimp/build/install)
 find_package(glfw3 REQUIRED PATHS dependencies/glfw/build/install)
 find_package(Vulkan REQUIRED FATAL_ERROR)
-
-include_directories($ENV{VULKAN_SDK}/Include)
 
 #add_subdirectory(dependencies)
 
@@ -18,4 +16,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -MT -F16777216 -nologo -Gm- -GR- -EHa -W
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -opt:ref -incremental:no")
 endif()
 
+include(CTest)
+
+add_subdirectory(thirdparty/unity)
 add_subdirectory(src)
+add_subdirectory(test)
