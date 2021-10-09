@@ -12,4 +12,4 @@ link_directories(${ASSIMP_LIBRARY_DIRS})
 add_executable(main main.cpp)
 
 # cmake is case-sensitive?!?!?!?!?!?! VULKAN_LIBRARIES doesn't work
-target_link_libraries(main glfw ${ASSIMP_LIBRARIES} ${Vulkan_LIBRARIES})
+target_link_libraries(main glfw ${ASSIMP_LIBRARIES} ${Vulkan_LIBRARIES} pthread)

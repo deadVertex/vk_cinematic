@@ -178,6 +178,7 @@ Rays per second: 225885
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #endif
 
 // Move to vulkan specific module?
@@ -816,6 +817,11 @@ internal DWORD WinWorkerThreadProc(LPVOID lpParam)
     WorkerThread((WorkQueue *)lpParam);
 }
 #elif defined(PLATFORM_LINUX)
+internal void* LinuxWorkerThreadProc(void *arg)
+{
+    WorkerThread((WorkQueue *)arg);
+    return NULL;
+}
 #endif
 
 struct ThreadMetaData
@@ -823,6 +829,8 @@ struct ThreadMetaData
 #ifdef PLATFORM_WINDOWS
     HANDLE handle;
     DWORD id;
+#elif defined(PLATFORM_LINUX)
+    pthread_t handle;
 #endif
 };
 
@@ -846,10 +854,17 @@ internal ThreadPool CreateThreadPool(WorkQueue *queue)
 
         pool.threads[threadIndex] = metaData;
     }
+#elif defined(PLATFORM_LINUX)
+    for (u32 threadIndex = 0; threadIndex < MAX_THREADS; ++threadIndex)
+    {
+        ThreadMetaData metaData = {};
+        int ret = pthread_create(&metaData.handle, NULL, LinuxWorkerThreadProc, queue);
+        Assert(ret == 0);
+        LogMessage("Thread handle is %u", metaData.handle);
+
+        pool.threads[threadIndex] = metaData;
+    }
 #endif
-
-    // TODO: Implement for PLATFORM_LINUX
-
     return pool;
 }
 
