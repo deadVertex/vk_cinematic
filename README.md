@@ -23,6 +23,7 @@ git submodule update --init
 ```
 
 Next you will need to build the dependencies for the project.
+**Only for Windows**
 ```
 build_dependencies.bat
 ```
@@ -31,6 +32,11 @@ You can then build the project with the standard commands.
 ```
 cmake -B build
 cmake --build build
+```
+
+To run the unit tests
+```
+build/tests/test_app
 ```
 
 Before you can run the project you will need to manually copy the DLL files for

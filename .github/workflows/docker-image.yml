@@ -15,4 +15,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag vk_cinematic_buildenv:$(date +%s)
+      run: docker build . --file Dockerfile --tag ghcr.io/deadVertex/vk_cinematic_buildenv:latest
+    - name: Publish the Docker image
+      run: docker push ghcr.io/deadVertex/vk_cinematic_buildenv:latest
