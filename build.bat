@@ -16,9 +16,9 @@ REM glslangvalidator ..\src\shaders\debug_draw.vert.glsl -V -o shaders\debug_dra
 REM glslangvalidator ..\src\shaders\debug_draw.frag.glsl -V -o shaders\debug_draw.frag.spv
 
 REM Build unit tests
-REM cl %CompilerFlags% -Od -I..\thirdparty\unity -c ../thirdparty/unity/unity.c
-REM cl %CompilerFlags% -Od -I..\thirdparty\unity -I..\dependencies\assimp\build\install\include ../src/test.cpp -link %LinkerFlags% ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib unity.obj
-REM test.exe
+cl %CompilerFlags% -Od -I..\thirdparty\unity -c ../thirdparty/unity/unity.c
+cl %CompilerFlags% -Od -I..\thirdparty\unity -I..\dependencies\assimp\build\install\include ../test/test.cpp -link %LinkerFlags% ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib unity.obj
+test.exe
 
 REM Build executable
 cl %CompilerFlags% -O2 -I./ -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"

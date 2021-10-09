@@ -1,10 +1,11 @@
+#include <cstdarg>
+
 #include "unity.h"
 
-#if 0
+// For integration tests
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#endif
 
 #if 0
 #include "platform.h"
@@ -16,6 +17,9 @@
 #endif
 
 #include "cpu_ray_tracer.h"
+
+#include "cmdline.cpp"
+#include "mesh.cpp"
 
 void setUp(void)
 {
@@ -121,13 +125,68 @@ void TestWorkQueuePop()
     TEST_ASSERT_EQUAL_UINT32(second.tile.minX, 2);
 }
 
+void TestParseCommandLineArgs()
+{
+    char *assetDir = NULL;
+    char *argv[] = {
+        "/path/to/my/app",
+        "--asset-dir",
+        "/my/asset/dir"
+    };
+    int argc = ArrayCount(argv);
+
+    TEST_ASSERT_TRUE(ParseCommandLineArgs(argc, argv, &assetDir));
+    TEST_ASSERT_EQUAL_STRING(argv[2], assetDir);
+}
+
+void TestParseCommandLineArgsEmpty()
+{
+    char *assetDir = NULL;
+    TEST_ASSERT_FALSE(ParseCommandLineArgs(0, NULL, &assetDir));
+}
+
+// Integration tests
+void TestLoadMesh()
+{
+    MemoryArena memoryArena = {};
+    u64 memoryCapacity = Megabytes(1);
+    void *memory = malloc(memoryCapacity);
+    InitializeMemoryArena(&memoryArena, memory, memoryCapacity);
+
+    // TODO: This probably needs to be exposed as a commandline arg so we can run
+    // our integration tests regardless of working dir.
+    const char *assetDir = "../assets";
+
+    const char *meshName = "bunny.obj";
+    MeshData meshData = LoadMesh(meshName, &memoryArena, assetDir);
+    TEST_ASSERT_GREATER_THAN_UINT(0, meshData.vertexCount);
+
+    free(memory);
+}
+
+// FIXME: Copied from main.cpp
+internal DebugLogMessage(LogMessage_)
+{
+    char buffer[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    puts(buffer);
+}
+
 int main()
 {
+    LogMessage = LogMessage_;
+
     //RUN_TEST(test_repro_bug);
     //RUN_TEST(Test_BuildAabbTree);
     RUN_TEST(TestComputeTiles);
     RUN_TEST(TestComputeTilesNonDivisible);
     RUN_TEST(TestComputeTilesInsufficientSpace);
     RUN_TEST(TestWorkQueuePop);
+    RUN_TEST(TestParseCommandLineArgs);
+    RUN_TEST(TestParseCommandLineArgsEmpty);
+    RUN_TEST(TestLoadMesh);
     return UNITY_END();
 }

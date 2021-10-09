@@ -217,6 +217,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "cpu_ray_tracer.cpp"
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
+#include "cmdline.cpp"
 
 global GLFWwindow *g_Window;
 global u32 g_FramebufferWidth = 1024;
@@ -901,10 +902,12 @@ struct SceneMeshData
     MeshData meshes[MAX_MESHES];
 };
 
-internal void LoadMeshData(SceneMeshData *scene, MemoryArena *meshDataArena)
+internal void LoadMeshData(
+    SceneMeshData *scene, MemoryArena *meshDataArena, const char *assetDir)
 {
-    scene->meshes[Mesh_Bunny] = LoadMesh("bunny.obj", meshDataArena);
-    scene->meshes[Mesh_Monkey] = LoadMesh("monkey.obj", meshDataArena);
+    scene->meshes[Mesh_Bunny] = LoadMesh("bunny.obj", meshDataArena, assetDir);
+    scene->meshes[Mesh_Monkey] =
+        LoadMesh("monkey.obj", meshDataArena, assetDir);
     scene->meshes[Mesh_Plane] = CreatePlaneMesh(meshDataArena);
 
     LogMessage("Meshes data memory usage: %uk / %uk", meshDataArena->size / 1024,
@@ -965,6 +968,11 @@ int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
 
+    // Parse command line args
+    char *assetDir = "./";
+    ParseCommandLineArgs(argc, argv, &assetDir);
+    LogMessage("Asset directoy set to %s", assetDir);
+
     LogMessage("Compiled agist GLFW %i.%i.%i", GLFW_VERSION_MAJOR,
            GLFW_VERSION_MINOR, GLFW_VERSION_REVISION);
 
@@ -1018,7 +1026,7 @@ int main(int argc, char **argv)
 
     // Load mesh data
     SceneMeshData sceneMeshData = {};
-    LoadMeshData(&sceneMeshData, &meshDataArena);
+    LoadMeshData(&sceneMeshData, &meshDataArena, assetDir);
 
     // Publish mesh data to vulkan renderer
     UploadMeshDataToGpu(&renderer, &sceneMeshData);

@@ -1,11 +1,14 @@
 #include "mesh.h"
 
-internal MeshData LoadMesh(const char *path, MemoryArena *arena)
+#define MESH_PATH "broken"
+
+internal MeshData LoadMesh(
+    const char *path, MemoryArena *arena, const char *assetDir)
 {
     MeshData result = {};
 
     char fullPath[256];
-    snprintf(fullPath, sizeof(fullPath), "%s/%s", MESH_PATH, path);
+    snprintf(fullPath, sizeof(fullPath), "%s/%s", assetDir, path);
 
     const struct aiScene *scene = aiImportFile(fullPath,
         aiProcess_CalcTangentSpace | aiProcess_Triangulate |
