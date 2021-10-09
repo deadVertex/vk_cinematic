@@ -39,5 +39,4 @@ jobs:
       run: ${{github.workspace}}/build/unit_tests/unit_tests
 
     - name: Integration Tests
-      run: ${{github.workspace}}/build/integration_tests/integration_tests --asset-dir ${{github.workspace}}/assets
-      
+      run: ls ${{github.workspace}}/assets && ${{github.workspace}}/build/integration_tests/integration_tests --asset-dir ${{github.workspace}}/assets
