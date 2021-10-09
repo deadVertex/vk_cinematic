@@ -2,9 +2,32 @@
 
 #include "vulkan_utils.cpp"
 
+#define VALIDATION_LAYER_NAME "VK_LAYER_KHRONOS_validation"
+
+internal b32 HasValidationLayerSupport()
+{
+    b32 found = false;
+
+    VkLayerProperties layers[256];
+    u32 layerCount = ArrayCount(layers);
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&layerCount, layers));
+
+    for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
+    {
+        if (strcmp(VALIDATION_LAYER_NAME,
+                layers[layerIndex].layerName) == 0)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    return found;
+}
+
 internal VkInstance VulkanCreateInstance()
 {
-    const char *validationLayers[] = {"VK_LAYER_KHRONOS_validation"};
+    const char *validationLayers[] = {VALIDATION_LAYER_NAME};
     const char *requestedExtensions[] = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
     u32 glfwExtensionsCount = 0;
@@ -33,8 +56,16 @@ internal VkInstance VulkanCreateInstance()
     instanceCreateInfo.enabledExtensionCount = extensionCount;
     instanceCreateInfo.ppEnabledExtensionNames = extensions;
 #ifdef ENABLE_VALIDATION_LAYERS
-    instanceCreateInfo.enabledLayerCount = ArrayCount(validationLayers);
-    instanceCreateInfo.ppEnabledLayerNames = validationLayers;
+    LogMessage("Enabling Vulkan validation layers");
+    if (HasValidationLayerSupport())
+    {
+        instanceCreateInfo.enabledLayerCount = ArrayCount(validationLayers);
+        instanceCreateInfo.ppEnabledLayerNames = validationLayers;
+    }
+    else
+    {
+        LogMessage("Vulkan instance does not support validation layers");
+    }
 #endif
 
     VkInstance instance;
