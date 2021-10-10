@@ -215,6 +215,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 
 #include "debug.cpp"
 #include "cpu_ray_tracer.cpp"
+#include "cpu_ray_tracer_manual_tests.cpp"
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
 #include "cmdline.cpp"
@@ -720,68 +721,6 @@ internal MeshData CreatePlaneMesh(MemoryArena *arena)
     CopyMemory(meshData.indices, planeIndices, sizeof(planeIndices));
 
     return meshData;
-}
-
-// WARNING!!!!
-// DON'T MOVE CAMERA WHILE RAY TRACING
-internal void ThreadRayTracer(void *userData)
-{
-    ThreadData *threadData = (ThreadData *)userData;
-
-    LogMessage("Begin ray tracing");
-    ClearToZero(&g_Metrics, sizeof(g_Metrics));
-    f64 rayTracingStartTime = glfwGetTime();
-
-#if 0
-    // TODO: Don't need to compute and store and array for this, could just
-    // store a queue of tile indices that the worker threads read from. They
-    // can then construct the tile data for each index from just the image
-    // dimensions and tile dimensions.
-    Tile tiles[64];
-    u32 tileCount = ComputeTiles(threadData->width, threadData->height,
-        TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
-
-    WorkQueue queue = {};
-    queue.tail = tileCount;
-    queue.tiles = tiles;
-
-    while (queue.head != queue.tail)
-    {
-        Tile *tile = WorkQueuePop(&queue);
-
-        DoRayTracing(threadData->width, threadData->height,
-            threadData->imageBuffer, threadData->rayTracer, threadData->world,
-            *tile);
-    }
-#endif
-
-    f64 rayTracingElapsedTime = glfwGetTime() - rayTracingStartTime;
-    LogMessage("Camera Position: (%g, %g, %g)", g_camera.position.x,
-            g_camera.position.y, g_camera.position.z);
-    LogMessage("Camera Rotation: (%g, %g, %g)", g_camera.rotation.x,
-            g_camera.rotation.y, g_camera.rotation.z);
-    LogMessage("Ray tracing time spent: %gs", rayTracingElapsedTime);
-    //LogMessage("Triangle count: %u", rayTracer.meshData.indexCount / 3);
-    // TODO: Enable once this is cleaned up
-#if 0
-    LogMessage("Memory Usage: %ukb / %ukb", memoryArena.size / 1024,
-            memoryArena.capacity / 1024);
-    LogMessage("Entities: %u / %u", world.count, world.max);
-    LogMessage("Debug Vertices: %u / %u", debugDrawBuffer.count,
-            debugDrawBuffer.max);
-    LogMessage("Profiler Samples: %u / %u", g_Profiler.count,
-            PROFILER_SAMPLE_BUFFER_SIZE / sizeof(ProfilerSample));
-#endif
-
-    DumpMetrics(&g_Metrics);
-#if 0
-    Profiler_ProcessResults(&g_Profiler, &profilerResults);
-    Profiler_PrintResults(&profilerResults);
-    ClearToZero(&profilerResults, sizeof(profilerResults));
-#endif
-    LogMessage("Rays per second: %g",
-            (f64)g_Metrics.rayCount / rayTracingElapsedTime);
-    ClearToZero(&g_Metrics, sizeof(g_Metrics));
 }
 
 internal void WorkerThread(WorkQueue *queue)

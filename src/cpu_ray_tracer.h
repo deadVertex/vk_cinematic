@@ -169,3 +169,11 @@ inline Task WorkQueuePop(WorkQueue *queue)
 #endif
     return queue->tasks[index];
 }
+
+struct PathVertex
+{
+    vec3 incomingDirection;
+    vec3 outgoingDirection;
+    vec3 surfaceNormal;
+    u32 materialIndex;
+};

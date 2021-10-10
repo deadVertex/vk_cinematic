@@ -18,4 +18,8 @@
 
 #define MAX_THREADS 8
 
+#define MAX_BOUNCES 3
+
+#define SAMPLES_PER_PIXEL 128
+
 //#define MIN_VOLUME
