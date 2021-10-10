@@ -354,9 +354,9 @@ inline vec3 PerformToneMapping(vec3 input)
     input *= 1.0f; // expose adjustment
 
     // Reinhard operator
-    //input.x = input.x / (1.0f + input.x);
-    //input.y = input.y / (1.0f + input.y);
-    //input.z = input.z / (1.0f + input.z);
+    input.x = input.x / (1.0f + input.x);
+    input.y = input.y / (1.0f + input.y);
+    input.z = input.z / (1.0f + input.z);
 
     vec3 retColor = Pow(input, Vec3(1.0f / 2.2f));
     return retColor;
@@ -371,7 +371,7 @@ struct PathVertex
 };
 
 internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
-    RayTracer *rayTracer, World *world, Tile tile)
+    RayTracer *rayTracer, World *world, Tile tile, RandomNumberGenerator *rng)
 {
     PROFILE_FUNCTION_SCOPE();
 
@@ -383,7 +383,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
     vec3 lightDirection = Normalize(Vec3(1, 1, 0.5));
     vec3 backgroundColor = Vec3(0, 0, 0);
 
-#define MAX_BOUNCES 2
+#define MAX_BOUNCES 3
     u32 maxBounces = MAX_BOUNCES;
     u32 maxSamples = 128;
 
@@ -396,8 +396,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
             vec3 radiance = {};
             for (u32 sample = 0; sample < maxSamples; ++sample)
             {
-                vec3 filmP = CalculateFilmP(
-                    &camera, width, height, x, y, &rayTracer->rng);
+                vec3 filmP = CalculateFilmP(&camera, width, height, x, y, rng);
 
                 g_Metrics.totalSampleCount++;
 
@@ -423,9 +422,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
 
                         // Compute random direction on hemi-sphere around
                         // rayHit.normal
-                        vec3 offset = Vec3(RandomBilateral(&rayTracer->rng),
-                            RandomBilateral(&rayTracer->rng),
-                            RandomBilateral(&rayTracer->rng));
+                        vec3 offset = Vec3(RandomBilateral(rng),
+                            RandomBilateral(rng), RandomBilateral(rng));
                         vec3 dir = Normalize(rayHit.normal + offset);
                         if (Dot(dir, rayHit.normal) < 0.0f)
                         {

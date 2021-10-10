@@ -50,7 +50,6 @@ struct RayTracer
     u32 maxDepth;
     RayTracerMesh meshes[MAX_MESHES];
     Material materials[MAX_MATERIALS];
-    RandomNumberGenerator rng;
     AabbTree aabbTree;
 };
 

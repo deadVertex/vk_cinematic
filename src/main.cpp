@@ -795,9 +795,12 @@ internal void WorkerThread(WorkQueue *queue)
 
             ThreadData *threadData = task.threadData;
 
+            RandomNumberGenerator rng = {};
+            rng.state = 0xF51C0E49;
+
             DoRayTracing(threadData->width, threadData->height,
                 threadData->imageBuffer, threadData->rayTracer,
-                threadData->world, task.tile);
+                threadData->world, task.tile, &rng);
         }
         else
         {
@@ -1022,7 +1025,6 @@ int main(int argc, char **argv)
     // Create CPU Ray tracer
     RayTracer rayTracer = {};
     rayTracer.useAccelerationStructure = true;
-    rayTracer.rng.state = 0xF51C0E49;
 
     // Load mesh data
     SceneMeshData sceneMeshData = {};
