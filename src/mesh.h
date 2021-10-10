@@ -17,6 +17,7 @@ struct VertexPNT
 struct Material
 {
     vec3 baseColor;
+    vec3 emission;
 };
 #pragma pack(pop)
 
@@ -40,5 +41,6 @@ enum
 {
     Material_Red,
     Material_Blue,
+    Material_Background,
     MAX_MATERIALS,
 };

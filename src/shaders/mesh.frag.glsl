@@ -3,6 +3,7 @@
 struct Material
 {
     float baseColorR, baseColorG, baseColorB;
+    float emissionColorR, emissionColorG, emissionColorB;
 };
 
 layout(binding = 5) readonly buffer Materials
@@ -24,7 +25,12 @@ void main()
     vec3 lightColor = vec3(1, 0.95, 0.8);
     vec3 lightDirection = normalize(vec3(1, 1, 0.5));
     vec3 normal = normalize(fragNormal);
-    vec3 radiance =
-        baseColor * lightColor * max(dot(fragNormal, lightDirection), 0);
-    outputColor = vec4(radiance, 0);
+
+    // For each light
+    float cosine = max(dot(fragNormal, lightDirection), 0);
+    float brdf = 1.0;
+    vec3 incomingRadiance = lightColor * brdf * cosine;
+
+    vec3 outgoingRadiance = baseColor * incomingRadiance;
+    outputColor = vec4(outgoingRadiance, 0);
 }

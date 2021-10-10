@@ -1037,8 +1037,9 @@ int main(int argc, char **argv)
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
-    materialData[Material_Red].baseColor = Vec3(1, 0, 0);
-    materialData[Material_Blue].baseColor = Vec3(0, 0, 1);
+    materialData[Material_Red].baseColor = Vec3(0.18, 0.1, 0.1);
+    materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
+    materialData[Material_Background].emission = Vec3(1, 0.95, 0.8);
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);

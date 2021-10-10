@@ -354,13 +354,21 @@ inline vec3 PerformToneMapping(vec3 input)
     input *= 1.0f; // expose adjustment
 
     // Reinhard operator
-    input.x = input.x / (1.0f + input.x);
-    input.y = input.y / (1.0f + input.y);
-    input.z = input.z / (1.0f + input.z);
+    //input.x = input.x / (1.0f + input.x);
+    //input.y = input.y / (1.0f + input.y);
+    //input.z = input.z / (1.0f + input.z);
 
     vec3 retColor = Pow(input, Vec3(1.0f / 2.2f));
     return retColor;
 }
+
+struct PathVertex
+{
+    vec3 incomingDirection;
+    vec3 outgoingDirection;
+    vec3 surfaceNormal;
+    u32 materialIndex;
+};
 
 internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
     RayTracer *rayTracer, World *world, Tile tile)
@@ -375,7 +383,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
     vec3 lightDirection = Normalize(Vec3(1, 1, 0.5));
     vec3 backgroundColor = Vec3(0, 0, 0);
 
-    u32 maxBounces = 2;
+#define MAX_BOUNCES 2
+    u32 maxBounces = MAX_BOUNCES;
     u32 maxSamples = 128;
 
     for (u32 y = tile.minY; y < tile.maxY; ++y)
@@ -395,7 +404,9 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                 vec3 rayOrigin = camera.cameraPosition;
                 vec3 rayDirection = Normalize(filmP - camera.cameraPosition);
 
-                vec3 contrib = Vec3(1);
+                PathVertex pathVertices[MAX_BOUNCES] = {};
+                u32 pathVertexCount = 0;
+
                 for (u32 i = 0; i < maxBounces; ++i)
                 {
                     RayHitResult rayHit = TraceRayThroughScene(
@@ -410,6 +421,8 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                         vec3 hitPoint = rayOrigin + rayDirection * rayHit.t;
                         rayOrigin = hitPoint + rayHit.normal * 0.0000001f;
 
+                        // Compute random direction on hemi-sphere around
+                        // rayHit.normal
                         vec3 offset = Vec3(RandomBilateral(&rayTracer->rng),
                             RandomBilateral(&rayTracer->rng),
                             RandomBilateral(&rayTracer->rng));
@@ -419,22 +432,59 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                             dir = -dir;
                         }
 
+                        pathVertices[pathVertexCount].incomingDirection = dir;
+                        pathVertices[pathVertexCount].outgoingDirection =
+                            rayDirection;
+                        pathVertices[pathVertexCount].surfaceNormal =
+                            rayHit.normal;
+                        pathVertices[pathVertexCount].materialIndex =
+                            rayHit.materialIndex;
+                        pathVertexCount++;
+
                         rayDirection = dir;
 
-                        contrib = Hadamard(contrib,
-                            baseColor *
-                                Max(Dot(rayDirection, rayHit.normal), 0.0));
                     }
                     else
                     {
-                        contrib = Hadamard(contrib,
-                            lightColor *
-                                Max(Dot(rayDirection, lightDirection), 0.0));
+                        // Add dummy path vertex for background intersection
+                        pathVertices[pathVertexCount].incomingDirection =
+                            Vec3(0, 0, 0);
+                        pathVertices[pathVertexCount].outgoingDirection =
+                            rayDirection;
+                        pathVertices[pathVertexCount].surfaceNormal =
+                            Vec3(0, 0, 0);
+                        pathVertices[pathVertexCount].materialIndex =
+                            Material_Background;
+                        pathVertexCount++;
+
                         break;
                     }
                 }
 
-                radiance += contrib * (1.0f / (f32)maxSamples);
+                // Compute total radiance that reaches camera
+                vec3 outgoingRadiance = Vec3(0, 0, 0);
+                for (i32 vertexIndex = pathVertexCount - 1; vertexIndex >= 0;
+                     --vertexIndex)
+                {
+                    PathVertex vertex = pathVertices[vertexIndex];
+                    u32 materialIndex = vertex.materialIndex;
+                    Material material = rayTracer->materials[materialIndex];
+
+                    vec3 baseColor = material.baseColor;
+                    vec3 emission = material.emission;
+
+                    f32 cosine =
+                        Max(Dot(vertex.surfaceNormal, vertex.incomingDirection),
+                            0.0f);
+
+                    vec3 incomingRadiance = outgoingRadiance;
+                    f32 brdf = 1.0f;
+                    outgoingRadiance =
+                        emission +
+                        Hadamard(baseColor, brdf * incomingRadiance) * cosine;
+                }
+
+                radiance += outgoingRadiance * (1.0f / (f32)maxSamples);
             }
 
             // Tone map value with S-curve (need to calculate avg luminance for the whole image!)
