@@ -211,4 +211,4 @@ inline f32 RandomBilateral(RandomNumberGenerator *rng)
 {
     f32 result = -1.0f + 2.0f * RandomUnilateral(rng);
     return result;
-}
+} 

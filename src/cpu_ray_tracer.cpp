@@ -459,6 +459,19 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                     vec3 baseColor = material.baseColor;
                     vec3 emission = material.emission;
 
+                    if (materialIndex == Material_Background)
+                    {
+                        vec2 sphereCoords =
+                            ToSphericalCoordinates(vertex.outgoingDirection);
+                        vec2 uv = MapToEquirectangular(sphereCoords);
+                        uv.y = 1.0f - uv.y; // Flip Y axis as usual
+                        vec4 color = SampleImage(rayTracer->image, uv);
+
+                        // FIXME: Don't clamp emission to avoid fire-flies
+                        emission = Clamp(
+                            Vec3(color.x, color.y, color.z), Vec3(0), Vec3(10));
+                    }
+
                     f32 cosine =
                         Max(Dot(vertex.surfaceNormal, vertex.incomingDirection),
                             0.0f);

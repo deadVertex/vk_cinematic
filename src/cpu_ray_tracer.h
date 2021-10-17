@@ -19,6 +19,14 @@
 // TODO: This should be a parameter of the tree structure for iteration
 #define STACK_SIZE 256
 
+// TODO: This shouldn't be here
+struct HdrImage
+{
+    f32 *pixels;
+    u32 width;
+    u32 height;
+};
+
 // TODO: Probably want multiple triangles per leaf node
 struct AabbTreeNode
 {
@@ -51,6 +59,8 @@ struct RayTracer
     RayTracerMesh meshes[MAX_MESHES];
     Material materials[MAX_MATERIALS];
     AabbTree aabbTree;
+
+    HdrImage image;
 };
 
 struct RayHitResult
@@ -177,3 +187,21 @@ struct PathVertex
     vec3 surfaceNormal;
     u32 materialIndex;
 };
+
+inline vec4 SampleImage(HdrImage image, vec2 v)
+{
+    f32 fx = v.x * image.width;
+    f32 fy = v.y * image.height;
+
+    u32 x = (u32)Floor(fx);
+    u32 y = (u32)Floor(fy);
+
+    Assert(x <= image.width);
+    Assert(y <= image.height);
+
+    vec4 sample = *(((vec4 *)image.pixels) + (y * image.width + x));
+
+    vec4 result = sample;
+    return result;
+}
+

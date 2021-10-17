@@ -1,7 +1,7 @@
 @echo off
 
 set BUILD_SHADERS=0
-set BUILD_UNIT_TESTS=0
+set BUILD_UNIT_TESTS=1
 set BUILD_INTEGRATION_TESTS=0
 set BUILD_EXECUTABLE=1
 
@@ -39,8 +39,11 @@ if %BUILD_INTEGRATION_TESTS%==1 (
 )
 
 if %BUILD_EXECUTABLE%==1 (
+    REM Build miniz library
+    REM cl %CompilerFlags% -O2 -I..\thirdparty\tinyexr -c ../thirdparty/tinyexr/miniz.c
+
     REM Build executable
-    cl %CompilerFlags% -O2 -I./ -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib"
+    cl %CompilerFlags% -O2 -I./ -I ..\thirdparty\tinyexr -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib" miniz.obj
 )
 
 popd

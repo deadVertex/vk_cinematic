@@ -7,12 +7,13 @@ List:
  - Materials [X]
  - Split view (for comparisions between rasterizer and ray tracer) [X]
  - Linear space rendering (CPU ray tracer) [x]
- - Linear space rendering (vulkan rasterizer) [ ]
+ - Linear space rendering (vulkan rasterizer) [x]
 
 Bugs:
  - Resizing window crashes app
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
+ - Comparison view is broken
 
 Features:
  - Linear space rendering [ ]
@@ -171,6 +172,7 @@ Rays per second: 225885
 
 #ifdef PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #elif defined(PLATFORM_LINUX)
 #include <unistd.h>
@@ -219,6 +221,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
 #include "cmdline.cpp"
+#include "image.cpp"
 
 global GLFWwindow *g_Window;
 global u32 g_FramebufferWidth = 1024;
@@ -956,6 +959,10 @@ int main(int argc, char **argv)
     MemoryArena memoryArena = {};
     InitializeMemoryArena(&memoryArena, AllocateMemory(memorySize), memorySize);
 
+    u32 imageDataMemorySize = Megabytes(256);
+    MemoryArena imageDataArena = {};
+    InitializeMemoryArena(&imageDataArena, AllocateMemory(imageDataMemorySize),
+        imageDataMemorySize);
 
     // Create Vulkan Renderer
     VulkanRenderer renderer = {};
@@ -976,6 +983,13 @@ int main(int argc, char **argv)
     UploadMeshDataToCpuRayTracer(
         &rayTracer, &sceneMeshData, &memoryArena, &tempArena);
 
+    // Load image data
+    char fullPath[256];
+    snprintf(fullPath, sizeof(fullPath), "%s/%s", assetDir,
+        "kiara_4_mid-morning_4k.exr");
+    rayTracer.image = LoadExrImage(fullPath, &imageDataArena);
+    Assert(rayTracer.image.pixels);
+
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
     materialData[Material_Red].baseColor = Vec3(0.18, 0.1, 0.1);
@@ -994,6 +1008,7 @@ int main(int argc, char **argv)
     world.max = MAX_ENTITIES;
 
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
+#if 0
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
         Mesh_Bunny, Material_Red);
     AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), -PI * 0.5f), Vec3(10),
@@ -1014,6 +1029,7 @@ int main(int argc, char **argv)
             }
         }
     }
+#endif
 
     // Compute bounding box for each entity
     // TODO: Should not rely on CPU ray tracer for computing bounding boxes,

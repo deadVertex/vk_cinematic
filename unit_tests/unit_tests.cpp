@@ -91,6 +91,73 @@ void TestParseCommandLineArgsEmpty()
     TEST_ASSERT_FALSE(ParseCommandLineArgs(0, NULL, &assetDir));
 }
 
+void TestToSphericalCoordinates()
+{
+    // Given
+    vec3 inputDirections[] = {
+        Vec3(1, 0, 0),
+        Vec3(0, 0, -1),
+        Vec3(0, 1, 0),
+        Normalize(Vec3(0, 1, 1)),
+        Vec3(-1, 0, 0),
+    };
+    vec2 expectedSphereCoords[] = {
+        Vec2(0.0f, PI * 0.5f),
+        Vec2(-PI * 0.5f, PI * 0.5f),
+        Vec2(0.0f, 0.0f),
+        Vec2(PI * 0.5f, PI * 0.25f),
+        Vec2(PI, PI * 0.5f),
+    };
+
+    for (u32 i = 0; i < ArrayCount(inputDirections); ++i)
+    {
+        vec3 direction = inputDirections[i];
+        vec2 expected = expectedSphereCoords[i];
+
+        // When
+        vec2 sphereCoords = ToSphericalCoordinates(direction);
+
+        // Then
+        TEST_ASSERT_EQUAL_FLOAT(expected.x, sphereCoords.x);
+        TEST_ASSERT_EQUAL_FLOAT(expected.y, sphereCoords.y);
+    }
+}
+
+void TestMapToEquirectangular()
+{
+    // Given
+    vec2 inputSphereCoords[] = {
+        Vec2(0.0f, 0.0f),
+        Vec2(0.0f, PI),
+        Vec2(0.0f, PI * 0.5f),
+        Vec2(PI * 0.5f, PI * 0.5f),
+        Vec2(PI, PI * 0.5f),
+        Vec2(PI * -0.5f, PI * 0.5f),
+    };
+
+    vec2 expectedUVs[] = {
+        Vec2(0.0f, 1.0f),
+        Vec2(0.0f, 0.0f),
+        Vec2(0.0f, 0.5f),
+        Vec2(0.25f, 0.5f),
+        Vec2(0.5f, 0.5f),
+        Vec2(0.75f, 0.5f),
+    };
+
+    for (u32 i = 0; i < ArrayCount(inputSphereCoords); ++i)
+    {
+        vec2 sphereCoords = inputSphereCoords[i];
+        vec2 expected = expectedUVs[i];
+
+        // When
+        vec2 uv = MapToEquirectangular(sphereCoords);
+
+        // Then
+        TEST_ASSERT_EQUAL_FLOAT(expected.x, uv.x);
+        TEST_ASSERT_EQUAL_FLOAT(expected.y, uv.y);
+    }
+}
+
 int main()
 {
     RUN_TEST(TestComputeTiles);
@@ -99,5 +166,9 @@ int main()
     RUN_TEST(TestWorkQueuePop);
     RUN_TEST(TestParseCommandLineArgs);
     RUN_TEST(TestParseCommandLineArgsEmpty);
+
+    RUN_TEST(TestToSphericalCoordinates);
+
+    RUN_TEST(TestMapToEquirectangular);
     return UNITY_END();
 }

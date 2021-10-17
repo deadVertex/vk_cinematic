@@ -820,3 +820,31 @@ inline vec3 Clamp(vec3 v, vec3 min, vec3 max)
 
     return result;
 }
+
+// NOTE: v must be a unit vector
+// RETURNS: (azimuth, inclination)
+inline vec2 ToSphericalCoordinates(vec3 v)
+{
+    // TODO: Do we always want these assertions compiled in?
+    //Assert(LengthSq(v) - 1.0f <= EPSILON);
+
+    f32 r = 1.0f;
+    f32 inc = Atan2(Sqrt(v.x * v.x + v.z * v.z), v.y);
+
+    f32 azimuth = Atan2(v.z,v.x);
+
+    return Vec2(azimuth, inc);
+}
+
+inline vec2 MapToEquirectangular(vec2 sphereCoords)
+{
+    vec2 uv = {};
+    if (sphereCoords.x < 0.0f)
+    {
+        sphereCoords.x += 2.0f * PI;
+    }
+    uv.x = sphereCoords.x / (2.0f * PI);
+    uv.y = Cos(sphereCoords.y) * 0.5f + 0.5f;
+
+    return uv;
+}
