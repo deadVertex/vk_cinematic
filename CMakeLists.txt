@@ -23,6 +23,7 @@ endif()
 #include(CTest)
 
 add_subdirectory(thirdparty/unity)
+add_subdirectory(thirdparty/tinyexr)
 add_subdirectory(src)
 add_subdirectory(unit_tests)
 add_subdirectory(integration_tests)
