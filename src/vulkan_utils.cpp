@@ -542,3 +542,109 @@ internal void VulkanCopyBufferToImage(VkDevice device, VkCommandPool commandPool
 
     VulkanEndSingleTimeCommands(commandBuffer, device, commandPool, queue);
 }
+
+struct VulkanRenderPassSpec
+{
+    VkFormat colorAttachmentFormat;
+    VkImageLayout colorAttachmentFinalLayout;
+    b32 useDepth;
+};
+
+internal VkRenderPass VulkanCreateRenderPass(
+    VkDevice device, VulkanRenderPassSpec spec)
+{
+    u32 attachmentCount = 1;
+    VkAttachmentDescription attachments[2] = {};
+    attachments[0].format = spec.colorAttachmentFormat;
+    attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[0].finalLayout = spec.colorAttachmentFinalLayout;
+    if (spec.useDepth)
+    {
+        attachments[1].format = VK_FORMAT_D32_SFLOAT;
+        attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[1].finalLayout =
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachmentCount = 2;
+    }
+
+    VkAttachmentReference colorAttachmentRef = {};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef = {};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+    if (spec.useDepth)
+    {
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    }
+
+    VkRenderPassCreateInfo createInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+    createInfo.attachmentCount = attachmentCount;
+    createInfo.pAttachments = attachments;
+    createInfo.subpassCount = 1;
+    createInfo.pSubpasses = &subpass;
+
+    VkRenderPass renderPass;
+    VK_CHECK(vkCreateRenderPass(device, &createInfo, NULL, &renderPass));
+    return renderPass;
+}
+
+internal VulkanHdrSwapchain CreateHdrSwapchain(VkDevice device,
+    VkPhysicalDevice physicalDevice, VkFormat format, u32 width, u32 height,
+    u32 imageCount)
+{
+    Assert(imageCount == 2);
+
+    VulkanHdrSwapchain swapchain = {};
+
+    // TODO: Pass depth format?
+    VulkanRenderPassSpec hdrRenderPassSpec = {};
+    hdrRenderPassSpec.colorAttachmentFormat = format;
+    hdrRenderPassSpec.colorAttachmentFinalLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    hdrRenderPassSpec.useDepth = true;
+    swapchain.renderPass = VulkanCreateRenderPass(device, hdrRenderPassSpec);
+
+    for (u32 i = 0; i < imageCount; ++i)
+    {
+        VulkanHdrSwapchainFramebuffer *framebuffer = &swapchain.framebuffers[i];
+        framebuffer->color = VulkanCreateImage(device, physicalDevice, width,
+            height, format,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        framebuffer->colorView = VulkanCreateImageView(device,
+            framebuffer->color.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        framebuffer->depth = VulkanCreateImage(device, physicalDevice, width,
+            height, VK_FORMAT_D32_SFLOAT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        framebuffer->depthView =
+            VulkanCreateImageView(device, framebuffer->depth.handle,
+                VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        framebuffer->handle =
+            VulkanCreateFramebuffer(device, swapchain.renderPass,
+                framebuffer->colorView, framebuffer->depthView, width, height);
+    }
+
+    return swapchain;
+}
+

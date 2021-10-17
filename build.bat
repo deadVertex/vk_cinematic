@@ -20,6 +20,7 @@ if %BUILD_SHADERS%==1 (
     glslangvalidator ..\src\shaders\fullscreen_quad.frag.glsl -V -o shaders\fullscreen_quad.frag.spv
     glslangvalidator ..\src\shaders\debug_draw.vert.glsl -V -o shaders\debug_draw.vert.spv
     glslangvalidator ..\src\shaders\debug_draw.frag.glsl -V -o shaders\debug_draw.frag.spv
+    glslangvalidator ..\src\shaders\post_processing.frag.glsl -V -o shaders\post_processing.frag.spv
 )
 
 if %BUILD_UNIT_TESTS%==1 (

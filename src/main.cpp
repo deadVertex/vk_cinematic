@@ -6,7 +6,7 @@ List:
  - Multi threaded tile-based rendering [X]
  - Materials [X]
  - Split view (for comparisions between rasterizer and ray tracer) [X]
- - Linear space rendering (CPU ray tracer) [ ]
+ - Linear space rendering (CPU ray tracer) [x]
  - Linear space rendering (vulkan rasterizer) [ ]
 
 Bugs:

@@ -156,52 +156,6 @@ internal VkDevice VulkanCreateDevice(VkInstance instance,
     return device;
 }
 
-internal VkRenderPass VulkanCreateRenderPass(VkDevice device, VkFormat format)
-{
-    u32 attachmentCount = 1;
-    VkAttachmentDescription attachments[2] = {};
-    attachments[0].format = format;
-    attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    attachments[1].format = VK_FORMAT_D32_SFLOAT;
-    attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    attachmentCount = 2;
-
-    VkAttachmentReference colorAttachmentRef = {};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depthAttachmentRef = {};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpass = {};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-    VkRenderPassCreateInfo createInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-    createInfo.attachmentCount = attachmentCount;
-    createInfo.pAttachments = attachments;
-    createInfo.subpassCount = 1;
-    createInfo.pSubpasses = &subpass;
-
-    VkRenderPass renderPass;
-    VK_CHECK(vkCreateRenderPass(device, &createInfo, NULL, &renderPass));
-    return renderPass;
-}
 
 internal VkSwapchainKHR VulkanCreateSwapchain(VkDevice device,
     VkSurfaceKHR surface, u32 imageCount, u32 framebufferWidth,
@@ -454,8 +408,21 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     Assert(surfaceFormats[0].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
 
     // Create render pass
+    VulkanRenderPassSpec displayRenderPassSpec = {};
+    displayRenderPassSpec.colorAttachmentFormat = surfaceFormats[0].format;
+    displayRenderPassSpec.colorAttachmentFinalLayout =
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    displayRenderPassSpec.useDepth = true;
     renderer->renderPass =
-        VulkanCreateRenderPass(renderer->device, surfaceFormats[0].format);
+        VulkanCreateRenderPass(renderer->device, displayRenderPassSpec);
+
+    // TODO: Config option to support 16-bit floats?
+    VkFormat linearFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+
+    renderer->hdrSwapchain =
+        CreateHdrSwapchain(renderer->device, renderer->physicalDevice,
+            linearFormat, surfaceCapabilities.currentExtent.width,
+            surfaceCapabilities.currentExtent.height, 2);
 
     // Create swapchain
     renderer->swapchain =
@@ -543,6 +510,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->debugDrawVertexShader = LoadShader(renderer->device, "debug_draw.vert.spv");
     renderer->debugDrawFragmentShader = LoadShader(renderer->device, "debug_draw.frag.spv");
 
+    renderer->postProcessingFragmentShader = LoadShader(renderer->device, "post_processing.frag.spv");
+
     // TODO: CLAMP_TO_EDGE sampler 
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
@@ -587,7 +556,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     pipelineDefinition.depthWriteEnabled = true;
 
     renderer->pipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->renderPass,
+        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
         renderer->pipelineLayout, renderer->testVertexShader,
         renderer->testFragmentShader, &pipelineDefinition);
 
@@ -602,9 +571,14 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     fullscreenQuadPipeline.depthWriteEnabled = false;
 
     renderer->fullscreenQuadPipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->renderPass,
+        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
         renderer->pipelineLayout, renderer->fullscreenQuadVertexShader,
         renderer->fullscreenQuadFragmentShader, &fullscreenQuadPipeline);
+
+    renderer->postProcessPipeline = VulkanCreatePipeline(renderer->device,
+        renderer->pipelineCache, renderer->renderPass,
+        renderer->pipelineLayout, renderer->fullscreenQuadVertexShader,
+        renderer->postProcessingFragmentShader, &fullscreenQuadPipeline);
 
     // Create debug draw pipeline
     VulkanPipelineDefinition debugDrawPipelineDefinition = {};
@@ -616,7 +590,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     debugDrawPipelineDefinition.depthWriteEnabled = false;
 
     renderer->debugDrawPipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->renderPass,
+        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
         renderer->debugDrawPipelineLayout, renderer->debugDrawVertexShader,
         renderer->debugDrawFragmentShader, &debugDrawPipelineDefinition);
 
@@ -627,6 +601,15 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         Assert(ArrayCount(layouts) == ArrayCount(renderer->descriptorSets));
         VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
             layouts, ArrayCount(layouts), renderer->descriptorSets);
+    }
+
+    {
+        VkDescriptorSetLayout layouts[2] = {
+            renderer->descriptorSetLayout, renderer->descriptorSetLayout};
+        Assert(ArrayCount(layouts) ==
+               ArrayCount(renderer->postProcessDescriptorSets));
+        VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
+            layouts, ArrayCount(layouts), renderer->postProcessDescriptorSets);
     }
 
     // Allocate debug draw descriptor sets
@@ -744,6 +727,66 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             descriptorWrites, 0, NULL);
     }
 
+    // Post processing descriptor sets
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorBufferInfo uniformBufferInfo = {};
+        uniformBufferInfo.buffer = renderer->uniformBuffer.handle;
+        uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo vertexDataBufferInfo = {};
+        vertexDataBufferInfo.buffer =
+            renderer->vertexDataBuffer.handle;
+        vertexDataBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo modelMatrixBufferInfo = {};
+        modelMatrixBufferInfo.buffer = renderer->modelMatricesBuffer.handle;
+        modelMatrixBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo materialBufferInfo = {};
+        materialBufferInfo.buffer = renderer->materialBuffer.handle;
+        materialBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorImageInfo imageInfo = {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].colorView;
+
+        VkWriteDescriptorSet descriptorWrites[5] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &vertexDataBufferInfo;
+        // Binding 2 is for the defaultSampler
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[2].dstBinding = 3;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pImageInfo = &imageInfo;
+        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[3].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[3].dstBinding = 4;
+        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[3].descriptorCount = 1;
+        descriptorWrites[3].pBufferInfo = &modelMatrixBufferInfo;
+        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[4].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[4].dstBinding = 5;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[4].descriptorCount = 1;
+        descriptorWrites[4].pBufferInfo = &materialBufferInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
+
     // Update debug draw descriptor sets
     for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
     {
@@ -829,8 +872,8 @@ internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
 
     VkRenderPassBeginInfo renderPassBegin = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-    renderPassBegin.renderPass = renderer->renderPass;
-    renderPassBegin.framebuffer = renderer->swapchain.framebuffers[imageIndex];
+    renderPassBegin.renderPass = renderer->hdrSwapchain.renderPass;
+    renderPassBegin.framebuffer = renderer->hdrSwapchain.framebuffers[imageIndex].handle;
     renderPassBegin.renderArea.extent.width = renderer->swapchain.width;
     renderPassBegin.renderArea.extent.height = renderer->swapchain.height;
     renderPassBegin.clearValueCount = ArrayCount(clearValues);
@@ -907,6 +950,40 @@ internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
         // Draw mesh
         vkCmdDraw(renderer->commandBuffer, 6, 1, 0, 0);
     }
+
+    vkCmdEndRenderPass(renderer->commandBuffer);
+
+    VkRenderPassBeginInfo renderPassPresentBegin = {
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+    renderPassPresentBegin.renderPass = renderer->renderPass;
+    renderPassPresentBegin.framebuffer =
+        renderer->swapchain.framebuffers[imageIndex];
+    renderPassPresentBegin.renderArea.extent.width = renderer->swapchain.width;
+    renderPassPresentBegin.renderArea.extent.height =
+        renderer->swapchain.height;
+    renderPassPresentBegin.clearValueCount = ArrayCount(clearValues);
+    renderPassPresentBegin.pClearValues = clearValues;
+    vkCmdBeginRenderPass(renderer->commandBuffer, &renderPassPresentBegin,
+        VK_SUBPASS_CONTENTS_INLINE);
+
+    // Set dynamic pipeline state
+    VkViewport viewportPresent = {0, 0, (f32)renderer->swapchain.width,
+        (f32)renderer->swapchain.height, 0.0f, 1.0f};
+    VkRect2D scissorPresent = {
+        0, 0, renderer->swapchain.width, renderer->swapchain.height};
+    vkCmdSetViewport(renderer->commandBuffer, 0, 1, &viewportPresent);
+    vkCmdSetScissor(renderer->commandBuffer, 0, 1, &scissorPresent);
+
+    // Bind pipeline
+    vkCmdBindDescriptorSets(renderer->commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
+        &renderer->postProcessDescriptorSets[imageIndex], 0, NULL);
+
+    vkCmdBindPipeline(renderer->commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->postProcessPipeline);
+
+    // Draw mesh
+    vkCmdDraw(renderer->commandBuffer, 6, 1, 0, 0);
 
     vkCmdEndRenderPass(renderer->commandBuffer);
 

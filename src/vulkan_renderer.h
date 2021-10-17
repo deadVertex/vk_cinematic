@@ -106,6 +106,21 @@ struct VulkanPipelineDefinition
     b32 alphaBlendingEnabled;
 };
 
+struct VulkanHdrSwapchainFramebuffer
+{
+    VulkanImage depth;
+    VkImageView depthView;
+    VulkanImage color;
+    VkImageView colorView;
+    VkFramebuffer handle;
+};
+
+struct VulkanHdrSwapchain
+{
+    VkRenderPass renderPass;
+    VulkanHdrSwapchainFramebuffer framebuffers[2];
+};
+
 struct MeshPushConstants
 {
     u32 modelMatrixIndex;
@@ -128,6 +143,8 @@ struct VulkanRenderer
 
     VkRenderPass renderPass;
     VulkanSwapchain swapchain;
+
+    VulkanHdrSwapchain hdrSwapchain;
 
     VkSemaphore acquireSemaphore;
     VkSemaphore releaseSemaphore;
@@ -159,6 +176,10 @@ struct VulkanRenderer
     VkPipeline pipeline;
     VkPipelineCache pipelineCache;
     VkDescriptorSet descriptorSets[2];
+
+    VkShaderModule postProcessingFragmentShader;
+    VkPipeline postProcessPipeline;
+    VkDescriptorSet postProcessDescriptorSets[2];
 
     // Fullscreen quad stuff
     VkShaderModule fullscreenQuadVertexShader;
