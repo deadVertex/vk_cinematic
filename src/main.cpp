@@ -221,7 +221,6 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
 #include "cmdline.cpp"
-#include "image.cpp"
 
 global GLFWwindow *g_Window;
 global u32 g_FramebufferWidth = 1024;
@@ -987,8 +986,19 @@ int main(int argc, char **argv)
     char fullPath[256];
     snprintf(fullPath, sizeof(fullPath), "%s/%s", assetDir,
         "kiara_4_mid-morning_4k.exr");
-    rayTracer.image = LoadExrImage(fullPath, &imageDataArena);
-    Assert(rayTracer.image.pixels);
+
+    HdrImage image = {};
+    if (LoadExrImage(&image, fullPath) != 0)
+    {
+        LogMessage("Failed to EXR image - %s", fullPath);
+        InvalidCodePath();
+    }
+    rayTracer.image = image;
+    rayTracer.image.pixels =
+        AllocateArray(&imageDataArena, f32, image.width * image.height * 4);
+    CopyMemory(rayTracer.image.pixels, image.pixels,
+            sizeof(f32) * image.width * image.height * 4);
+    free(image.pixels);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};

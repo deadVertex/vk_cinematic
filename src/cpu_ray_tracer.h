@@ -7,6 +7,8 @@
 #include "config.h"
 #include "world.h"
 
+#include "asset_loader/asset_loader.h"
+
 #define RAY_TRACER_WIDTH (1024 / 4)
 #define RAY_TRACER_HEIGHT (768 / 4)
 
@@ -18,14 +20,6 @@
 
 // TODO: This should be a parameter of the tree structure for iteration
 #define STACK_SIZE 256
-
-// TODO: This shouldn't be here
-struct HdrImage
-{
-    f32 *pixels;
-    u32 width;
-    u32 height;
-};
 
 // TODO: Probably want multiple triangles per leaf node
 struct AabbTreeNode

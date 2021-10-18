@@ -1,9 +1,10 @@
 @echo off
 
 set BUILD_SHADERS=0
-set BUILD_UNIT_TESTS=1
+set BUILD_UNIT_TESTS=0
 set BUILD_INTEGRATION_TESTS=0
 set BUILD_EXECUTABLE=1
+set BUILD_ASSET_LOADER=0
 
 set CompilerFlags=-DPLATFORM_WINDOWS -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4702 -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7 -I..\src
 set LinkerFlags=-opt:ref -incremental:no
@@ -38,12 +39,17 @@ if %BUILD_INTEGRATION_TESTS%==1 (
     integration_tests.exe
 )
 
+if %BUILD_ASSET_LOADER%==1 (
+    REM Build asset loader library
+    cl %CompilerFlags% -O2 -I ..\thirdparty\tinyexr ../src/asset_loader/asset_loader.cpp -LD -link -DLL %LinkerFlags% miniz.obj
+)
+
 if %BUILD_EXECUTABLE%==1 (
     REM Build miniz library
     REM cl %CompilerFlags% -O2 -I..\thirdparty\tinyexr -c ../thirdparty/tinyexr/miniz.c
 
     REM Build executable
-    cl %CompilerFlags% -O2 -I./ -I ..\thirdparty\tinyexr -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib" miniz.obj
+    cl %CompilerFlags% -O2 -I./ -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib" asset_loader.lib
 )
 
 popd
