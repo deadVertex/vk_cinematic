@@ -836,6 +836,17 @@ inline vec2 ToSphericalCoordinates(vec3 v)
     return Vec2(azimuth, inc);
 }
 
+// https://en.wikipedia.org/wiki/List_of_common_coordinate_transformations#From_spherical_coordinates
+// But we swap Z and Y axis to match OpenGL/Vulkan coordinate system
+inline vec3 MapSphericalToCartesianCoordinates(vec2 sphereCoords)
+{
+    vec3 result = {};
+    result.x = Sin(sphereCoords.y) * Cos(sphereCoords.x);
+    result.z = Sin(sphereCoords.y) * Sin(sphereCoords.x);
+    result.y = Cos(sphereCoords.y);
+    return result;
+}
+
 inline vec2 MapToEquirectangular(vec2 sphereCoords)
 {
     vec2 uv = {};
