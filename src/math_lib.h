@@ -848,3 +848,21 @@ inline vec2 MapToEquirectangular(vec2 sphereCoords)
 
     return uv;
 }
+
+// NOTE: This function could probably be done more efficiently, I've just done
+// a direct inverse of the MapToEquirectangular function verified with some
+// basic unit testing.
+inline vec2 MapEquirectangularToSphereCoordinates(vec2 uv)
+{
+    f32 a = uv.y * 2.0f - 1.0f;
+    f32 y = Acos(a);
+
+    f32 b = uv.x * 2.0f * PI;
+    if (b > PI)
+    {
+        b -= 2.0f * PI;
+    }
+
+    vec2 sphereCoords = Vec2(b, y);
+    return sphereCoords;
+}

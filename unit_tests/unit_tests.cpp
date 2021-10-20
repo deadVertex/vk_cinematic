@@ -158,6 +158,62 @@ void TestMapToEquirectangular()
     }
 }
 
+void TestMapEquirectangularToSphereCoordinates()
+{
+    // Given
+    vec2 inputUVs[] = {
+        Vec2(0.0f, 1.0f),
+        Vec2(0.0f, 0.0f),
+        Vec2(0.0f, 0.5f),
+        Vec2(0.25f, 0.5f),
+        Vec2(0.5f, 0.5f),
+        Vec2(0.75f, 0.5f),
+    };
+
+    vec2 expectedSphereCoords[] = {
+        Vec2(0.0f, 0.0f),
+        Vec2(0.0f, PI),
+        Vec2(0.0f, PI * 0.5f),
+        Vec2(PI * 0.5f, PI * 0.5f),
+        Vec2(PI, PI * 0.5f),
+        Vec2(PI * -0.5f, PI * 0.5f),
+    };
+
+    for (u32 i = 0; i < ArrayCount(inputUVs); ++i)
+    {
+        vec2 uv = inputUVs[i];
+        vec2 expected = expectedSphereCoords[i];
+
+        // When
+        vec2 sphereCoords = MapEquirectangularToSphereCoordinates(uv);
+
+        // Then
+        TEST_ASSERT_EQUAL_FLOAT(expected.x, sphereCoords.x);
+        TEST_ASSERT_EQUAL_FLOAT(expected.y, sphereCoords.y);
+    }
+}
+
+#if 0
+void TestCreateCubeMap()
+{
+    // Create Equirectangular image of direction vectors
+    u32 width = 8;
+    u32 height = 4;
+    for (u32 y = 0; y < height; ++y)
+    {
+        for (u32 x = 0; x < width; ++x)
+        {
+            // Convert pixel coordinates to UV coordinates
+            vec2 uv = Vec2((f32)x / (f32)width, (f32)y / (f32)height);
+
+            // Convert UV coordinates into sphere coordinates
+            vec2 sphereCoordinates = MapEquirectangularToSphereCoordinates(uv);
+        }
+    }
+    // Create cube map by sampling equirectangular image
+}
+#endif
+
 int main()
 {
     RUN_TEST(TestComputeTiles);
@@ -170,5 +226,8 @@ int main()
     RUN_TEST(TestToSphericalCoordinates);
 
     RUN_TEST(TestMapToEquirectangular);
+
+    RUN_TEST(TestMapEquirectangularToSphereCoordinates);
+    //RUN_TEST(TestCreateCubeMap);
     return UNITY_END();
 }
