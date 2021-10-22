@@ -9,6 +9,18 @@ set BUILD_ASSET_LOADER=0
 set CompilerFlags=-DPLATFORM_WINDOWS -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4702 -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7 -I..\src
 set LinkerFlags=-opt:ref -incremental:no
 
+set unity_include_dir=..\thirdparty\unity
+set unity_lib=unity.obj
+
+set vulkan_include_dir="%VULKAN_SDK%\Include"
+set vulkan_lib="%VULKAN_SDK%\Lib\vulkan-1.lib"
+
+set glfw_include_dir=..\dependencies\glfw\build\install\include
+set glfw_lib=..\dependencies\glfw\build\install\lib\glfw3dll.lib
+
+set assimp_include_dir=..\dependencies\assimp\build\install\include
+set assimp_lib=..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib
+
 if not exist build mkdir build
 if not exist build\shaders mkdir build\shaders
 
@@ -26,30 +38,68 @@ if %BUILD_SHADERS%==1 (
 
 if %BUILD_UNIT_TESTS%==1 (
     REM Build unity test framework
-    cl %CompilerFlags% -Od -I..\thirdparty\unity -c ../thirdparty/unity/unity.c
+    cl %CompilerFlags% -Od -I %unity_include_dir% -c ../thirdparty/unity/unity.c
 
     REM Build unit tests
-    cl %CompilerFlags% -Od -I..\thirdparty\unity ../unit_tests/unit_tests.cpp -link %LinkerFlags% unity.obj
+    cl ../unit_tests/unit_tests.cpp ^
+        %CompilerFlags% ^
+        -Od ^
+        -I %unity_include_dir% ^
+        -link %LinkerFlags% ^
+        %unity_lib%
+
+    REM Run unit tests
     unit_tests.exe
 )
 
 if %BUILD_INTEGRATION_TESTS%==1 (
     REM Build integration tests
-    cl %CompilerFlags% -Od -I..\thirdparty\unity -I..\dependencies\assimp\build\install\include ../integration_tests/integration_tests.cpp -link %LinkerFlags% ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib unity.obj
+    cl ../integration_tests/integration_tests.cpp ^
+        %CompilerFlags% ^
+        -Od ^
+        -I %unity_include_dir% ^
+        -I %vulkan_include_dir% ^
+        -I %glfw_include_dir% ^
+        -I %assimp_include_dir% ^
+        -link %LinkerFlags% ^
+        %glfw_lib% ^
+        %assimp_lib% ^
+        %vulkan_lib% ^
+        %unity_lib%
+
+    REM Run integration tests
     integration_tests.exe
 )
 
 if %BUILD_ASSET_LOADER%==1 (
-    REM Build asset loader library
-    cl %CompilerFlags% -O2 -I ..\thirdparty\tinyexr ../src/asset_loader/asset_loader.cpp -LD -link -DLL %LinkerFlags% miniz.obj
-)
-
-if %BUILD_EXECUTABLE%==1 (
     REM Build miniz library
     REM cl %CompilerFlags% -O2 -I..\thirdparty\tinyexr -c ../thirdparty/tinyexr/miniz.c
 
+    REM Build asset loader library
+    cl ../src/asset_loader/asset_loader.cpp ^
+        %CompilerFlags% ^
+        -O2 ^
+        -I ..\thirdparty\tinyexr ^
+        -LD ^
+        -link -DLL ^
+        %LinkerFlags% ^
+        miniz.obj
+)
+
+if %BUILD_EXECUTABLE%==1 (
     REM Build executable
-    cl %CompilerFlags% -O2 -I./ -I "%VULKAN_SDK%\Include" -I..\dependencies\glfw\build\install\include -I..\dependencies\assimp\build\install\include ../src/main.cpp -link %LinkerFlags% ..\dependencies\glfw\build\install\lib\glfw3dll.lib ..\dependencies\assimp\build\install\lib\assimp-vc142-mt.lib "%VULKAN_SDK%\Lib\vulkan-1.lib" asset_loader.lib
+    cl ../src/main.cpp ^
+        %CompilerFlags% ^
+        -O2 ^
+        -I./ ^
+        -I %vulkan_include_dir% ^
+        -I %glfw_include_dir% ^
+        -I %assimp_include_dir% ^
+        -link %LinkerFlags% ^
+        %glfw_lib% ^
+        %assimp_lib% ^
+        %vulkan_lib% ^
+        asset_loader.lib
 )
 
 popd
