@@ -3,6 +3,7 @@
 #include "cpu_ray_tracer.h"
 
 #include "cmdline.cpp"
+#include "cubemap.cpp"
 
 void setUp(void)
 {
@@ -235,6 +236,7 @@ void TestCreateCubeMap()
     // Create Equirectangular image of direction vectors
     u32 width = 8;
     u32 height = 4;
+    vec3 pixels[8 * 4] = {};
     for (u32 y = 0; y < height; ++y)
     {
         for (u32 x = 0; x < width; ++x)
@@ -247,9 +249,50 @@ void TestCreateCubeMap()
 
             // Convert sphere coordinates to cartesian coordinates
             vec3 direction = MapSphericalToCartesianCoordinates(sphereCoords);
+
+            u32 index = y * width + x;
+            pixels[index] = direction;
+
+            //printf("[%0.2g, %0.2g, %0.2g] ", direction.x, direction.y, direction.z);
         }
+
+        //printf("\n");
     }
+
+    HdrImage equirectangularImage = {};
+    equirectangularImage.width = width;
+    equirectangularImage.height = height;
+    equirectangularImage.pixels = (f32 *)pixels;
+
+    MemoryArena arena = {};
+    InitializeMemoryArena(&arena, malloc(4096), 4096);
+
     // Create cube map by sampling equirectangular image
+    // Create cube map face +Z
+    HdrImage image = CreateCubeMap(equirectangularImage, &arena, 3);
+
+    for (u32 y = 0; y < 3; ++y)
+    {
+        for (u32 x = 0; x < 3; ++x)
+        {
+            u32 index = (y * 3 + x) * 4;
+            vec4 color = *(vec4 *)(image.pixels + index);
+
+            // TOMORROW: Our terrible sampling is struggling at such a low res
+            printf("[%0.2g, %0.2g, %0.2g, %0.2g] ", color.x, color.y,
+                color.z, color.w);
+        }
+
+        printf("\n");
+    }
+
+    vec3 expected = Vec3(0, 0, 1);
+    vec4 direction = SampleImage(image, Vec2(0.5, 0.5));
+    TEST_ASSERT_FLOAT_WITHIN_MESSAGE(EPSILON, expected.x, direction.x, "X axis");
+    TEST_ASSERT_FLOAT_WITHIN_MESSAGE(EPSILON, expected.y, direction.y, "Y axis");
+    TEST_ASSERT_FLOAT_WITHIN_MESSAGE(EPSILON, expected.z, direction.z, "Z axis");
+
+    free(arena.base);
 }
 #endif
 

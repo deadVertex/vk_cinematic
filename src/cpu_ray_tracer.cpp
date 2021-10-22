@@ -467,6 +467,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                         uv.y = 1.0f - uv.y; // Flip Y axis as usual
                         vec4 color = SampleImage(rayTracer->image, uv);
 
+                        // FIXME: This is not the right place to to radiance clamping!!!!
                         // FIXME: Don't clamp emission to avoid fire-flies
                         emission = Clamp(
                             Vec3(color.x, color.y, color.z), Vec3(0), Vec3(10));

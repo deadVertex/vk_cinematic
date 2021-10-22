@@ -221,6 +221,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
 #include "cmdline.cpp"
+#include "cubemap.cpp"
 
 global GLFWwindow *g_Window;
 global u32 g_FramebufferWidth = 1024;
@@ -999,6 +1000,13 @@ int main(int argc, char **argv)
     CopyMemory(rayTracer.image.pixels, image.pixels,
             sizeof(f32) * image.width * image.height * 4);
     free(image.pixels);
+
+    // Create cube map
+    //HdrImage cubeMapImage =
+        //CreateCubeMap(rayTracer.image, &imageDataArena, 256);
+
+    // Upload test cube map to GPU
+    //UploadTestCubeMapToGPU(&renderer);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
