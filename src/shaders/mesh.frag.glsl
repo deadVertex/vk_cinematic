@@ -11,6 +11,9 @@ layout(binding = 5) readonly buffer Materials
     Material materials[];
 };
 
+layout(binding = 2) uniform sampler defaultSampler;
+layout(binding = 6) uniform textureCube cubeMap;
+
 layout(location = 0) out vec4 outputColor;
 
 layout(location = 0) in vec3 fragNormal;

@@ -274,7 +274,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[6] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[7] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -301,6 +301,10 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     layoutBindings[5].descriptorCount = 1;
     layoutBindings[5].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[6].binding = 6;
+    layoutBindings[6].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layoutBindings[6].descriptorCount = 1;
+    layoutBindings[6].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -499,6 +503,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+    renderer->textureUploadBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            TEXTURE_UPLOAD_BUFFER_SIZE, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
     // Load shaders
     renderer->testVertexShader = LoadShader(renderer->device, "mesh.vert.spv");
     renderer->testFragmentShader = LoadShader(renderer->device, "mesh.frag.spv");
@@ -533,8 +543,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->device, &samplerCreateInfo, NULL, &renderer->defaultSampler));
 
     // Create descriptor set layout
-    renderer->descriptorSetLayout =
-        VulkanCreateDescriptorSetLayout(renderer->device, renderer->defaultSampler);
+    renderer->descriptorSetLayout = VulkanCreateDescriptorSetLayout(
+        renderer->device, renderer->defaultSampler);
 
     renderer->debugDrawDescriptorSetLayout =
         VulkanCreateDebugDrawDescriptorSetLayout(renderer->device);
@@ -666,6 +676,21 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             renderer->image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
+    // Create cubemap test image
+    {
+        u32 width = 4;
+        u32 height = 4;
+        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+        renderer->cubeMapTestImage = VulkanCreateImage(renderer->device,
+            renderer->physicalDevice, width, height, format,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, true);
+
+        renderer->cubeMapTestImageView = VulkanCreateImageView(renderer->device,
+            renderer->cubeMapTestImage.handle, format,
+            VK_IMAGE_ASPECT_COLOR_BIT, true);
+    }
+
     // Update descriptor sets
     Assert(renderer->swapchain.imageCount == 2);
     for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
@@ -691,7 +716,11 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = renderer->imageView;
 
-        VkWriteDescriptorSet descriptorWrites[5] = {};
+        VkDescriptorImageInfo cubeMapInfo = {};
+        cubeMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        cubeMapInfo.imageView = renderer->cubeMapTestImageView;
+
+        VkWriteDescriptorSet descriptorWrites[6] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -723,6 +752,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pBufferInfo = &materialBufferInfo;
+        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[5].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[5].dstBinding = 6;
+        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[5].descriptorCount = 1;
+        descriptorWrites[5].pImageInfo = &cubeMapInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
@@ -783,6 +818,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pBufferInfo = &materialBufferInfo;
+        // Binding 6 is for the test cube map
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }

@@ -11,6 +11,8 @@
 #define MODEL_MATRICES_BUFFER_SIZE Megabytes(4)
 #define MATERIAL_BUFFER_SIZE Kilobytes(4) // TODO: Combine this UBO?
 
+#define TEXTURE_UPLOAD_BUFFER_SIZE Megabytes(128)
+
 //#define SHADER_PATH "src/shaders"
 #define SHADER_PATH "shaders"
 
@@ -161,6 +163,14 @@ struct VulkanRenderer
     VulkanBuffer imageUploadBuffer;
     VulkanBuffer modelMatricesBuffer;
     VulkanBuffer materialBuffer;
+
+    // FIXME: Should be combined with imageUploadBuffer but imageUploadBuffer
+    // is currently being used in a strange way for uploading the CPU ray
+    // tracing result.
+    VulkanBuffer textureUploadBuffer;
+
+    VulkanImage cubeMapTestImage;
+    VkImageView cubeMapTestImageView;
 
     VulkanBuffer debugVertexDataBuffer;
 

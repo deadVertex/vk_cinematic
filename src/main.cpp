@@ -909,6 +909,77 @@ internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World *world)
     }
 }
 
+internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer)
+{
+    // Allocate cube map from upload buffer
+    MemoryArena textureUploadArena = {};
+    InitializeMemoryArena(&textureUploadArena,
+        renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
+
+    // FIXME: Hardcoded in vulkan_renderer.cpp
+    u32 width = 4;
+    u32 height = 4;
+    u32 bytesPerPixel = 4; // Using VK_FORMAT_R8G8B8A8_UNORM
+    u32 layerCount = 6;
+    void *pixels = AllocateBytes(
+        &textureUploadArena, width * height * bytesPerPixel * layerCount);
+
+    // Copy test data into upload buffer
+    for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
+    {
+        u32 layerOffset = layerIndex * width * height * bytesPerPixel;
+        for (u32 y = 0; y < height; ++y)
+        {
+            for (u32 x = 0; x < width; ++x)
+            {
+                u32 pixelOffset = (y * width + x) * bytesPerPixel;
+                u32 index = layerOffset + pixelOffset;
+
+                u32 *pixel = (u32 *)((u8 *)pixels + index);
+                switch (layerIndex)
+                {
+                    case 0: // X+
+                        *pixel = 0xFF0000FF;
+                        break;
+                    case 1: // X-
+                        *pixel = 0xFF0000FF;
+                        break;
+                    case 2: // Y+
+                        *pixel = 0xFF00FF00;
+                        break;
+                    case 3: // Y-
+                        *pixel = 0xFF00FF00;
+                        break;
+                    case 4: // Z+
+                        *pixel = 0xFFFF0000;
+                        break;
+                    case 5: // Z-
+                        *pixel = 0xFFFF0000;
+                        break;
+                    default:
+                        InvalidCodePath();
+                        break;
+                }
+            }
+        }
+    }
+
+    // Submit cube map data for upload to GPU
+    VulkanTransitionImageLayout(renderer->cubeMapTestImage.handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue, true);
+
+    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
+        renderer->cubeMapTestImage.handle, width, height, 0, true);
+
+    VulkanTransitionImageLayout(renderer->cubeMapTestImage.handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue, true);
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1006,7 +1077,7 @@ int main(int argc, char **argv)
         //CreateCubeMap(rayTracer.image, &imageDataArena, 256);
 
     // Upload test cube map to GPU
-    //UploadTestCubeMapToGPU(&renderer);
+    UploadTestCubeMapToGPU(&renderer);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
