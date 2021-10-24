@@ -909,7 +909,8 @@ internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World *world)
     }
 }
 
-internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer)
+internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
+    HdrImage equirectangularImage, MemoryArena *tempArena)
 {
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
@@ -917,8 +918,8 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer)
         renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
 
     // FIXME: Hardcoded in vulkan_renderer.cpp
-    u32 width = 4;
-    u32 height = 4;
+    u32 width = 256;
+    u32 height = 256;
     u32 bytesPerPixel = 4; // Using VK_FORMAT_R8G8B8A8_UNORM
     u32 layerCount = 6;
     void *pixels = AllocateBytes(
@@ -927,6 +928,10 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer)
     // Copy test data into upload buffer
     for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
     {
+        // oof
+        HdrImage image =
+            CreateCubeMap(equirectangularImage, tempArena, width, layerIndex);
+
         u32 layerOffset = layerIndex * width * height * bytesPerPixel;
         for (u32 y = 0; y < height; ++y)
         {
@@ -936,6 +941,17 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer)
                 u32 index = layerOffset + pixelOffset;
 
                 u32 *pixel = (u32 *)((u8 *)pixels + index);
+
+                u32 srcPixelOffset = (y * width + x) * 4;
+                vec4 src = *(vec4 *)(image.pixels + srcPixelOffset);
+
+                // FIXME: Copied from cpu_ray_tracer.cpp
+                vec4 srcClamped = Clamp(src, Vec4(0), Vec4(1));
+
+                srcClamped *= 255.0f;
+                *pixel = (0xFF000000 | ((u32)srcClamped.z) << 16 |
+                        ((u32)srcClamped.y) << 8) | (u32)srcClamped.x;
+#if 0
                 switch (layerIndex)
                 {
                     case 0: // X+
@@ -960,6 +976,7 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer)
                         InvalidCodePath();
                         break;
                 }
+#endif
             }
         }
     }
@@ -1077,7 +1094,7 @@ int main(int argc, char **argv)
         //CreateCubeMap(rayTracer.image, &imageDataArena, 256);
 
     // Upload test cube map to GPU
-    UploadTestCubeMapToGPU(&renderer);
+    UploadTestCubeMapToGPU(&renderer, rayTracer.image, &tempArena);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};

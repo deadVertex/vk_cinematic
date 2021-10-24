@@ -407,6 +407,12 @@ inline vec4 operator*(vec4 v, f32 s)
     return result;
 }
 
+inline vec4& operator*=(vec4 &a, f32 b)
+{
+    a = a * b;
+    return a;
+}
+
 inline vec4 operator+(vec4 a, vec4 b)
 {
     vec4 result;
@@ -817,6 +823,17 @@ inline vec3 Clamp(vec3 v, vec3 min, vec3 max)
     result.x = Clamp(v.x, min.x, max.x);
     result.y = Clamp(v.y, min.y, max.y);
     result.z = Clamp(v.z, min.z, max.z);
+
+    return result;
+}
+
+inline vec4 Clamp(vec4 v, vec4 min, vec4 max)
+{
+    vec4 result;
+    result.x = Clamp(v.x, min.x, max.x);
+    result.y = Clamp(v.y, min.y, max.y);
+    result.z = Clamp(v.z, min.z, max.z);
+    result.w = Clamp(v.w, min.w, max.w);
 
     return result;
 }

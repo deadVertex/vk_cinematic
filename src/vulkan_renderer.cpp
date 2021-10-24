@@ -678,8 +678,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
     // Create cubemap test image
     {
-        u32 width = 4;
-        u32 height = 4;
+        u32 width = 256;
+        u32 height = 256;
         VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
         renderer->cubeMapTestImage = VulkanCreateImage(renderer->device,
             renderer->physicalDevice, width, height, format,
