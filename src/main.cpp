@@ -1344,10 +1344,40 @@ int main(int argc, char **argv)
 #if DRAW_BROAD_PHASE_TREE
         //DrawTree(rayTracer.aabbTree, &debugDrawBuffer, maxDepth);
 #endif
+
+        // Draw sphere coords debug
+        {
+            DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 0, 0));
+            DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0), Vec3(0, 1, 0));
+            DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 0, 1), Vec3(0, 0, 1));
+
+            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(1, 0, 0),
+                Vec3(0, 1, 0), Vec3(0, 1, 0));
+            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 0, 1),
+                Vec3(1, 0, 0), Vec3(1, 0, 0));
+            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0),
+                Vec3(0, 0, 1), Vec3(0, 0, 1));
+
+            vec3 vertices[] = {
+                MapSphericalToCartesianCoordinates(Vec2(0.25f * PI, 0.75f * PI)),
+                MapSphericalToCartesianCoordinates(Vec2(0.75f * PI, 0.75f * PI)),
+                MapSphericalToCartesianCoordinates(Vec2(0.25f * PI, 1.25f * PI)),
+                MapSphericalToCartesianCoordinates(Vec2(0.75f * PI, 1.25f * PI)),
+            };
+
+            for (u32 i = 0; i < ArrayCount(vertices); ++i)
+            {
+                DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), vertices[i], Vec3(1, 0, 1));
+            }
+
+        }
+
+#if 0
         DrawTree(
             rayTracer.meshes[Mesh_Bunny].aabbTree, &debugDrawBuffer, maxDepth);
         DrawMesh(
             rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
+#endif
 
         Update(&renderer, &rayTracer, &input, dt);
 

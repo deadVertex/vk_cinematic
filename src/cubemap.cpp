@@ -30,16 +30,16 @@ internal HdrImage CreateCubeMap(HdrImage image, MemoryArena *arena, u32 width,
             yEnd = 0.25f * PI;
             break;
         case 3: // Y-
-            xStart = 0.0f;
-            xEnd = PI;
+            xStart = 0.25f * PI;
+            xEnd = 0.75f * PI;
             yStart = 0.75f * PI;
             yEnd = 1.25f * PI;
             break;
-        case 4: // Z+
+        case 5: // Z+
             xStart = 0.25f * PI;
             xEnd = 0.75f * PI;
             break;
-        case 5: // Z-
+        case 4: // Z-
             xStart = 1.25f * PI;
             xEnd = 1.75f * PI;
             break;
@@ -48,8 +48,8 @@ internal HdrImage CreateCubeMap(HdrImage image, MemoryArena *arena, u32 width,
             break;
     }
 
-    Assert(xStart < xEnd);
-    Assert(yStart < yEnd);
+    Assert(xStart <= xEnd);
+    Assert(yStart <= yEnd);
 
     f32 xInc = (xEnd - xStart) / (f32)width;
     f32 yInc = (yEnd - yStart) / (f32)width;

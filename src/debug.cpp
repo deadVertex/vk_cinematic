@@ -58,3 +58,17 @@ internal void DrawTriangle(
     DrawLine(buffer, b, c, color);
     DrawLine(buffer, c, a, color);
 }
+
+internal void DrawCircle(DebugDrawingBuffer *buffer, vec3 center, vec3 right,
+    vec3 axis, vec3 color, u32 segmentCount = 12)
+{
+    f32 inc = (2.0f * PI) / (f32)segmentCount;
+    for (u32 i = 0; i < segmentCount; ++i)
+    {
+        quat p = Quat(axis, i * inc);
+        quat q = Quat(axis, (i + 1) * inc);
+        vec3 a = center + RotateVector(right, p);
+        vec3 b = center + RotateVector(right, q);
+        DrawLine(buffer, a, b, color);
+    }
+}
