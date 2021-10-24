@@ -14,6 +14,7 @@ Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - Comparison view is broken
+ - Cube map generation is broken
 
 Features:
  - Linear space rendering [ ]
@@ -56,112 +57,6 @@ Observability
 Optimizations
 - Don't ray trace whole screen when using comparison view
 */
-
-/*
-Meshes data memory usage: 957k / 65536k
-Begin ray tracing
-Camera Position: (-1.3856, 1.41614, 2.27094)
-Camera Rotation: (-0.54, -0.46, 0)
-Ray tracing time spent: 83.4326s
-Memory Usage: 3140kb / 65536kb
-Entities: 1003 / 1024
-BVH Nodes: 41432 / 65536
-Debug Vertices: 11184810 / 11184810
-Profiler Samples: 0 / 22369621
-Broad Phase Test Count: 12045442242 <----------- 99.8% waste!!!!
-Broad Phase Hit Count: 27212892
-Mid Phase Test Count: 561488352
-Mid Phase Hit Count: 315078927
-AABB Test Count: 12606930594
-Triangle Test Count: 47941197
-Triangle Hit Count: 14701578
-Ray Count: 12009414
-Total Sample Count: 6291456
-Total Pixel Count: 49152
-Rays per second: 143942
-
-
-12045442242 / 12009414 = 1003 hmmmmmmmmmmmmmmmmmmmmmmmmmmm
- *
- *
- Basic AABB tree for broadphase
-Ray tracing time spent: 29.8204s
-Memory Usage: 3236kb / 65536kb
-Entities: 1003 / 1024
-BVH Nodes: 41432 / 65536
-Debug Vertices: 11184810 / 11184810
-Profiler Samples: 0 / 22369621
-Broad Phase Test Count: 702330100 <----------------- 96.5% waste
-Broad Phase Hit Count: 24772696
-Mid Phase Test Count: 469090266
-Mid Phase Hit Count: 263603905
-AABB Test Count: 1171420366
-Triangle Test Count: 41445120
-Triangle Hit Count: 13048590
-Ray Count: 11820260
-Total Sample Count: 6291456
-Total Pixel Count: 49152
-Rays per second: 396381
- *
- *
- *
- *
- Camera Position: (0.159051, 0.454406, 0.823399)
-Camera Rotation: (-0.0350002, 0.17, 0)
-Ray tracing time spent: 67.4441s
-Memory Usage: 3236kb / 65536kb
-Entities: 1002 / 1024
-BVH Nodes: 41432 / 65536
-Debug Vertices: 11184810 / 11184810
-Profiler Samples: 0 / 22369621
-Broad Phase Test Count: 614506568 <----- 96% waste (69 tests per ray...)
-Broad Phase Hit Count: 24812175
-Mid Phase Test Count: 2749985885
-Mid Phase Hit Count: 1550709582
-AABB Test Count: 3364492453
-Triangle Test Count: 188122727
-Triangle Hit Count: 38471256
-Ray Count: 8841492
-Total Sample Count: 6291456
-Total Pixel Count: 49152
-Rays per second: 131094
-
-
-With plane (faster because we 40% less triangle tests)
-Ray tracing time spent: 48.3543s
-Memory Usage: 3236kb / 65536kb
-Entities: 1003 / 1024
-BVH Nodes: 41432 / 65536
-Debug Vertices: 11184810 / 11184810
-Profiler Samples: 0 / 22369621
-Broad Phase Test Count: 558461247
-Broad Phase Hit Count: 27773346
-Mid Phase Test Count: 1596608068
-Mid Phase Hit Count: 899500138
-AABB Test Count: 2155069315
-Triangle Test Count: 115082777
-Triangle Hit Count: 26235506
-Ray Count: 10291059
-Total Sample Count: 6291456
-Total Pixel Count: 49152
-Rays per second: 212826
-
-
-With Better Entity AABBs (44% reduction in broadphase test passes)
-Ray tracing time spent: 45.5589s
-Memory Usage: 3236kb / 65536kb
-Entities: 1003 / 1024
-BVH Nodes: 41432 / 65536
-Debug Vertices: 11184810 / 11184810
-Profiler Samples: 0 / 22369621
-Broad Phase Test Count: 15658206 / 536746871
-Mid Phase Test Count: 919459268 / 1619711018
-Triangle Test Count: 26758331 / 117432862
-Ray Count: 10291059
-Total Sample Count: 6291456
-Total Pixel Count: 49152
-Rays per second: 225885
- */
 
 #include <cstdarg>
 
@@ -1109,27 +1004,36 @@ int main(int argc, char **argv)
     glfwSetKeyCallback(g_Window, KeyCallback);
     glfwSetMouseButtonCallback(g_Window, MouseButtonCallback);
     glfwSetCursorPosCallback(g_Window, CursorPositionCallback);
-    
-    // Create Memory arenas
-    u32 tempMemorySize = Megabytes(64);
-    MemoryArena tempArena = {};
-    InitializeMemoryArena(
-        &tempArena, AllocateMemory(tempMemorySize), tempMemorySize);
 
-    u32 meshDataMemorySize = Megabytes(4);
-    MemoryArena meshDataArena = {};
-    InitializeMemoryArena(
-        &meshDataArena, AllocateMemory(meshDataMemorySize), meshDataMemorySize);
+    // Create memory arenas
+    u32 applicationMemorySize = APPLICATION_MEMORY_LIMIT;
+    MemoryArena applicationMemoryArena = {};
+    InitializeMemoryArena(&applicationMemoryArena,
+        AllocateMemory(applicationMemorySize), applicationMemorySize);
 
-    // FIXME: What is this arena actually used for?
-    u32 memorySize = Megabytes(64);
-    MemoryArena memoryArena = {};
-    InitializeMemoryArena(&memoryArena, AllocateMemory(memorySize), memorySize);
+    u32 tempMemorySize = Megabytes(64); // TODO: Config option
+    MemoryArena tempArena =
+        SubAllocateArena(&applicationMemoryArena, tempMemorySize);
 
-    u32 imageDataMemorySize = Megabytes(256);
-    MemoryArena imageDataArena = {};
-    InitializeMemoryArena(&imageDataArena, AllocateMemory(imageDataMemorySize),
-        imageDataMemorySize);
+    u32 meshDataMemorySize = Megabytes(4); // TODO: Config option
+    MemoryArena meshDataArena =
+        SubAllocateArena(&applicationMemoryArena, meshDataMemorySize);
+
+    u32 accelerationStructureMemorySize = Megabytes(64); // TODO: Config option
+    MemoryArena accelerationStructureMemoryArena = SubAllocateArena(
+        &applicationMemoryArena, accelerationStructureMemorySize);
+
+    u32 entityMemorySize = Megabytes(4); // TODO: Config option
+    MemoryArena entityMemoryArena =
+        SubAllocateArena(&applicationMemoryArena, entityMemorySize);
+
+    u32 imageDataMemorySize = Megabytes(256); // TODO: Config option
+    MemoryArena imageDataArena =
+        SubAllocateArena(&applicationMemoryArena, imageDataMemorySize);
+
+    LogMessage("Application memory usage: %uk / %uk",
+        applicationMemoryArena.size / 1024,
+        applicationMemoryArena.capacity / 1024);
 
     // Create Vulkan Renderer
     VulkanRenderer renderer = {};
@@ -1147,8 +1051,8 @@ int main(int argc, char **argv)
     UploadMeshDataToGpu(&renderer, &sceneMeshData);
 
     // Publish mesh data to CPU ray tracer
-    UploadMeshDataToCpuRayTracer(
-        &rayTracer, &sceneMeshData, &memoryArena, &tempArena);
+    UploadMeshDataToCpuRayTracer(&rayTracer, &sceneMeshData,
+        &accelerationStructureMemoryArena, &tempArena);
 
     // Load image data
     char fullPath[256];
@@ -1189,7 +1093,7 @@ int main(int argc, char **argv)
 
     // Create world
     World world = {};
-    world.entities = AllocateArray(&memoryArena, Entity, MAX_ENTITIES);
+    world.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     world.max = MAX_ENTITIES;
 
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
@@ -1223,7 +1127,8 @@ int main(int argc, char **argv)
     ComputeEntityBoundingBoxes(&world, &rayTracer);
 
     // Upload world to CPU ray tracer
-    rayTracer.aabbTree = BuildWorldBroadphase(&world, &memoryArena, &tempArena);
+    rayTracer.aabbTree = BuildWorldBroadphase(
+        &world, &accelerationStructureMemoryArena, &tempArena);
 
     // Upload world to vulkan renderer
     UploadWorldDataToGpu(&renderer, &world);

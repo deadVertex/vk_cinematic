@@ -22,4 +22,6 @@
 
 #define SAMPLES_PER_PIXEL 128
 
+#define APPLICATION_MEMORY_LIMIT Megabytes(512)
+
 //#define MIN_VOLUME
