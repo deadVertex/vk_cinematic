@@ -517,10 +517,15 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->fullscreenQuadVertexShader = LoadShader(renderer->device, "fullscreen_quad.vert.spv");
     renderer->fullscreenQuadFragmentShader = LoadShader(renderer->device, "fullscreen_quad.frag.spv");
 
+    // Debug draw shaders
     renderer->debugDrawVertexShader = LoadShader(renderer->device, "debug_draw.vert.spv");
     renderer->debugDrawFragmentShader = LoadShader(renderer->device, "debug_draw.frag.spv");
 
+    // Post processing shader
     renderer->postProcessingFragmentShader = LoadShader(renderer->device, "post_processing.frag.spv");
+
+    // Skybox shader
+    renderer->skyboxFragmentShader = LoadShader(renderer->device, "skybox.frag.spv");
 
     // TODO: CLAMP_TO_EDGE sampler 
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
@@ -603,6 +608,21 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
         renderer->debugDrawPipelineLayout, renderer->debugDrawVertexShader,
         renderer->debugDrawFragmentShader, &debugDrawPipelineDefinition);
+
+
+    // Skybox pipeline
+    VulkanPipelineDefinition skyboxPipelineDefinition = {};
+    skyboxPipelineDefinition.vertexStride = sizeof(VertexPNT);
+    skyboxPipelineDefinition.primitive = Primitive_Triangle;
+    skyboxPipelineDefinition.polygonMode = PolygonMode_Fill;
+    skyboxPipelineDefinition.cullMode = CullMode_Front;
+    skyboxPipelineDefinition.depthTestEnabled = true; // TODO: fix
+    skyboxPipelineDefinition.depthWriteEnabled = true;
+
+    renderer->skyboxPipeline = VulkanCreatePipeline(renderer->device,
+        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
+        renderer->pipelineLayout, renderer->testVertexShader,
+        renderer->skyboxFragmentShader, &skyboxPipelineDefinition);
 
     // Allocate descriptor sets
     {
@@ -932,15 +952,22 @@ internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
             VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
             &renderer->descriptorSets[imageIndex], 0, NULL);
 
-        vkCmdBindPipeline(renderer->commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
-
         // Draw mesh
-        //vkCmdDraw(renderer->commandBuffer, renderer->indexCount, 1, 0, 0);
         for (u32 i = 0; i < drawCmdCount; ++i)
         {
             DrawCommand cmd = drawCmds[i];
             Mesh mesh = renderer->meshes[cmd.mesh];
+
+            if (cmd.mesh == Mesh_Cube)
+            {
+                vkCmdBindPipeline(renderer->commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
+            }
+            else
+            {
+                vkCmdBindPipeline(renderer->commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
+            }
 
             // Bind index buffer
             vkCmdBindIndexBuffer(renderer->commandBuffer,

@@ -206,6 +206,10 @@ struct VulkanRenderer
     VkDescriptorSetLayout debugDrawDescriptorSetLayout;
     VkDescriptorSet debugDrawDescriptorSets[2];
 
+    // Skybox stuff
+    VkShaderModule skyboxFragmentShader;
+    VkPipeline skyboxPipeline;
+
     u32 vertexDataUploadBufferSize;
     u32 indexUploadBufferSize;
     u32 debugDrawVertexCount;

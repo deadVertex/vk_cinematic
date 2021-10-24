@@ -18,6 +18,7 @@ layout(location = 0) out vec4 outputColor;
 
 layout(location = 0) in vec3 fragNormal;
 layout(location = 1) flat in uint fragMaterialIndex;
+layout(location = 2) in vec3 fragLocalPosition;
 
 void main()
 {

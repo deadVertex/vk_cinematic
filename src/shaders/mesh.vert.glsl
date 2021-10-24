@@ -39,6 +39,7 @@ layout(push_constant) uniform PushConstants
 
 layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out uint fragMaterialIndex;
+layout(location = 2) out vec3 fragLocalPosition;
 
 void main()
 {
@@ -70,4 +71,6 @@ void main()
     fragNormal = normalize(inNormal * invModelMatrix);
 
     fragMaterialIndex = materialIndex;
+
+    fragLocalPosition = inPosition;
 }
