@@ -34,6 +34,7 @@ enum
     Mesh_Bunny,
     Mesh_Monkey,
     Mesh_Plane,
+    Mesh_Cube,
     MAX_MESHES,
 };
 

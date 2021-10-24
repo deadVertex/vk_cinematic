@@ -726,6 +726,80 @@ internal MeshData CreatePlaneMesh(MemoryArena *arena)
     return meshData;
 }
 
+internal MeshData CreateCubeMesh(MemoryArena *arena)
+{
+    // clang-format off
+    VertexPNT cubeVertices[] = {
+        // Top
+        {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+
+        // Bottom
+        {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+
+        // Back
+        {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+
+        // Front
+        {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+        {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+
+        // Left
+        {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+
+        // Right
+        {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+        {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    };
+
+    u32 cubeIndices[] = {
+        2, 1, 0,
+        0, 3, 2,
+
+        4, 5, 6,
+        6, 7, 4,
+
+        8, 9, 10,
+        10, 11, 8,
+
+        14, 13, 12,
+        12, 15, 14,
+
+        16, 17, 18,
+        18, 19, 16,
+
+        22, 21, 20,
+        20, 23, 22
+    };
+    // clang-format on
+
+    MeshData meshData = {};
+    meshData.vertices = (VertexPNT *)AllocateBytes(arena, sizeof(cubeVertices));
+    meshData.vertexCount = ArrayCount(cubeVertices);
+    CopyMemory(meshData.vertices, cubeVertices, sizeof(cubeVertices));
+
+    meshData.indices = (u32 *)AllocateBytes(arena, sizeof(cubeIndices));
+    meshData.indexCount = ArrayCount(cubeIndices);
+    CopyMemory(meshData.indices, cubeIndices, sizeof(cubeIndices));
+
+    return meshData;
+}
+
 internal void WorkerThread(WorkQueue *queue)
 {
     while (1)
@@ -854,6 +928,7 @@ internal void LoadMeshData(
     scene->meshes[Mesh_Monkey] =
         LoadMesh("monkey.obj", meshDataArena, assetDir);
     scene->meshes[Mesh_Plane] = CreatePlaneMesh(meshDataArena);
+    scene->meshes[Mesh_Cube] = CreateCubeMesh(meshDataArena);
 
     LogMessage("Meshes data memory usage: %uk / %uk", meshDataArena->size / 1024,
         meshDataArena->capacity / 1024);
@@ -868,6 +943,8 @@ internal void UploadMeshDataToGpu(
         renderer, sceneMeshData->meshes[Mesh_Monkey], Mesh_Monkey);
     CopyMeshDataToUploadBuffer(
         renderer, sceneMeshData->meshes[Mesh_Plane], Mesh_Plane);
+    CopyMeshDataToUploadBuffer(
+        renderer, sceneMeshData->meshes[Mesh_Cube], Mesh_Cube);
 
     VulkanCopyMeshDataToGpu(renderer);
 }
@@ -882,6 +959,8 @@ internal void UploadMeshDataToCpuRayTracer(RayTracer *rayTracer,
         CreateMesh(sceneMeshData->meshes[Mesh_Monkey], memoryArena, tempArena);
     rayTracer->meshes[Mesh_Plane] =
         CreateMesh(sceneMeshData->meshes[Mesh_Plane], memoryArena, tempArena);
+    rayTracer->meshes[Mesh_Cube] =
+        CreateMesh(sceneMeshData->meshes[Mesh_Cube], memoryArena, tempArena);
 }
 
 internal void UploadMaterialDataToGpu(
@@ -1114,6 +1193,7 @@ int main(int argc, char **argv)
     world.max = MAX_ENTITIES;
 
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Blue);
 #if 0
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
         Mesh_Bunny, Material_Red);
