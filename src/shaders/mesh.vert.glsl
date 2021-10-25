@@ -40,6 +40,7 @@ layout(push_constant) uniform PushConstants
 layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out uint fragMaterialIndex;
 layout(location = 2) out vec3 fragLocalPosition;
+layout(location = 3) out vec2 fragTexCoord;
 
 void main()
 {
@@ -73,4 +74,6 @@ void main()
     fragMaterialIndex = materialIndex;
 
     fragLocalPosition = inPosition;
+
+    fragTexCoord = inTextureCoord;
 }

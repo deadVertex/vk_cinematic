@@ -23,6 +23,7 @@ layout(location = 0) out vec4 outputColor;
 layout(location = 0) in vec3 fragNormal;
 layout(location = 1) flat in uint fragMaterialIndex;
 layout(location = 2) in vec3 fragLocalPosition;
+layout(location = 3) in vec2 fragTexCoord;
 
 // FIXME: Copied from src/math_lib.h
 // NOTE: v must be a unit vector

@@ -1,7 +1,8 @@
 /* TODO:
 List:
-- IBL Ray tracer [X]
-- IBL rasterizer [X]
+ - IBL Ray tracer [X]
+ - IBL rasterizer [X]
+ - Texture mapping rasterizer [ ]
 
 Bugs:
  - Resizing window crashes app
@@ -15,6 +16,7 @@ Tech Debt:
 
 Features:
  - Linear space rendering [x]
+ - Texture mapping
  - Bilinear sampling
  - Image based lighting [x]
  - ACES tone mapping
@@ -985,6 +987,35 @@ internal HdrImage CreateDiffuseIrradianceTexture(
     return dstImage;
 }
 
+internal HdrImage CreateCheckerBoardImage(MemoryArena *tempArena)
+{
+    u32 width = 256;
+    u32 height = 256;
+
+    HdrImage result = {};
+    result.width = width;
+    result.height = height;
+    result.pixels = AllocateArray(tempArena, f32, width * height * 4);
+
+    u32 gridSize = 16;
+    for (u32 y = 0; y < height; ++y)
+    {
+        for (u32 x = 0; x < width; ++x)
+        {
+            u32 pixelIndex = y * width + x;
+            vec4 color = Vec4(0.18, 0.18, 0.18, 1);
+            if (((x / gridSize) + (y / gridSize)) % 2)
+            {
+                color = Vec4(0.04, 0.04, 0.04, 1);
+            }
+
+            *(vec4 *)(result.pixels + (pixelIndex * 4)) = color;
+        }
+    }
+
+    return result;
+}
+
 internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     HdrImage equirectangularImage, MemoryArena *tempArena)
 {
@@ -993,11 +1024,15 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     UploadHdrImageToVulkan(renderer, equirectangularImage, Image_EnvMapTest, 6);
     UploadHdrImageToVulkan(renderer, irradianceImage, Image_Irradiance, 7);
 
+    HdrImage checkerBoardImage = CreateCheckerBoardImage(tempArena);
+    UploadHdrImageToVulkan(renderer, checkerBoardImage, Image_CheckerBoard, 8);
+
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
     InitializeMemoryArena(&textureUploadArena,
         renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
 
+    // NOTE: We don't actually use any of this since its broken
     // FIXME: Hardcoded in vulkan_renderer.cpp
     u32 width = 256;
     u32 height = 256;
@@ -1204,6 +1239,8 @@ int main(int argc, char **argv)
     world.max = MAX_ENTITIES;
 
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
+        Mesh_Plane, Material_CheckerBoard);
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Blue);
 #if 0
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
