@@ -907,8 +907,8 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
         renderer->indexUploadBufferSize);
 }
 
-internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
-    DrawCommand *drawCmds, u32 drawCmdCount)
+internal void VulkanRender(
+    VulkanRenderer *renderer, u32 outputFlags, World world)
 {
     u32 imageIndex;
     VK_CHECK(vkAcquireNextImageKHR(renderer->device, renderer->swapchain.handle,
@@ -953,12 +953,13 @@ internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
             &renderer->descriptorSets[imageIndex], 0, NULL);
 
         // Draw mesh
-        for (u32 i = 0; i < drawCmdCount; ++i)
+        for (u32 i = 0; i < world.count; ++i)
         {
-            DrawCommand cmd = drawCmds[i];
-            Mesh mesh = renderer->meshes[cmd.mesh];
+            u32 meshIndex = world.entities[i].mesh;
+            Mesh mesh = renderer->meshes[meshIndex];
 
-            if (cmd.mesh == Mesh_Cube)
+            // FIXME: Should be defined from the material!
+            if (meshIndex == Mesh_Cube)
             {
                 vkCmdBindPipeline(renderer->commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
@@ -977,7 +978,7 @@ internal void VulkanRender(VulkanRenderer *renderer, u32 outputFlags,
             MeshPushConstants pushConstants = {};
             pushConstants.modelMatrixIndex = i;
             pushConstants.vertexDataOffset = mesh.vertexDataOffset;
-            pushConstants.materialIndex = cmd.material;
+            pushConstants.materialIndex = world.entities[i].material;
 
             vkCmdPushConstants(renderer->commandBuffer,
                 renderer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,

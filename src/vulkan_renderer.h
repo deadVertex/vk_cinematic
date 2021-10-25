@@ -23,12 +23,6 @@ enum
     Output_CpuRayTracer = 2,
 };
 
-struct DrawCommand
-{
-    u32 mesh;
-    u32 material;
-};
-
 struct Mesh
 {
     u32 indexCount;

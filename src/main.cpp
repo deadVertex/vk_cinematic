@@ -1284,6 +1284,7 @@ int main(int argc, char **argv)
             rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
 #endif
 
+        // Move camera around
         Update(&renderer, &rayTracer, &input, dt);
 
         // TODO: Don't do this here
@@ -1291,19 +1292,13 @@ int main(int argc, char **argv)
         ubo->showComparision = showComparision;
 
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
-        DrawCommand drawCommands[MAX_ENTITIES];
-        for (u32 i = 0; i < world.count; ++i)
-        {
-            drawCommands[i].mesh = world.entities[i].mesh;
-            drawCommands[i].material = world.entities[i].material;
-        }
 
         u32 outputFlags = Output_VulkanRenderer;
         if (isRayTracing)
         {
             outputFlags |= Output_CpuRayTracer;
         }
-        VulkanRender(&renderer, outputFlags, drawCommands, world.count);
+        VulkanRender(&renderer, outputFlags, world);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;
