@@ -147,9 +147,26 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
                 g_Metrics.triangleHitCount++;
                 if (triangleIntersect.t < result.t)
                 {
+                    // HACK: Try compute Barycentric to get UVs
+                    vec3 p = rayOrigin + rayDirection * triangleIntersect.t;
+                    f32 d[3];
+                    d[0] = Distance(p, vertices[0]);
+                    d[1] = Distance(p, vertices[1]);
+                    d[2] = Distance(p, vertices[2]);
+
+                    f32 total = d[0] + d[1] + d[2];
+                    d[0] = d[0] / total;
+                    d[1] = d[1] / total;
+                    d[2] = d[2] / total;
+                    vec2 uv =
+                        meshData.vertices[indices[0]].textureCoord * d[0] +
+                        meshData.vertices[indices[1]].textureCoord * d[1] +
+                        meshData.vertices[indices[2]].textureCoord * d[2];
+
                     result.t = triangleIntersect.t;
                     result.isValid = true;
                     result.normal = triangleIntersect.normal;
+                    result.uv = uv;
                     tmin = triangleIntersect.t;
                     // TODO: hitNormal, hitPoint, material, etc
                 }
@@ -425,6 +442,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                             rayHit.normal;
                         pathVertices[pathVertexCount].materialIndex =
                             rayHit.materialIndex;
+                        pathVertices[pathVertexCount].uv = rayHit.uv;
                         pathVertexCount++;
 
                         rayDirection = dir;
@@ -471,6 +489,11 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                         // FIXME: Don't clamp emission to avoid fire-flies
                         emission = Clamp(
                             Vec3(color.x, color.y, color.z), Vec3(0), Vec3(10));
+                    }
+                    else if (materialIndex == Material_CheckerBoard)
+                    {
+                        vec4 color = SampleImage(rayTracer->checkerBoardImage, vertex.uv);
+                        baseColor = color.xyz;
                     }
 
                     f32 cosine =

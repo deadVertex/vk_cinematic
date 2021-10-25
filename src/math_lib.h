@@ -900,3 +900,8 @@ inline vec2 MapEquirectangularToSphereCoordinates(vec2 uv)
     vec2 sphereCoords = Vec2(b, y);
     return sphereCoords;
 }
+
+inline f32 Distance(vec3 a, vec3 b)
+{
+    return Length(a - b);
+}

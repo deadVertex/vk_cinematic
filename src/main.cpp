@@ -2,6 +2,7 @@
 List:
  - IBL Ray tracer [X]
  - IBL rasterizer [X]
+ - Texture mapping rasterizer [X]
  - Texture mapping rasterizer [ ]
 
 Bugs:
@@ -10,9 +11,13 @@ Bugs:
    threads are still working on the tasks they've pulled from the queue.
  - Comparison view is broken
  - Cube map generation is broken
+ - Ray tracer texture sampling is broken
 
 Tech Debt:
  - Duplication of ToSphericalCoordinates and MapToEquirectangular functions in shaders
+ - Hard-coded material id to texture mapping in shader
+ - Should use barycentric coordinates for RayVsTriangle intersection as we need
+   them to compute the UVs
 
 Features:
  - Linear space rendering [x]
@@ -1024,9 +1029,6 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     UploadHdrImageToVulkan(renderer, equirectangularImage, Image_EnvMapTest, 6);
     UploadHdrImageToVulkan(renderer, irradianceImage, Image_Irradiance, 7);
 
-    HdrImage checkerBoardImage = CreateCheckerBoardImage(tempArena);
-    UploadHdrImageToVulkan(renderer, checkerBoardImage, Image_CheckerBoard, 8);
-
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
     InitializeMemoryArena(&textureUploadArena,
@@ -1218,6 +1220,11 @@ int main(int argc, char **argv)
     //HdrImage cubeMapImage =
         //CreateCubeMap(rayTracer.image, &imageDataArena, 256);
 
+    // Create checkerboard image
+    HdrImage checkerBoardImage = CreateCheckerBoardImage(&imageDataArena);
+    UploadHdrImageToVulkan(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
+    rayTracer.checkerBoardImage = checkerBoardImage;
+
     // Upload test cube map to GPU
     UploadTestCubeMapToGPU(&renderer, rayTracer.image, &tempArena);
 
@@ -1226,6 +1233,7 @@ int main(int argc, char **argv)
     materialData[Material_Red].baseColor = Vec3(0.18, 0.1, 0.1);
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
     materialData[Material_Background].emission = Vec3(1, 0.95, 0.8);
+    materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
@@ -1241,7 +1249,7 @@ int main(int argc, char **argv)
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
     AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
         Mesh_Plane, Material_CheckerBoard);
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Blue);
+    //AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Blue);
 #if 0
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
         Mesh_Bunny, Material_Red);

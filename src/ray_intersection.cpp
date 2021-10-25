@@ -147,6 +147,7 @@ internal RayIntersectTriangleResult RayIntersectTriangle(vec3 rayOrigin,
 
         // TODO: Do this with Barycentric coordinates, then we only need to
         // compute 2 cross products
+        // And we can then we can compute the UV coordinates
 
         if (inCA && inBA && inBC)
         {

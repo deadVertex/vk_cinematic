@@ -55,6 +55,7 @@ struct RayTracer
     AabbTree aabbTree;
 
     HdrImage image;
+    HdrImage checkerBoardImage;
 };
 
 struct RayHitResult
@@ -64,6 +65,7 @@ struct RayHitResult
     vec3 normal;
     u32 depth;
     u32 materialIndex;
+    vec2 uv;
 };
 
 struct Metrics
@@ -179,6 +181,7 @@ struct PathVertex
     vec3 incomingDirection;
     vec3 outgoingDirection;
     vec3 surfaceNormal;
+    vec2 uv;
     u32 materialIndex;
 };
 
