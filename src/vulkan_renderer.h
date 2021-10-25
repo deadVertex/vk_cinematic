@@ -18,6 +18,15 @@
 
 enum
 {
+    Image_CpuRayTracer,
+    Image_CubeMapTest,
+    Image_EnvMapTest,
+    Image_Irradiance,
+    MAX_IMAGES,
+};
+
+enum
+{
     Output_None = 0,
     Output_VulkanRenderer = 1,
     Output_CpuRayTracer = 2,
@@ -44,11 +53,11 @@ struct VulkanQueueFamilyIndices
     u32 presentQueue;
 };
 
-// TODO: Add ImageView to VulkanImage struct
 struct VulkanImage
 {
     VkImage handle;
     VkDeviceMemory memory;
+    VkImageView view;
 };
 
 struct VulkanBuffer
@@ -69,7 +78,6 @@ struct VulkanSwapchain
     u32 height;
 
     VulkanImage depthImage;
-    VkImageView depthImageView;
 };
 
 enum
@@ -105,9 +113,7 @@ struct VulkanPipelineDefinition
 struct VulkanHdrSwapchainFramebuffer
 {
     VulkanImage depth;
-    VkImageView depthView;
     VulkanImage color;
-    VkImageView colorView;
     VkFramebuffer handle;
 };
 
@@ -186,8 +192,6 @@ struct VulkanRenderer
     VkShaderModule fullscreenQuadVertexShader;
     VkShaderModule fullscreenQuadFragmentShader;
     VkPipeline fullscreenQuadPipeline;
-    VulkanImage image;
-    VkImageView imageView;
 
     // Debug draw buffer
     VkShaderModule debugDrawVertexShader;
@@ -200,15 +204,11 @@ struct VulkanRenderer
     // Skybox stuff
     VkShaderModule skyboxFragmentShader;
     VkPipeline skyboxPipeline;
-    VulkanImage cubeMapTestImage;
-    VkImageView cubeMapTestImageView;
-    VulkanImage envMapTestImage;
-    VkImageView envMapTestImageView;
-
 
     u32 vertexDataUploadBufferSize;
     u32 indexUploadBufferSize;
     u32 debugDrawVertexCount;
 
     Mesh meshes[MAX_MESHES];
+    VulkanImage images[MAX_IMAGES];
 };

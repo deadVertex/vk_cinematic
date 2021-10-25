@@ -1,7 +1,7 @@
 /* TODO:
 List:
 - IBL Ray tracer [X]
-- IBL rasterizer [ ]
+- IBL rasterizer [X]
 
 Bugs:
  - Resizing window crashes app
@@ -10,9 +10,13 @@ Bugs:
  - Comparison view is broken
  - Cube map generation is broken
 
+Tech Debt:
+ - Duplication of ToSphericalCoordinates and MapToEquirectangular functions in shaders
+
 Features:
  - Linear space rendering [x]
- - Image based lighting
+ - Bilinear sampling
+ - Image based lighting [x]
  - ACES tone mapping
  - Bloom
  - gltf importing
@@ -37,6 +41,7 @@ Optimizations - CPU ray tracer
 - Multiple triangles per tree leaf node
 - SIMD
 - Multi-core [X]
+- Sample cube maps in shaders rather than equirectangular images
 
 Analysis
 - AABB trees
@@ -867,17 +872,17 @@ internal void UploadMaterialDataToCpuRayTracer(
         rayTracer->materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
-internal void CreateEnvMapTest(VulkanRenderer *renderer, HdrImage image)
+internal void UploadHdrImageToVulkan(
+    VulkanRenderer *renderer, HdrImage image, u32 imageId, u32 dstBinding)
 {
+    Assert(imageId < MAX_IMAGES);
+
     // Create image
     VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    renderer->envMapTestImage = VulkanCreateImage(renderer->device,
+    renderer->images[imageId] = VulkanCreateImage(renderer->device,
         renderer->physicalDevice, image.width, image.height, format,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    renderer->envMapTestImageView = VulkanCreateImageView(renderer->device,
-        renderer->envMapTestImage.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
     // Map memory
     MemoryArena textureUploadArena = {};
@@ -891,16 +896,16 @@ internal void CreateEnvMapTest(VulkanRenderer *renderer, HdrImage image)
         pixels, image.pixels, image.width * image.height * sizeof(f32) * 4);
 
     // Update image
-    VulkanTransitionImageLayout(renderer->envMapTestImage.handle,
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue);
 
     VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
-        renderer->envMapTestImage.handle, image.width, image.height, 0);
+        renderer->images[imageId].handle, image.width, image.height, 0);
 
-    VulkanTransitionImageLayout(renderer->envMapTestImage.handle,
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue);
@@ -909,26 +914,84 @@ internal void CreateEnvMapTest(VulkanRenderer *renderer, HdrImage image)
     Assert(renderer->swapchain.imageCount == 2);
     for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
     {
-        VkDescriptorImageInfo envMapInfo = {};
-        envMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        envMapInfo.imageView = renderer->envMapTestImageView;
+        VkDescriptorImageInfo imageInfo = {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = renderer->images[imageId].view;
 
         VkWriteDescriptorSet descriptorWrites[1] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[0].dstBinding = 6;
+        descriptorWrites[0].dstBinding = dstBinding;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pImageInfo = &envMapInfo;
+        descriptorWrites[0].pImageInfo = &imageInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
 }
 
+internal HdrImage CreateDiffuseIrradianceTexture(
+    HdrImage image, MemoryArena *tempArena)
+{
+    RandomNumberGenerator rng = {};
+    rng.state = 0x45BA12F3;
+
+    HdrImage dstImage = {};
+    dstImage.width = 128;
+    dstImage.height = 64;
+    dstImage.pixels =
+        AllocateArray(tempArena, f32, dstImage.width * dstImage.height * 4);
+
+    for (u32 y = 0; y < dstImage.height; ++y)
+    {
+        for (u32 x = 0; x < dstImage.width; ++x)
+        {
+            vec2 uv = {};
+            uv.x = (f32)x / (f32)dstImage.width;
+            uv.y = (f32)y / (f32)dstImage.height;
+
+            vec2 sphereCoords = MapEquirectangularToSphereCoordinates(uv);
+            vec3 dir = MapSphericalToCartesianCoordinates(sphereCoords);
+
+            vec4 irradiance = {};
+            for (u32 sampleIndex = 0; sampleIndex < 512; ++sampleIndex)
+            {
+                // Compute random direction on hemi-sphere around
+                // rayHit.normal
+                vec3 offset = Vec3(RandomBilateral(&rng),
+                        RandomBilateral(&rng), RandomBilateral(&rng));
+                vec3 sampleDir = Normalize(dir + offset);
+                if (Dot(sampleDir, dir) < 0.0f)
+                {
+                    sampleDir = -sampleDir;
+                }
+
+                f32 cosine = Max(Dot(dir, sampleDir), 0.0f);
+
+                vec2 sphereCoords2 = ToSphericalCoordinates(sampleDir);
+                vec2 uv2 = MapToEquirectangular(sphereCoords2);
+                //uv2.y = 1.0f - uv2.y; // Flip Y axis as usual
+                vec4 sample = SampleImage(image, uv2);
+                irradiance += sample * (1.0f / 32.0f) * cosine;
+            }
+
+            irradiance.a = 1.0;
+
+            u32 pixelIndex = (y * dstImage.width + x) * 4;
+            *(vec4 *)(dstImage.pixels + pixelIndex) = irradiance;
+        }
+    }
+
+    return dstImage;
+}
+
 internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     HdrImage equirectangularImage, MemoryArena *tempArena)
 {
-    CreateEnvMapTest(renderer, equirectangularImage);
+    HdrImage irradianceImage =
+        CreateDiffuseIrradianceTexture(equirectangularImage, tempArena);
+    UploadHdrImageToVulkan(renderer, equirectangularImage, Image_EnvMapTest, 6);
+    UploadHdrImageToVulkan(renderer, irradianceImage, Image_Irradiance, 7);
 
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
@@ -1000,16 +1063,16 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     }
 
     // Submit cube map data for upload to GPU
-    VulkanTransitionImageLayout(renderer->cubeMapTestImage.handle,
+    VulkanTransitionImageLayout(renderer->images[Image_CubeMapTest].handle,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue, true);
 
     VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
-        renderer->cubeMapTestImage.handle, width, height, 0, true);
+        renderer->images[Image_CubeMapTest].handle, width, height, 0, true);
 
-    VulkanTransitionImageLayout(renderer->cubeMapTestImage.handle,
+    VulkanTransitionImageLayout(renderer->images[Image_CubeMapTest].handle,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue, true);

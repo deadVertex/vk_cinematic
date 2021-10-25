@@ -16,6 +16,7 @@ layout(binding = 5) readonly buffer Materials
 layout(binding = 2) uniform sampler defaultSampler;
 //layout(binding = 6) uniform textureCube cubeMap;
 layout(binding = 6) uniform texture2D envMap;
+layout(binding = 7) uniform texture2D irradianceMap;
 
 layout(location = 0) out vec4 outputColor;
 
@@ -23,7 +24,7 @@ layout(location = 0) in vec3 fragNormal;
 layout(location = 1) flat in uint fragMaterialIndex;
 layout(location = 2) in vec3 fragLocalPosition;
 
-// NOTE: Copied from src/math_lib.h
+// FIXME: Copied from src/math_lib.h
 // NOTE: v must be a unit vector
 // RETURNS: (azimuth, inclination)
 vec2 ToSphericalCoordinates(vec3 v)
@@ -36,7 +37,7 @@ vec2 ToSphericalCoordinates(vec3 v)
     return vec2(azimuth, inc);
 }
 
-// NOTE: Copied from src/math_lib.h
+// FIXME: Copied from src/math_lib.h
 vec2 MapToEquirectangular(vec2 sphereCoords)
 {
     vec2 uv = vec2(0, 0);

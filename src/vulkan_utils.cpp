@@ -91,10 +91,30 @@ internal VulkanBuffer VulkanCreateBuffer(VkDevice device,
     return buffer;
 }
 
+internal VkImageView VulkanCreateImageView(VkDevice device, VkImage image,
+    VkFormat format, VkImageAspectFlags aspectFlags, b32 isCubeMap = false,
+    u32 mipLevelCount = 1)
+{
+    VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    viewInfo.image = image;
+    viewInfo.viewType = isCubeMap ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = mipLevelCount;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = isCubeMap ? 6 : 1;
+
+    VkImageView imageView;
+    VK_CHECK(vkCreateImageView(device, &viewInfo, NULL, &imageView));
+    return imageView;
+}
+
 internal VulkanImage VulkanCreateImage(VkDevice device,
     VkPhysicalDevice physicalDevice, u32 width, u32 height, VkFormat format,
     VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
-    b32 isCubeMap = false, u32 mipLevelCount = 1)
+    VkImageAspectFlags aspectFlags, b32 isCubeMap = false,
+    u32 mipLevelCount = 1)
 {
     VulkanImage image = {};
 
@@ -127,32 +147,17 @@ internal VulkanImage VulkanCreateImage(VkDevice device,
 
     vkBindImageMemory(device, image.handle, image.memory, 0);
 
+    image.view = VulkanCreateImageView(
+        device, image.handle, format, aspectFlags, isCubeMap, mipLevelCount);
+
     return image;
 }
 
 internal void VulkanDestroyImage(VkDevice device, VulkanImage image)
 {
+    vkDestroyImageView(device, image.view, NULL);
     vkDestroyImage(device, image.handle, NULL);
     vkFreeMemory(device, image.memory, NULL);
-}
-
-internal VkImageView VulkanCreateImageView(VkDevice device, VkImage image,
-    VkFormat format, VkImageAspectFlags aspectFlags, b32 isCubeMap = false,
-    u32 mipLevelCount = 1)
-{
-    VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-    viewInfo.image = image;
-    viewInfo.viewType = isCubeMap ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = aspectFlags;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = mipLevelCount;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = isCubeMap ? 6 : 1;
-
-    VkImageView imageView;
-    VK_CHECK(vkCreateImageView(device, &viewInfo, NULL, &imageView));
-    return imageView;
 }
 
 internal VkFramebuffer VulkanCreateFramebuffer(VkDevice device,
@@ -627,22 +632,17 @@ internal VulkanHdrSwapchain CreateHdrSwapchain(VkDevice device,
         framebuffer->color = VulkanCreateImage(device, physicalDevice, width,
             height, format,
             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        framebuffer->colorView = VulkanCreateImageView(device,
-            framebuffer->color.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
         framebuffer->depth = VulkanCreateImage(device, physicalDevice, width,
             height, VK_FORMAT_D32_SFLOAT,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
                 VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        framebuffer->depthView =
-            VulkanCreateImageView(device, framebuffer->depth.handle,
-                VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-        framebuffer->handle =
-            VulkanCreateFramebuffer(device, swapchain.renderPass,
-                framebuffer->colorView, framebuffer->depthView, width, height);
+        framebuffer->handle = VulkanCreateFramebuffer(device,
+            swapchain.renderPass, framebuffer->color.view,
+            framebuffer->depth.view, width, height);
     }
 
     return swapchain;

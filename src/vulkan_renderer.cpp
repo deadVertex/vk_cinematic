@@ -217,10 +217,7 @@ internal VulkanSwapchain VulkanSetupSwapchain(VkDevice device,
     swapchain.depthImage =
         VulkanCreateImage(device, physicalDevice, width, height,
             VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    swapchain.depthImageView =
-        VulkanCreateImageView(device, swapchain.depthImage.handle,
-            VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 
     for (u32 i = 0; i < swapchain.imageCount; ++i)
     {
@@ -229,7 +226,7 @@ internal VulkanSwapchain VulkanSetupSwapchain(VkDevice device,
             VulkanCreateImageView(device, swapchain.images[i],
                 VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
         swapchain.framebuffers[i] = VulkanCreateFramebuffer(device, renderPass,
-            swapchain.imageViews[i], swapchain.depthImageView, width, height);
+            swapchain.imageViews[i], swapchain.depthImage.view, width, height);
     }
 
     return swapchain;
@@ -242,7 +239,6 @@ internal void VulkanDestroySwapchain(VulkanSwapchain swapchain, VkDevice device)
         vkDestroyFramebuffer(device, swapchain.framebuffers[i], NULL);
         vkDestroyImageView(device, swapchain.imageViews[i], NULL);
     }
-    vkDestroyImageView(device, swapchain.depthImageView, NULL);
     VulkanDestroyImage(device, swapchain.depthImage);
 
     vkDestroySwapchainKHR(device, swapchain.handle, NULL);
@@ -274,7 +270,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[7] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[8] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -305,6 +301,10 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[6].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     layoutBindings[6].descriptorCount = 1;
     layoutBindings[6].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[7].binding = 7;
+    layoutBindings[7].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layoutBindings[7].descriptorCount = 1;
+    layoutBindings[7].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -683,17 +683,14 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         u32 width = RAY_TRACER_WIDTH;
         u32 height = RAY_TRACER_HEIGHT;
         VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-        renderer->image = VulkanCreateImage(renderer->device,
-            renderer->physicalDevice, width, height, format,
+        renderer->images[Image_CpuRayTracer] = VulkanCreateImage(
+            renderer->device, renderer->physicalDevice, width, height, format,
             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
-        VulkanTransitionImageLayout(renderer->image.handle,
+        VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             renderer->device, renderer->commandPool, renderer->graphicsQueue);
-
-        renderer->imageView = VulkanCreateImageView(renderer->device,
-            renderer->image.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     // Create cubemap test image
@@ -701,14 +698,10 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         u32 width = 256;
         u32 height = 256;
         VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-        renderer->cubeMapTestImage = VulkanCreateImage(renderer->device,
+        renderer->images[Image_CubeMapTest] = VulkanCreateImage(renderer->device,
             renderer->physicalDevice, width, height, format,
             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, true);
-
-        renderer->cubeMapTestImageView = VulkanCreateImageView(renderer->device,
-            renderer->cubeMapTestImage.handle, format,
-            VK_IMAGE_ASPECT_COLOR_BIT, true);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
     }
 
     // Update descriptor sets
@@ -734,15 +727,11 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = renderer->imageView;
+        imageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
 
         //VkDescriptorImageInfo cubeMapInfo = {};
         //cubeMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         //cubeMapInfo.imageView = renderer->cubeMapTestImageView;
-
-        VkDescriptorImageInfo envMapInfo = {};
-        envMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        envMapInfo.imageView = renderer->envMapTestImageView;
 
         VkWriteDescriptorSet descriptorWrites[5] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -777,12 +766,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pBufferInfo = &materialBufferInfo;
 
-        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[5].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[5].dstBinding = 6;
-        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[5].descriptorCount = 1;
-        descriptorWrites[5].pImageInfo = &envMapInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
@@ -809,7 +792,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].colorView;
+        imageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
 
         VkWriteDescriptorSet descriptorWrites[5] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -884,16 +867,16 @@ internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
     u32 width = RAY_TRACER_WIDTH;
     u32 height = RAY_TRACER_HEIGHT;
 
-    VulkanTransitionImageLayout(renderer->image.handle,
+    VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue);
 
     VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
-        renderer->image.handle, width, height, 0);
+        renderer->images[Image_CpuRayTracer].handle, width, height, 0);
 
-    VulkanTransitionImageLayout(renderer->image.handle,
+    VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue);

@@ -423,6 +423,12 @@ inline vec4 operator+(vec4 a, vec4 b)
     return result;
 }
 
+inline vec4& operator+=(vec4 &a, vec4 b)
+{
+    a = a + b;
+    return a;
+}
+
 inline vec4 Lerp(vec4 a, vec4 b, f32 t)
 {
     vec4 result = a * (1.0f - t) + b * t;
