@@ -907,9 +907,23 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
         renderer->indexUploadBufferSize);
 }
 
+internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World world)
+{
+    mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
+    for (u32 i = 0; i < world.count; ++i)
+    {
+        Entity *entity = world.entities + i;
+        modelMatrices[i] = Translate(entity->position) *
+                           Rotate(entity->rotation) * Scale(entity->scale);
+    }
+}
+
+
 internal void VulkanRender(
     VulkanRenderer *renderer, u32 outputFlags, World world)
 {
+    UploadWorldDataToGpu(renderer, world);
+
     u32 imageIndex;
     VK_CHECK(vkAcquireNextImageKHR(renderer->device, renderer->swapchain.handle,
         0, renderer->acquireSemaphore, VK_NULL_HANDLE, &imageIndex));

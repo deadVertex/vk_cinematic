@@ -872,17 +872,6 @@ internal void UploadMaterialDataToCpuRayTracer(
         rayTracer->materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
-internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World *world)
-{
-    mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
-    for (u32 i = 0; i < world->count; ++i)
-    {
-        Entity *entity = world->entities + i;
-        modelMatrices[i] = Translate(entity->position) *
-                           Rotate(entity->rotation) * Scale(entity->scale);
-    }
-}
-
 internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     HdrImage equirectangularImage, MemoryArena *tempArena)
 {
@@ -1130,9 +1119,6 @@ int main(int argc, char **argv)
     rayTracer.aabbTree = BuildWorldBroadphase(
         &world, &accelerationStructureMemoryArena, &tempArena);
 
-    // Upload world to vulkan renderer
-    UploadWorldDataToGpu(&renderer, &world);
-
 #if ANALYZE_BROAD_PHASE_TREE
     LogMessage("Evaluate Broadphase tree");
     EvaluateTree(rayTracer.aabbTree);
@@ -1168,6 +1154,7 @@ int main(int argc, char **argv)
     b32 drawTests = false;
     b32 isRayTracing = false;
     b32 showComparision = false;
+    f32 t = 0.0f;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -1183,6 +1170,9 @@ int main(int argc, char **argv)
         f64 frameStart = glfwGetTime();
         InputBeginFrame(&input);
         glfwPollEvents();
+
+        t += dt;
+        world.entities[0].position.y = Sin(t);
 
         if (WasPressed(input.buttonStates[KEY_SPACE]))
         {
