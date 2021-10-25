@@ -1,13 +1,7 @@
 /* TODO:
 List:
- - Run CPU ray tracer in separate thread and live update output image [X]
-   - Restart CPU ray tracer without restarting application [X]
- - Tiled rendering for CPU ray tracer [X]
- - Multi threaded tile-based rendering [X]
- - Materials [X]
- - Split view (for comparisions between rasterizer and ray tracer) [X]
- - Linear space rendering (CPU ray tracer) [x]
- - Linear space rendering (vulkan rasterizer) [x]
+- IBL Ray tracer [X]
+- IBL rasterizer [ ]
 
 Bugs:
  - Resizing window crashes app
@@ -17,7 +11,8 @@ Bugs:
  - Cube map generation is broken
 
 Features:
- - Linear space rendering [ ]
+ - Linear space rendering [x]
+ - Image based lighting
  - ACES tone mapping
  - Bloom
  - gltf importing
@@ -872,9 +867,69 @@ internal void UploadMaterialDataToCpuRayTracer(
         rayTracer->materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
+internal void CreateEnvMapTest(VulkanRenderer *renderer, HdrImage image)
+{
+    // Create image
+    VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    renderer->envMapTestImage = VulkanCreateImage(renderer->device,
+        renderer->physicalDevice, image.width, image.height, format,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    renderer->envMapTestImageView = VulkanCreateImageView(renderer->device,
+        renderer->envMapTestImage.handle, format, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    // Map memory
+    MemoryArena textureUploadArena = {};
+    InitializeMemoryArena(&textureUploadArena,
+        renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
+
+    // Copy data to upload buffer
+    f32 *pixels =
+        AllocateArray(&textureUploadArena, f32, image.width * image.height * 4);
+    CopyMemory(
+        pixels, image.pixels, image.width * image.height * sizeof(f32) * 4);
+
+    // Update image
+    VulkanTransitionImageLayout(renderer->envMapTestImage.handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue);
+
+    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
+        renderer->envMapTestImage.handle, image.width, image.height, 0);
+
+    VulkanTransitionImageLayout(renderer->envMapTestImage.handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue);
+
+
+    Assert(renderer->swapchain.imageCount == 2);
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorImageInfo envMapInfo = {};
+        envMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        envMapInfo.imageView = renderer->envMapTestImageView;
+
+        VkWriteDescriptorSet descriptorWrites[1] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[0].dstBinding = 6;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pImageInfo = &envMapInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
+}
+
 internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     HdrImage equirectangularImage, MemoryArena *tempArena)
 {
+    CreateEnvMapTest(renderer, equirectangularImage);
+
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
     InitializeMemoryArena(&textureUploadArena,
@@ -1171,8 +1226,10 @@ int main(int argc, char **argv)
         InputBeginFrame(&input);
         glfwPollEvents();
 
+#if 0
         t += dt;
         world.entities[0].position.y = Sin(t);
+#endif
 
         if (WasPressed(input.buttonStates[KEY_SPACE]))
         {

@@ -163,9 +163,6 @@ struct VulkanRenderer
     // tracing result.
     VulkanBuffer textureUploadBuffer;
 
-    VulkanImage cubeMapTestImage;
-    VkImageView cubeMapTestImageView;
-
     VulkanBuffer debugVertexDataBuffer;
 
     VkSampler defaultSampler;
@@ -203,6 +200,11 @@ struct VulkanRenderer
     // Skybox stuff
     VkShaderModule skyboxFragmentShader;
     VkPipeline skyboxPipeline;
+    VulkanImage cubeMapTestImage;
+    VkImageView cubeMapTestImageView;
+    VulkanImage envMapTestImage;
+    VkImageView envMapTestImageView;
+
 
     u32 vertexDataUploadBufferSize;
     u32 indexUploadBufferSize;
