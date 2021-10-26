@@ -24,4 +24,7 @@
 
 #define APPLICATION_MEMORY_LIMIT Megabytes(512)
 
+// Use Moller-Trumbore algorithm (needed for proper UVs but also seems much faster)
+#define USE_MT_RAY_TRIANGLE_INTERSECT 1
+
 //#define MIN_VOLUME

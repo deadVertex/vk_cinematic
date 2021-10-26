@@ -297,7 +297,7 @@ void TestCreateCubeMap()
 }
 #endif
 
-void TestRayIntersectTriangle()
+void TestRayIntersectTriangleHit()
 {
     vec3 rayOrigin = Vec3(0, 0, 1);
     vec3 rayDirection = Vec3(0, 0, -1);
@@ -316,6 +316,46 @@ void TestRayIntersectTriangle()
     TEST_ASSERT_FLOAT_WITHIN_MESSAGE(EPSILON, 1.0f, result.normal.z, "Z axis");
 }
 
+void TestRayIntersectTriangleMiss()
+{
+    vec3 rayOrigin = Vec3(0, 0, 1);
+    vec3 rayDirection = Vec3(0, 0, -1);
+
+    vec3 offset = Vec3(5.0f, 0.0f, 0.0f);
+    vec3 vertices[] = {
+        Vec3(-0.5f, -0.5f, -5.0f) + offset,
+        Vec3(0.5f, -0.5f, -5.0f) + offset,
+        Vec3(0.0f, 0.5f, -5.0f) + offset,
+    };
+
+    RayIntersectTriangleResult result = RayIntersectTriangle(
+        rayOrigin, rayDirection, vertices[0], vertices[1], vertices[2]);
+
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, -1.0f, result.t);
+}
+
+void TestRayIntersectTriangleHitUV()
+{
+    vec3 rayOrigin = Vec3(0, 0, 1);
+    vec3 rayDirection = Vec3(0, 0, -1);
+    vec3 offset = Vec3(0.5f, 0.5f, 0.0f);
+    vec3 vertices[] = {
+        Vec3(-0.5f, -0.5f, -5.0f) + offset,
+        Vec3(0.5f, -0.5f, -5.0f) + offset,
+        Vec3(0.0f, 0.5f, -5.0f) + offset,
+    };
+
+    RayIntersectTriangleResult result = RayIntersectTriangle(
+        rayOrigin, rayDirection, vertices[0], vertices[1], vertices[2]);
+
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, 6.0f, result.t);
+
+    f32 w = 1.0f - result.uv.x - result.uv.y;
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, 1.0f, w);
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, 0.0f, result.uv.x);
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, 0.0f, result.uv.y);
+}
+
 int main()
 {
     RUN_TEST(TestComputeTiles);
@@ -332,7 +372,9 @@ int main()
     RUN_TEST(TestMapEquirectangularToSphereCoordinates);
     RUN_TEST(TestMapSphericalToCartesianCoordinates);
     //RUN_TEST(TestCreateCubeMap);
-    RUN_TEST(TestRayIntersectTriangle);
+    RUN_TEST(TestRayIntersectTriangleHit);
+    RUN_TEST(TestRayIntersectTriangleMiss);
+    RUN_TEST(TestRayIntersectTriangleHitUV);
 
     return UNITY_END();
 }

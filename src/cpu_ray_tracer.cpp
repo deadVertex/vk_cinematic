@@ -147,21 +147,12 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
                 g_Metrics.triangleHitCount++;
                 if (triangleIntersect.t < result.t)
                 {
-                    // HACK: Try compute Barycentric to get UVs
-                    vec3 p = rayOrigin + rayDirection * triangleIntersect.t;
-                    f32 d[3];
-                    d[0] = Distance(p, vertices[0]);
-                    d[1] = Distance(p, vertices[1]);
-                    d[2] = Distance(p, vertices[2]);
-
-                    f32 total = d[0] + d[1] + d[2];
-                    d[0] = d[0] / total;
-                    d[1] = d[1] / total;
-                    d[2] = d[2] / total;
+                    // Compute UVs from barycentric coordinates
+                    f32 w = 1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
                     vec2 uv =
-                        meshData.vertices[indices[0]].textureCoord * d[0] +
-                        meshData.vertices[indices[1]].textureCoord * d[1] +
-                        meshData.vertices[indices[2]].textureCoord * d[2];
+                        meshData.vertices[indices[0]].textureCoord * w + 
+                        meshData.vertices[indices[1]].textureCoord * triangleIntersect.uv.x +
+                        meshData.vertices[indices[2]].textureCoord * triangleIntersect.uv.y;
 
                     result.t = triangleIntersect.t;
                     result.isValid = true;

@@ -3,7 +3,7 @@ List:
  - IBL Ray tracer [X]
  - IBL rasterizer [X]
  - Texture mapping rasterizer [X]
- - Texture mapping rasterizer [ ]
+ - Texture mapping rasterizer [X]
 
 Bugs:
  - Resizing window crashes app
@@ -11,13 +11,13 @@ Bugs:
    threads are still working on the tasks they've pulled from the queue.
  - Comparison view is broken
  - Cube map generation is broken
- - Ray tracer texture sampling is broken
+ - Ray tracer texture sampling is broken [X]
 
 Tech Debt:
  - Duplication of ToSphericalCoordinates and MapToEquirectangular functions in shaders
  - Hard-coded material id to texture mapping in shader
  - Should use barycentric coordinates for RayVsTriangle intersection as we need
-   them to compute the UVs
+   them to compute the UVs [X]
 
 Features:
  - Linear space rendering [x]

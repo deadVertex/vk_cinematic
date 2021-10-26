@@ -1,6 +1,7 @@
 struct RayIntersectTriangleResult
 {
     f32 t;
+    vec2 uv;
     vec3 normal;
 };
 
@@ -84,7 +85,7 @@ inline f32 RayIntersectAabb(
 
 
 // TODO: Do we need to normalize cross products?
-internal RayIntersectTriangleResult RayIntersectTriangle(vec3 rayOrigin,
+internal RayIntersectTriangleResult RayIntersectTriangleSlow(vec3 rayOrigin,
     vec3 rayDirection, vec3 a, vec3 b, vec3 c, f32 tmin = F32_MAX)
 {
     RayIntersectTriangleResult result = {};
@@ -157,4 +158,45 @@ internal RayIntersectTriangleResult RayIntersectTriangle(vec3 rayOrigin,
     }
 
     return result;
+}
+
+internal RayIntersectTriangleResult RayIntersectTriangleMT(vec3 rayOrigin,
+    vec3 rayDirection, vec3 a, vec3 b, vec3 c, f32 tmin = F32_MAX)
+{
+    RayIntersectTriangleResult result = {};
+    result.t = -1.0f;
+
+    vec3 T = rayOrigin - a;
+    vec3 e1 = b - a;
+    vec3 e2 = c - a;
+
+    vec3 p = Cross(rayDirection, e2);
+    vec3 q = Cross(T, e1);
+
+    vec3 m = Vec3(Dot(q, e2), Dot(p, T), Dot(q, rayDirection));
+
+    f32 det = 1.0f / Dot(p, e1);
+
+    f32 t = det * m.x;
+    f32 u = det * m.y;
+    f32 v = det * m.z;
+
+    if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f)
+    {
+        result.t = t;
+        result.normal = Cross(e1, e2);
+        result.uv = Vec2(u, v);
+    }
+
+    return result;
+}
+
+inline RayIntersectTriangleResult RayIntersectTriangle(vec3 rayOrigin,
+    vec3 rayDirection, vec3 a, vec3 b, vec3 c, f32 tmin = F32_MAX)
+{
+#if USE_MT_RAY_TRIANGLE_INTERSECT
+    return RayIntersectTriangleMT(rayOrigin, rayDirection, a, b, c, tmin);
+#else
+    return RayIntersectTriangleSlow(rayOrigin, rayDirection, a, b, c, tmin);
+#endif
 }
