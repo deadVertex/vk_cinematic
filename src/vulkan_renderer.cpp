@@ -963,9 +963,10 @@ internal void VulkanRender(
         {
             u32 meshIndex = world.entities[i].mesh;
             Mesh mesh = renderer->meshes[meshIndex];
+            u32 materialIndex = world.entities[i].material;
 
             // FIXME: Should be defined from the material!
-            if (meshIndex == Mesh_Cube)
+            if (materialIndex == Material_Background)
             {
                 vkCmdBindPipeline(renderer->commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
@@ -984,7 +985,7 @@ internal void VulkanRender(
             MeshPushConstants pushConstants = {};
             pushConstants.modelMatrixIndex = i;
             pushConstants.vertexDataOffset = mesh.vertexDataOffset;
-            pushConstants.materialIndex = world.entities[i].material;
+            pushConstants.materialIndex = materialIndex;
 
             vkCmdPushConstants(renderer->commandBuffer,
                 renderer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,

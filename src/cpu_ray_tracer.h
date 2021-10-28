@@ -9,9 +9,6 @@
 
 #include "asset_loader/asset_loader.h"
 
-#define RAY_TRACER_WIDTH (1024 / 4)
-#define RAY_TRACER_HEIGHT (768 / 4)
-
 #define MAX_AABB_TREE_NODES 0x10000
 
 // TODO: Need to properly clusterize our triangles for this to not completely
@@ -63,6 +60,8 @@ struct RayHitResult
     b32 isValid;
     f32 t;
     vec3 normal;
+    vec3 localPoint;
+    vec3 worldPoint;
     u32 depth;
     u32 materialIndex;
     vec2 uv;
@@ -181,6 +180,8 @@ struct PathVertex
     vec3 incomingDirection;
     vec3 outgoingDirection;
     vec3 surfaceNormal;
+    vec3 surfacePointLocal;
+    vec3 surfacePointWorld;
     vec2 uv;
     u32 materialIndex;
 };

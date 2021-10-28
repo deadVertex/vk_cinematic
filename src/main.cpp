@@ -12,6 +12,8 @@ Bugs:
  - Comparison view is broken
  - Cube map generation is broken
  - Ray tracer texture sampling is broken [X]
+ - Radiance clamping in ray tracer to reduce fire-flies is not implemented correctly
+ - Random small geometry errors since changing Ray Triangle Intersection fuction
 
 Tech Debt:
  - Duplication of ToSphericalCoordinates and MapToEquirectangular functions in shaders
@@ -21,7 +23,7 @@ Tech Debt:
 
 Features:
  - Linear space rendering [x]
- - Texture mapping
+ - Texture mapping [x]
  - Bilinear sampling
  - Image based lighting [x]
  - ACES tone mapping
@@ -1249,7 +1251,7 @@ int main(int argc, char **argv)
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
     AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
         Mesh_Plane, Material_CheckerBoard);
-    //AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Blue);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Background);
 #if 0
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
         Mesh_Bunny, Material_Red);

@@ -13,14 +13,14 @@
 
 #define COMPUTE_SLOW_ENTITY_AABBS 1
 
-#define TILE_WIDTH 64
-#define TILE_HEIGHT 64
+#define TILE_WIDTH 256
+#define TILE_HEIGHT 256
 
 #define MAX_THREADS 8
 
 #define MAX_BOUNCES 3
 
-#define SAMPLES_PER_PIXEL 128
+#define SAMPLES_PER_PIXEL 4
 
 #define APPLICATION_MEMORY_LIMIT Megabytes(512)
 
@@ -28,3 +28,7 @@
 #define USE_MT_RAY_TRIANGLE_INTERSECT 1
 
 //#define MIN_VOLUME
+
+#define RAY_TRACER_WIDTH (1024 / 1)
+#define RAY_TRACER_HEIGHT (768 / 1)
+

@@ -158,6 +158,7 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
                     result.isValid = true;
                     result.normal = triangleIntersect.normal;
                     result.uv = uv;
+                    result.localPoint = rayOrigin + rayDirection * triangleIntersect.t;
                     tmin = triangleIntersect.t;
                     // TODO: hitNormal, hitPoint, material, etc
                 }
@@ -241,6 +242,9 @@ internal RayHitResult TraceRayThroughScene(
             // result.point = TransformPoint(result->point, modelMatrix);
             entityResult.normal =
                 Normalize(TransformVector(entityResult.normal, modelMatrix));
+
+            entityResult.worldPoint =
+                TransformPoint(entityResult.localPoint, modelMatrix);
 
             // FIXME: This is assuming we only support uniform scaling
             entityResult.t *= entity->scale.x;
@@ -426,15 +430,15 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                             dir = -dir;
                         }
 
-                        pathVertices[pathVertexCount].incomingDirection = dir;
-                        pathVertices[pathVertexCount].outgoingDirection =
-                            rayDirection;
-                        pathVertices[pathVertexCount].surfaceNormal =
-                            rayHit.normal;
-                        pathVertices[pathVertexCount].materialIndex =
-                            rayHit.materialIndex;
-                        pathVertices[pathVertexCount].uv = rayHit.uv;
-                        pathVertexCount++;
+                        PathVertex vertex = {};
+                        vertex.incomingDirection = dir;
+                        vertex.outgoingDirection = rayDirection;
+                        vertex.surfaceNormal = rayHit.normal;
+                        vertex.surfacePointLocal = rayHit.localPoint;
+                        vertex.surfacePointWorld = rayHit.worldPoint;
+                        vertex.uv = rayHit.uv;
+                        vertex.materialIndex = rayHit.materialIndex;
+                        pathVertices[pathVertexCount++] = vertex;
 
                         rayDirection = dir;
 
@@ -442,6 +446,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                     else
                     {
                         // Add dummy path vertex for background intersection
+#if 0
                         pathVertices[pathVertexCount].incomingDirection =
                             Vec3(0, 0, 0);
                         pathVertices[pathVertexCount].outgoingDirection =
@@ -451,6 +456,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                         pathVertices[pathVertexCount].materialIndex =
                             Material_Background;
                         pathVertexCount++;
+#endif
 
                         break;
                     }
@@ -471,7 +477,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                     if (materialIndex == Material_Background)
                     {
                         vec2 sphereCoords =
-                            ToSphericalCoordinates(vertex.outgoingDirection);
+                            ToSphericalCoordinates(vertex.surfacePointLocal);
                         vec2 uv = MapToEquirectangular(sphereCoords);
                         uv.y = 1.0f - uv.y; // Flip Y axis as usual
                         vec4 color = SampleImage(rayTracer->image, uv);
