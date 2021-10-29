@@ -356,6 +356,27 @@ void TestRayIntersectTriangleHitUV()
     TEST_ASSERT_FLOAT_WITHIN(EPSILON, 0.0f, result.uv.y);
 }
 
+/* Test to reproduce issue caused by not checking that all 3 barycentric
+ * coordinates are within the 0-1 range when performing the Moller-Trumbore
+ * triangle intersection algorithm.
+ */
+void TestRayIntersectTriangleMTBarycentricCoordsIssue()
+{
+    vec3 rayOrigin = Vec3(0.5, 0.5, 1);
+    vec3 rayDirection = Vec3(0, 0, -1);
+
+    vec3 vertices[] = {
+        Vec3(-0.5f, -0.5f, -5.0f),
+        Vec3(0.5f, -0.5f, -5.0f),
+        Vec3(0.0f, 0.5f, -5.0f),
+    };
+
+    RayIntersectTriangleResult result = RayIntersectTriangleMT(
+        rayOrigin, rayDirection, vertices[0], vertices[1], vertices[2]);
+
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, -1.0f, result.t);
+}
+
 int main()
 {
     RUN_TEST(TestComputeTiles);
@@ -375,6 +396,7 @@ int main()
     RUN_TEST(TestRayIntersectTriangleHit);
     RUN_TEST(TestRayIntersectTriangleMiss);
     RUN_TEST(TestRayIntersectTriangleHitUV);
+    RUN_TEST(TestRayIntersectTriangleMTBarycentricCoordsIssue);
 
     return UNITY_END();
 }

@@ -35,6 +35,7 @@ enum
     Mesh_Monkey,
     Mesh_Plane,
     Mesh_Cube,
+    Mesh_Triangle,
     MAX_MESHES,
 };
 

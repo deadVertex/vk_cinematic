@@ -180,8 +180,10 @@ internal RayIntersectTriangleResult RayIntersectTriangleMT(vec3 rayOrigin,
     f32 t = det * m.x;
     f32 u = det * m.y;
     f32 v = det * m.z;
+    f32 w = 1.0f - u - v;
 
-    if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f)
+    if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f && w >= 0.0f &&
+        w <= 1.0f)
     {
         result.t = t;
         result.normal = Cross(e1, e2);

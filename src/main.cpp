@@ -13,7 +13,7 @@ Bugs:
  - Cube map generation is broken
  - Ray tracer texture sampling is broken [X]
  - Radiance clamping in ray tracer to reduce fire-flies is not implemented correctly
- - Random small geometry errors since changing Ray Triangle Intersection fuction
+ - Random small geometry errors since changing Ray Triangle Intersection fuction [x]
 
 Tech Debt:
  - Duplication of ToSphericalCoordinates and MapToEquirectangular functions in shaders
@@ -630,6 +630,28 @@ internal MeshData CreatePlaneMesh(MemoryArena *arena)
     return meshData;
 }
 
+internal MeshData CreateTriangleMeshData(MemoryArena *arena)
+{
+    VertexPNT triangleVertices[3] = {
+        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(1, 0)},
+        {Vec3(0.0, 0.5, 0), Vec3(0, 0, 1), Vec2(1, 1)}
+    };
+
+    u32 triangleIndices[3] = {0, 1, 2};
+
+    MeshData meshData = {};
+    meshData.vertices = (VertexPNT *)AllocateBytes(arena, sizeof(triangleVertices));
+    meshData.vertexCount = 3;
+    CopyMemory(meshData.vertices, triangleVertices, sizeof(triangleVertices));
+
+    meshData.indices = (u32 *)AllocateBytes(arena, sizeof(triangleIndices));
+    meshData.indexCount = 3;
+    CopyMemory(meshData.indices, triangleIndices, sizeof(triangleIndices));
+
+    return meshData;
+}
+
 internal MeshData CreateCubeMesh(MemoryArena *arena)
 {
     // clang-format off
@@ -833,6 +855,7 @@ internal void LoadMeshData(
         LoadMesh("monkey.obj", meshDataArena, assetDir);
     scene->meshes[Mesh_Plane] = CreatePlaneMesh(meshDataArena);
     scene->meshes[Mesh_Cube] = CreateCubeMesh(meshDataArena);
+    scene->meshes[Mesh_Triangle] = CreateTriangleMeshData(meshDataArena);
 
     LogMessage("Meshes data memory usage: %uk / %uk", meshDataArena->size / 1024,
         meshDataArena->capacity / 1024);
@@ -841,14 +864,11 @@ internal void LoadMeshData(
 internal void UploadMeshDataToGpu(
     VulkanRenderer *renderer, SceneMeshData *sceneMeshData)
 {
-    CopyMeshDataToUploadBuffer(
-        renderer, sceneMeshData->meshes[Mesh_Bunny], Mesh_Bunny);
-    CopyMeshDataToUploadBuffer(
-        renderer, sceneMeshData->meshes[Mesh_Monkey], Mesh_Monkey);
-    CopyMeshDataToUploadBuffer(
-        renderer, sceneMeshData->meshes[Mesh_Plane], Mesh_Plane);
-    CopyMeshDataToUploadBuffer(
-        renderer, sceneMeshData->meshes[Mesh_Cube], Mesh_Cube);
+    for (u32 meshId = 0; meshId < MAX_MESHES; ++meshId)
+    {
+        CopyMeshDataToUploadBuffer(
+            renderer, sceneMeshData->meshes[meshId], meshId);
+    }
 
     VulkanCopyMeshDataToGpu(renderer);
 }
@@ -857,14 +877,11 @@ internal void UploadMeshDataToCpuRayTracer(RayTracer *rayTracer,
     SceneMeshData *sceneMeshData, MemoryArena *memoryArena,
     MemoryArena *tempArena)
 {
-    rayTracer->meshes[Mesh_Bunny] =
-        CreateMesh(sceneMeshData->meshes[Mesh_Bunny], memoryArena, tempArena);
-    rayTracer->meshes[Mesh_Monkey] =
-        CreateMesh(sceneMeshData->meshes[Mesh_Monkey], memoryArena, tempArena);
-    rayTracer->meshes[Mesh_Plane] =
-        CreateMesh(sceneMeshData->meshes[Mesh_Plane], memoryArena, tempArena);
-    rayTracer->meshes[Mesh_Cube] =
-        CreateMesh(sceneMeshData->meshes[Mesh_Cube], memoryArena, tempArena);
+    for (u32 meshId = 0; meshId < MAX_MESHES; ++meshId)
+    {
+        rayTracer->meshes[meshId] =
+            CreateMesh(sceneMeshData->meshes[meshId], memoryArena, tempArena);
+    }
 }
 
 internal void UploadMaterialDataToGpu(
@@ -1249,6 +1266,7 @@ int main(int argc, char **argv)
     world.max = MAX_ENTITIES;
 
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
+    AddEntity(&world, Vec3(2, 2, 0), Quat(), Vec3(2), Mesh_Triangle, Material_Blue);
     AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
         Mesh_Plane, Material_CheckerBoard);
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Background);
