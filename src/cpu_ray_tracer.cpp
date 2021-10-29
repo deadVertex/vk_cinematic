@@ -482,10 +482,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                         uv.y = 1.0f - uv.y; // Flip Y axis as usual
                         vec4 color = SampleImage(rayTracer->image, uv);
 
-                        // FIXME: This is not the right place to to radiance clamping!!!!
-                        // FIXME: Don't clamp emission to avoid fire-flies
-                        emission = Clamp(
-                            Vec3(color.x, color.y, color.z), Vec3(0), Vec3(10));
+                        emission = Vec3(color.x, color.y, color.z);
                     }
                     else if (materialIndex == Material_CheckerBoard)
                     {
@@ -503,6 +500,10 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                         emission +
                         Hadamard(baseColor, brdf * incomingRadiance) * cosine;
                 }
+
+                // Perform radiance clamping to reduce fire-flies
+                outgoingRadiance =
+                    Clamp(outgoingRadiance, Vec3(0), Vec3(RADIANCE_CLAMP));
 
                 radiance += outgoingRadiance * (1.0f / (f32)SAMPLES_PER_PIXEL);
             }

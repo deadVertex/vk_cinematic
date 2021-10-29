@@ -12,7 +12,7 @@ Bugs:
  - Comparison view is broken
  - Cube map generation is broken
  - Ray tracer texture sampling is broken [X]
- - Radiance clamping in ray tracer to reduce fire-flies is not implemented correctly
+ - Radiance clamping in ray tracer to reduce fire-flies is not implemented correctly [x]
  - Random small geometry errors since changing Ray Triangle Intersection fuction [x]
 
 Tech Debt:

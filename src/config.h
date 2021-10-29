@@ -20,7 +20,7 @@
 
 #define MAX_BOUNCES 3
 
-#define SAMPLES_PER_PIXEL 4
+#define SAMPLES_PER_PIXEL 32
 
 #define APPLICATION_MEMORY_LIMIT Megabytes(512)
 
@@ -32,3 +32,6 @@
 #define RAY_TRACER_WIDTH (1024 / 1)
 #define RAY_TRACER_HEIGHT (768 / 1)
 
+// Maximum radiance value to clamp to before tone mapping (this is used to
+// reduce fireflies)
+#define RADIANCE_CLAMP 10
