@@ -733,10 +733,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
 
-        //VkDescriptorImageInfo cubeMapInfo = {};
-        //cubeMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        //cubeMapInfo.imageView = renderer->cubeMapTestImageView;
-
         VkWriteDescriptorSet descriptorWrites[5] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];

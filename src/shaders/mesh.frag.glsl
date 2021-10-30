@@ -15,7 +15,7 @@ layout(binding = 5) readonly buffer Materials
 };
 
 layout(binding = 2) uniform sampler defaultSampler;
-//layout(binding = 6) uniform textureCube cubeMap;
+layout(binding = 6) uniform textureCube cubeMap;
 layout(binding = 7) uniform texture2D irradianceMap;
 layout(binding = 8) uniform texture2D checkerBoardTexture;
 

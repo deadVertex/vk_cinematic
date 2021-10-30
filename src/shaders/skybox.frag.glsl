@@ -14,8 +14,7 @@ layout(binding = 5) readonly buffer Materials
 };
 
 layout(binding = 2) uniform sampler defaultSampler;
-//layout(binding = 6) uniform textureCube cubeMap;
-layout(binding = 6) uniform texture2D envMap;
+layout(binding = 6) uniform textureCube cubeMap;
 layout(binding = 7) uniform texture2D irradianceMap;
 
 layout(location = 0) out vec4 outputColor;
@@ -54,13 +53,13 @@ vec2 MapToEquirectangular(vec2 sphereCoords)
 
 void main()
 {
-//    vec4 textureSample =
-//        texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
+    vec4 textureSample =
+        texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
 
-    vec2 sphereCoords =
-        ToSphericalCoordinates(fragLocalPosition);
-    vec2 uv = MapToEquirectangular(sphereCoords);
-    uv.y = 1.0f - uv.y; // Flip Y axis as usual
-    vec4 textureSample = texture(sampler2D(envMap, defaultSampler), uv);
+    //vec2 sphereCoords =
+        //ToSphericalCoordinates(fragLocalPosition);
+    //vec2 uv = MapToEquirectangular(sphereCoords);
+    //uv.y = 1.0f - uv.y; // Flip Y axis as usual
+    //vec4 textureSample = texture(sampler2D(envMap, defaultSampler), uv);
     outputColor = vec4(textureSample.rgb, 1);
 }

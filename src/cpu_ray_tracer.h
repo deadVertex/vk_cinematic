@@ -203,3 +203,12 @@ inline vec4 SampleImage(HdrImage image, vec2 v)
     return result;
 }
 
+// NOTE: dir must be normalized
+inline vec4 SampleEquirectangularImage(HdrImage image, vec3 sampleDir)
+{
+    vec2 sphereCoords = ToSphericalCoordinates(sampleDir);
+    vec2 uv = MapToEquirectangular(sphereCoords);
+    //uv.y = 1.0f - uv.y; // Flip Y axis as usual
+    vec4 sample = SampleImage(image, uv);
+    return sample;
+}
