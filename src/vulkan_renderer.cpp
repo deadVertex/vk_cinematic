@@ -694,17 +694,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             renderer->device, renderer->commandPool, renderer->graphicsQueue);
     }
 
-    // Create cubemap test image
-    {
-        u32 width = 256;
-        u32 height = 256;
-        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-        renderer->images[Image_CubeMapTest] = VulkanCreateImage(renderer->device,
-            renderer->physicalDevice, width, height, format,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
-    }
-
     // Update descriptor sets
     Assert(renderer->swapchain.imageCount == 2);
     for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)

@@ -141,17 +141,21 @@ internal HdrImage CreateCheckerBoardImage(MemoryArena *tempArena)
 }
 
 internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
-    HdrImage equirectangularImage)
+    HdrImage equirectangularImage, u32 imageId, u32 dstBinding, u32 width,
+    u32 height)
 {
+    // Create image
+    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+    renderer->images[imageId] = VulkanCreateImage(renderer->device,
+        renderer->physicalDevice, width, height, format,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
+
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
     InitializeMemoryArena(&textureUploadArena,
         renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
 
-    // NOTE: We don't actually use any of this since its broken
-    // FIXME: Hardcoded in vulkan_renderer.cpp
-    u32 width = 256;
-    u32 height = 256;
     u32 bytesPerPixel = 4; // Using VK_FORMAT_R8G8B8A8_UNORM
     u32 layerCount = 6;
     void *pixels = AllocateBytes(
@@ -202,16 +206,16 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     }
 
     // Submit cube map data for upload to GPU
-    VulkanTransitionImageLayout(renderer->images[Image_CubeMapTest].handle,
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue, true);
 
     VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
         renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
-        renderer->images[Image_CubeMapTest].handle, width, height, 0, true);
+        renderer->images[imageId].handle, width, height, 0, true);
 
-    VulkanTransitionImageLayout(renderer->images[Image_CubeMapTest].handle,
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
         renderer->commandPool, renderer->graphicsQueue, true);
@@ -220,12 +224,12 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     {
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = renderer->images[Image_CubeMapTest].view;
+        imageInfo.imageView = renderer->images[imageId].view;
 
         VkWriteDescriptorSet descriptorWrites[1] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[0].dstBinding = 6;
+        descriptorWrites[0].dstBinding = dstBinding;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pImageInfo = &imageInfo;

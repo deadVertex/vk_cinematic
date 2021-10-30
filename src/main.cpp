@@ -2,6 +2,7 @@
 List:
  - Tone mapping ray tracer output twice! [x]
  - Fix Comparison view [x]
+ - Fix Cube map resolution for skybox is too low [x]
  - CPU bilinear sampling [ ]
 
 Bugs:
@@ -9,7 +10,6 @@ Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - IBL looks too dim, not sure what is causing it
- - Cube map resolution for skybox is too low
 
 Tech Debt:
  - Hard-coded material id to texture mapping in shader
@@ -895,7 +895,8 @@ int main(int argc, char **argv)
     //UploadHdrImageToVulkan(&renderer, irradianceImage, Image_Irradiance, 7);
 
     // Create and upload test cube map
-    UploadTestCubeMapToGPU(&renderer, rayTracer.image);
+    UploadTestCubeMapToGPU(
+        &renderer, rayTracer.image, Image_CubeMapTest, 6, 1024, 1024);
 
     // Create and upload irradiance cube map
     UploadIrradianceCubeMapToGPU(
