@@ -2,7 +2,8 @@
 List:
  - Cube map irradiance map [x]
  - Procedural sphere geometry [x]
- - Rasterizer bilinear sampling [ ]
+ - GPU bilinear sampling [x]
+ - CPU bilinear sampling [ ]
 
 Bugs:
  - Resizing window crashes app
