@@ -1,8 +1,6 @@
 /* TODO:
 List:
- - Cube map irradiance map [x]
- - Procedural sphere geometry [x]
- - GPU bilinear sampling [x]
+ - Tone mapping ray tracer output twice! [x]
  - CPU bilinear sampling [ ]
 
 Bugs:
@@ -10,7 +8,6 @@ Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - Comparison view is broken
- - Tone mapping ray tracer output twice!
  - IBL looks too dim, not sure what is causing it
 
 Tech Debt:
@@ -717,7 +714,7 @@ internal void AddRayTracingWorkQueue(
 
     // TODO: Should have a nicer method for clearing the image
     ClearToZero(threadData->imageBuffer,
-        sizeof(u32) * threadData->width * threadData->height);
+        sizeof(vec4) * threadData->width * threadData->height);
 
     workQueue->tail = tileCount;
     workQueue->head = 0; // ooof
@@ -981,7 +978,7 @@ int main(int argc, char **argv)
     ThreadData threadData = {};
     threadData.width = RAY_TRACER_WIDTH;
     threadData.height = RAY_TRACER_HEIGHT;
-    threadData.imageBuffer = (u32 *)renderer.imageUploadBuffer.data;
+    threadData.imageBuffer = (vec4 *)renderer.imageUploadBuffer.data;
     threadData.rayTracer = &rayTracer;
     threadData.world = &world;
 

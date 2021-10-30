@@ -374,7 +374,7 @@ inline vec3 PerformToneMapping(vec3 input)
     return retColor;
 }
 
-internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
+internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
     RayTracer *rayTracer, World *world, Tile tile, RandomNumberGenerator *rng)
 {
     PROFILE_FUNCTION_SCOPE();
@@ -508,6 +508,7 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
                 radiance += outgoingRadiance * (1.0f / (f32)SAMPLES_PER_PIXEL);
             }
 
+#if 0
             // Tone map value with S-curve (need to calculate avg luminance for the whole image!)
             // Convert from linear space to display space (assuming sRGB gamma for now)
             vec3 toneMappedValue = PerformToneMapping(radiance);
@@ -516,8 +517,9 @@ internal void DoRayTracing(u32 width, u32 height, u32 *pixels,
             outputColor *= 255.0f;
             u32 bgra = (0xFF000000 | ((u32)outputColor.z) << 16 |
                     ((u32)outputColor.y) << 8) | (u32)outputColor.x;
+#endif
 
-            pixels[y * width + x] = bgra;
+            pixels[y * width + x] = Vec4(radiance, 1);
         }
     }
 }
