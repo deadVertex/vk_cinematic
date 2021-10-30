@@ -36,6 +36,7 @@ enum
     Mesh_Plane,
     Mesh_Cube,
     Mesh_Triangle,
+    Mesh_Sphere,
     MAX_MESHES,
 };
 
@@ -45,5 +46,6 @@ enum
     Material_Blue,
     Material_Background,
     Material_CheckerBoard,
+    Material_White,
     MAX_MATERIALS,
 };

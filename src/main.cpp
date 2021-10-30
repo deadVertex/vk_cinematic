@@ -1,6 +1,8 @@
 /* TODO:
 List:
  - Cube map irradiance map [x]
+ - Procedural sphere geometry [x]
+ - Rasterizer bilinear sampling [ ]
 
 Bugs:
  - Resizing window crashes app
@@ -8,9 +10,11 @@ Bugs:
    threads are still working on the tasks they've pulled from the queue.
  - Comparison view is broken
  - Tone mapping ray tracer output twice!
+ - IBL looks too dim, not sure what is causing it
 
 Tech Debt:
  - Hard-coded material id to texture mapping in shader
+ - Code duplication for creating and uploading images/cube maps to GPU
 
 Features:
  - Linear space rendering [x]
@@ -42,6 +46,7 @@ Optimizations - CPU ray tracer
 - SIMD
 - Multi-core [X]
 - Sample cube maps in shaders rather than equirectangular images [x]
+- Startup time is too long! (building AABB trees for meshes most likely)
 
 Analysis
 - AABB trees
@@ -601,124 +606,6 @@ internal void CopyMeshDataToUploadBuffer(
     renderer->meshes[mesh].indexCount = meshData.indexCount;
 }
 
-internal MeshData CreatePlaneMesh(MemoryArena *arena)
-{
-    VertexPNT planeVertices[4] = {
-        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
-        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(1, 0)},
-        {Vec3(0.5, 0.5, 0), Vec3(0, 0, 1), Vec2(1, 1)},
-        {Vec3(-0.5, 0.5, 0), Vec3(0, 0, 1), Vec2(0, 1)}};
-
-    u32 planeIndices[6] = {0, 1, 2, 2, 3, 0};
-
-    MeshData meshData = {};
-    meshData.vertices = (VertexPNT *)AllocateBytes(arena, sizeof(planeVertices));
-    meshData.vertexCount = 4;
-    CopyMemory(meshData.vertices, planeVertices, sizeof(planeVertices));
-
-    meshData.indices = (u32 *)AllocateBytes(arena, sizeof(planeIndices));
-    meshData.indexCount = 6;
-    CopyMemory(meshData.indices, planeIndices, sizeof(planeIndices));
-
-    return meshData;
-}
-
-internal MeshData CreateTriangleMeshData(MemoryArena *arena)
-{
-    VertexPNT triangleVertices[3] = {
-        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
-        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(1, 0)},
-        {Vec3(0.0, 0.5, 0), Vec3(0, 0, 1), Vec2(1, 1)}
-    };
-
-    u32 triangleIndices[3] = {0, 1, 2};
-
-    MeshData meshData = {};
-    meshData.vertices = (VertexPNT *)AllocateBytes(arena, sizeof(triangleVertices));
-    meshData.vertexCount = 3;
-    CopyMemory(meshData.vertices, triangleVertices, sizeof(triangleVertices));
-
-    meshData.indices = (u32 *)AllocateBytes(arena, sizeof(triangleIndices));
-    meshData.indexCount = 3;
-    CopyMemory(meshData.indices, triangleIndices, sizeof(triangleIndices));
-
-    return meshData;
-}
-
-internal MeshData CreateCubeMesh(MemoryArena *arena)
-{
-    // clang-format off
-    VertexPNT cubeVertices[] = {
-        // Top
-        {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-
-        // Bottom
-        {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
-
-        // Back
-        {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
-        {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
-        {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
-
-        // Front
-        {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-        {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
-        {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
-
-        // Left
-        {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
-        {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-        {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
-
-        // Right
-        {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
-        {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
-    };
-
-    u32 cubeIndices[] = {
-        2, 1, 0,
-        0, 3, 2,
-
-        4, 5, 6,
-        6, 7, 4,
-
-        8, 9, 10,
-        10, 11, 8,
-
-        14, 13, 12,
-        12, 15, 14,
-
-        16, 17, 18,
-        18, 19, 16,
-
-        22, 21, 20,
-        20, 23, 22
-    };
-    // clang-format on
-
-    MeshData meshData = {};
-    meshData.vertices = (VertexPNT *)AllocateBytes(arena, sizeof(cubeVertices));
-    meshData.vertexCount = ArrayCount(cubeVertices);
-    CopyMemory(meshData.vertices, cubeVertices, sizeof(cubeVertices));
-
-    meshData.indices = (u32 *)AllocateBytes(arena, sizeof(cubeIndices));
-    meshData.indexCount = ArrayCount(cubeIndices);
-    CopyMemory(meshData.indices, cubeIndices, sizeof(cubeIndices));
-
-    return meshData;
-}
-
 internal void WorkerThread(WorkQueue *queue)
 {
     while (1)
@@ -849,6 +736,7 @@ internal void LoadMeshData(
     scene->meshes[Mesh_Plane] = CreatePlaneMesh(meshDataArena);
     scene->meshes[Mesh_Cube] = CreateCubeMesh(meshDataArena);
     scene->meshes[Mesh_Triangle] = CreateTriangleMeshData(meshDataArena);
+    scene->meshes[Mesh_Sphere] = CreateIcosahedronMesh(3, meshDataArena);
 
     LogMessage("Meshes data memory usage: %uk / %uk", meshDataArena->size / 1024,
         meshDataArena->capacity / 1024);
@@ -1020,6 +908,7 @@ int main(int argc, char **argv)
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
     materialData[Material_Background].emission = Vec3(1, 0.95, 0.8);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
+    materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
@@ -1034,6 +923,7 @@ int main(int argc, char **argv)
 
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
     AddEntity(&world, Vec3(2, 2, 0), Quat(), Vec3(2), Mesh_Triangle, Material_Blue);
+    AddEntity(&world, Vec3(0, 4, 0), Quat(), Vec3(1), Mesh_Sphere, Material_White);
     AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
         Mesh_Plane, Material_CheckerBoard);
     AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Background);
