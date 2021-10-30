@@ -9,6 +9,7 @@ Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - IBL looks too dim, not sure what is causing it
+ - Cube map resolution for skybox is too low
 
 Tech Debt:
  - Hard-coded material id to texture mapping in shader

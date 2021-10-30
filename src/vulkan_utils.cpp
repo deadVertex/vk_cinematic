@@ -370,17 +370,21 @@ VulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
                     void *pUserData)
 {
-    // LogMessage is truncating the error message
-    //LogMessage("%s", pCallbackData->pMessage);
+    if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+    {
+        // LogMessage is truncating the error message
+        // LogMessage("%s", pCallbackData->pMessage);
 #ifdef PLATFORM_WINDOWS
-    OutputDebugString(pCallbackData->pMessage);
-    OutputDebugString("\n");
+        OutputDebugString(pCallbackData->pMessage);
+        OutputDebugString("\n");
 #endif
-    puts(pCallbackData->pMessage);
+        puts(pCallbackData->pMessage);
 
-    //Assert(!(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT));
-    //Assert(!(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT));
-
+        // Assert(!(messageSeverity &
+        // VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT));
+        // Assert(!(messageSeverity &
+        // VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT));
+    }
     return VK_FALSE;
 }
 
