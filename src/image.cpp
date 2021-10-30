@@ -141,7 +141,7 @@ internal HdrImage CreateCheckerBoardImage(MemoryArena *tempArena)
 }
 
 internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
-    HdrImage equirectangularImage, MemoryArena *tempArena)
+    HdrImage equirectangularImage)
 {
     // Allocate cube map from upload buffer
     MemoryArena textureUploadArena = {};
@@ -161,50 +161,8 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
     {
         // Map layer index to basis vectors for cube map face
-        vec3 forward = {};
-        vec3 up = {};
-        vec3 right = {};
-
-        // Mapping doesn't make sense, it seems like the right vector is always
-        // flipped but visually it matches the ray tracer which is directly
-        // sampling the equirectangular image
-        // TODO: Does this match the cross product?
-        switch (layerIndex)
-        {
-        case 0: // X+
-            forward = Vec3(1, 0, 0);
-            up = Vec3(0, 1, 0);
-            right = Vec3(0, 0, -1);
-            break;
-        case 1: // X-
-            forward = Vec3(-1, 0, 0);
-            up = Vec3(0, 1, 0);
-            right = Vec3(0, 0, 1);
-            break;
-        case 2: // Y+
-            forward = Vec3(0, -1, 0);
-            up = Vec3(0, 0, 1);
-            right = Vec3(1, 0, 0);
-            break;
-        case 3: // Y-
-            forward = Vec3(0, 1, 0);
-            up = Vec3(0, 0, -1);
-            right = Vec3(1, 0, 0);
-            break;
-        case 4: // Z+
-            forward = Vec3(0, 0, 1);
-            up = Vec3(0, 1, 0);
-            right = Vec3(1, 0, 0);
-            break;
-        case 5: // Z-
-            forward = Vec3(0, 0, -1);
-            up = Vec3(0, 1, 0);
-            right = Vec3(-1, 0, 0);
-            break;
-        default:
-            InvalidCodePath();
-            break;
-        }
+        BasisVectors basis =
+            MapCubeMapLayerIndexToBasisVectors(layerIndex);
 
         u32 layerOffset = layerIndex * width * height * bytesPerPixel;
         for (u32 y = 0; y < height; ++y)
@@ -219,7 +177,7 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
                 fx = fx * 2.0f - 1.0f;
                 fy = fy * 2.0f - 1.0f;
 
-                vec3 dir = forward + right * fx + up * fy;
+                vec3 dir = basis.forward + basis.right * fx + basis.up * fy;
                 dir = Normalize(dir);
 
                 // Sample equirectangular texture using direction vector
@@ -276,3 +234,58 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
     }
 }
 
+internal void UploadIrradianceCubeMapToGPU(VulkanRenderer *renderer,
+    HdrImage equirectangularImage, u32 imageId, u32 dstBinding)
+{
+    Assert(imageId < MAX_IMAGES);
+
+    u32 width = 64;
+    u32 height = 64;
+
+    // Create image
+    VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    renderer->images[imageId] = VulkanCreateImage(renderer->device,
+        renderer->physicalDevice, width, height, format,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
+
+    // Allocate cube map from upload buffer
+    MemoryArena textureUploadArena = {};
+    InitializeMemoryArena(&textureUploadArena,
+        renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
+
+    HdrCubeMap irradianceCubeMap = CreateIrradianceCubeMap(
+        equirectangularImage, &textureUploadArena, width, height, 64);
+
+    // Submit cube map data for upload to GPU
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue, true);
+
+    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
+        renderer->images[imageId].handle, width, height, 0, true);
+
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue, true);
+
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorImageInfo imageInfo = {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = renderer->images[imageId].view;
+
+        VkWriteDescriptorSet descriptorWrites[1] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[0].dstBinding = dstBinding;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pImageInfo = &imageInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
+}

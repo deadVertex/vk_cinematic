@@ -23,6 +23,7 @@ enum
     Image_EnvMapTest,
     Image_Irradiance,
     Image_CheckerBoard,
+    Image_IrradianceCubeMap,
     MAX_IMAGES,
 };
 

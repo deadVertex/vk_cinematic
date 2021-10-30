@@ -1,16 +1,15 @@
 /* TODO:
 List:
- - Cube map irradiance map
+ - Cube map irradiance map [x]
 
 Bugs:
  - Resizing window crashes app
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - Comparison view is broken
- - Cube map generation is broken
+ - Tone mapping ray tracer output twice!
 
 Tech Debt:
- - Duplication of ToSphericalCoordinates and MapToEquirectangular functions in shaders
  - Hard-coded material id to texture mapping in shader
 
 Features:
@@ -42,7 +41,7 @@ Optimizations - CPU ray tracer
 - Multiple triangles per tree leaf node
 - SIMD
 - Multi-core [X]
-- Sample cube maps in shaders rather than equirectangular images
+- Sample cube maps in shaders rather than equirectangular images [x]
 
 Analysis
 - AABB trees
@@ -1006,10 +1005,14 @@ int main(int argc, char **argv)
     // Create and upload irradiance equirectangular map
     HdrImage irradianceImage =
         CreateDiffuseIrradianceTexture(rayTracer.image, &tempArena);
-    UploadHdrImageToVulkan(&renderer, irradianceImage, Image_Irradiance, 7);
+    //UploadHdrImageToVulkan(&renderer, irradianceImage, Image_Irradiance, 7);
 
     // Create and upload test cube map
-    UploadTestCubeMapToGPU(&renderer, rayTracer.image, &tempArena);
+    UploadTestCubeMapToGPU(&renderer, rayTracer.image);
+
+    // Create and upload irradiance cube map
+    UploadIrradianceCubeMapToGPU(
+        &renderer, rayTracer.image, Image_IrradianceCubeMap, 7);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
