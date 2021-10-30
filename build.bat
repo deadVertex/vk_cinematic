@@ -31,7 +31,6 @@ if %BUILD_SHADERS%==1 (
     glslangvalidator ..\src\shaders\mesh.frag.glsl -V -o shaders\mesh.frag.spv
     glslangvalidator ..\src\shaders\skybox.frag.glsl -V -o shaders\skybox.frag.spv
     glslangvalidator ..\src\shaders\fullscreen_quad.vert.glsl -V -o shaders\fullscreen_quad.vert.spv
-    glslangvalidator ..\src\shaders\fullscreen_quad.frag.glsl -V -o shaders\fullscreen_quad.frag.spv
     glslangvalidator ..\src\shaders\debug_draw.vert.glsl -V -o shaders\debug_draw.vert.spv
     glslangvalidator ..\src\shaders\debug_draw.frag.glsl -V -o shaders\debug_draw.frag.spv
     glslangvalidator ..\src\shaders\post_processing.frag.glsl -V -o shaders\post_processing.frag.spv

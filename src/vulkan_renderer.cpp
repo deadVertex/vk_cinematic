@@ -270,7 +270,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[9] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[10] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -309,6 +309,10 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[8].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     layoutBindings[8].descriptorCount = 1;
     layoutBindings[8].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[9].binding = 9;
+    layoutBindings[9].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layoutBindings[9].descriptorCount = 1;
+    layoutBindings[9].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -519,7 +523,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
     // Load fullscreen quad shaders
     renderer->fullscreenQuadVertexShader = LoadShader(renderer->device, "fullscreen_quad.vert.spv");
-    renderer->fullscreenQuadFragmentShader = LoadShader(renderer->device, "fullscreen_quad.frag.spv");
 
     // Debug draw shaders
     renderer->debugDrawVertexShader = LoadShader(renderer->device, "debug_draw.vert.spv");
@@ -579,25 +582,19 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->pipelineLayout, renderer->testVertexShader,
         renderer->testFragmentShader, &pipelineDefinition);
 
-    // I think I can reuse the descriptor set and pipeline layout for the full
-    // screen quad rendering
-    VulkanPipelineDefinition fullscreenQuadPipeline = {};
-    fullscreenQuadPipeline.vertexStride = sizeof(VertexPNT);
-    fullscreenQuadPipeline.primitive = Primitive_Triangle;
-    fullscreenQuadPipeline.polygonMode = PolygonMode_Fill;
-    fullscreenQuadPipeline.cullMode = CullMode_None;
-    fullscreenQuadPipeline.depthTestEnabled = false;
-    fullscreenQuadPipeline.depthWriteEnabled = false;
-
-    renderer->fullscreenQuadPipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
-        renderer->pipelineLayout, renderer->fullscreenQuadVertexShader,
-        renderer->fullscreenQuadFragmentShader, &fullscreenQuadPipeline);
+    VulkanPipelineDefinition postProcessingPipelineDefinition = {};
+    postProcessingPipelineDefinition.vertexStride = sizeof(VertexPNT);
+    postProcessingPipelineDefinition.primitive = Primitive_Triangle;
+    postProcessingPipelineDefinition.polygonMode = PolygonMode_Fill;
+    postProcessingPipelineDefinition.cullMode = CullMode_None;
+    postProcessingPipelineDefinition.depthTestEnabled = false;
+    postProcessingPipelineDefinition.depthWriteEnabled = false;
 
     renderer->postProcessPipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->renderPass,
-        renderer->pipelineLayout, renderer->fullscreenQuadVertexShader,
-        renderer->postProcessingFragmentShader, &fullscreenQuadPipeline);
+        renderer->pipelineCache, renderer->renderPass, renderer->pipelineLayout,
+        renderer->fullscreenQuadVertexShader,
+        renderer->postProcessingFragmentShader,
+        &postProcessingPipelineDefinition);
 
     // Create debug draw pipeline
     VulkanPipelineDefinition debugDrawPipelineDefinition = {};
@@ -790,11 +787,15 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         materialBufferInfo.buffer = renderer->materialBuffer.handle;
         materialBufferInfo.range = VK_WHOLE_SIZE;
 
-        VkDescriptorImageInfo imageInfo = {};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
+        VkDescriptorImageInfo vulkanImageInfo = {};
+        vulkanImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vulkanImageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
 
-        VkWriteDescriptorSet descriptorWrites[5] = {};
+        VkDescriptorImageInfo rayTracerImageInfo = {};
+        rayTracerImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        rayTracerImageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
+
+        VkWriteDescriptorSet descriptorWrites[6] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -813,7 +814,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[2].dstBinding = 3;
         descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pImageInfo = &imageInfo;
+        descriptorWrites[2].pImageInfo = &vulkanImageInfo;
         descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[3].dstSet = renderer->postProcessDescriptorSets[i];
         descriptorWrites[3].dstBinding = 4;
@@ -827,6 +828,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pBufferInfo = &materialBufferInfo;
         // Binding 6 is for the test cube map
+        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[5].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[5].dstBinding = 9;
+        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[5].descriptorCount = 1;
+        descriptorWrites[5].pImageInfo = &rayTracerImageInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
@@ -906,7 +913,6 @@ internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World world)
     }
 }
 
-
 internal void VulkanRender(
     VulkanRenderer *renderer, u32 outputFlags, World world)
 {
@@ -947,54 +953,54 @@ internal void VulkanRender(
     vkCmdSetViewport(renderer->commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(renderer->commandBuffer, 0, 1, &scissor);
 
-    if (outputFlags & Output_VulkanRenderer)
+    // Perform scene render pass
+    // Bind pipeline
+    vkCmdBindDescriptorSets(renderer->commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
+        &renderer->descriptorSets[imageIndex], 0, NULL);
+
+    // Draw mesh
+    for (u32 i = 0; i < world.count; ++i)
     {
-        // Bind pipeline
-        vkCmdBindDescriptorSets(renderer->commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
-            &renderer->descriptorSets[imageIndex], 0, NULL);
+        u32 meshIndex = world.entities[i].mesh;
+        Mesh mesh = renderer->meshes[meshIndex];
+        u32 materialIndex = world.entities[i].material;
 
-        // Draw mesh
-        for (u32 i = 0; i < world.count; ++i)
+        // FIXME: Should be defined from the material!
+        if (materialIndex == Material_Background)
         {
-            u32 meshIndex = world.entities[i].mesh;
-            Mesh mesh = renderer->meshes[meshIndex];
-            u32 materialIndex = world.entities[i].material;
-
-            // FIXME: Should be defined from the material!
-            if (materialIndex == Material_Background)
-            {
-                vkCmdBindPipeline(renderer->commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
-            }
-            else
-            {
-                vkCmdBindPipeline(renderer->commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
-            }
-
-            // Bind index buffer
-            vkCmdBindIndexBuffer(renderer->commandBuffer,
-                renderer->indexBuffer.handle, mesh.indexDataOffset,
-                VK_INDEX_TYPE_UINT32);
-
-            MeshPushConstants pushConstants = {};
-            pushConstants.modelMatrixIndex = i;
-            pushConstants.vertexDataOffset = mesh.vertexDataOffset;
-            pushConstants.materialIndex = materialIndex;
-
-            vkCmdPushConstants(renderer->commandBuffer,
-                renderer->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
-                sizeof(pushConstants), &pushConstants);
-
-            vkCmdDrawIndexed(
-                renderer->commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+            vkCmdBindPipeline(renderer->commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
+        }
+        else
+        {
+            vkCmdBindPipeline(renderer->commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
         }
 
-        // Draw debug buffer
+        // Bind index buffer
+        vkCmdBindIndexBuffer(renderer->commandBuffer,
+            renderer->indexBuffer.handle, mesh.indexDataOffset,
+            VK_INDEX_TYPE_UINT32);
+
+        MeshPushConstants pushConstants = {};
+        pushConstants.modelMatrixIndex = i;
+        pushConstants.vertexDataOffset = mesh.vertexDataOffset;
+        pushConstants.materialIndex = materialIndex;
+
+        vkCmdPushConstants(renderer->commandBuffer, renderer->pipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants),
+            &pushConstants);
+
+        vkCmdDrawIndexed(renderer->commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+    }
+
+    // Draw debug buffer
+    if (outputFlags & Output_ShowDebugDrawing)
+    {
         vkCmdBindDescriptorSets(renderer->commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->debugDrawPipelineLayout, 0, 1,
-            &renderer->debugDrawDescriptorSets[imageIndex], 0, NULL);
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->debugDrawPipelineLayout,
+            0, 1, &renderer->debugDrawDescriptorSets[imageIndex], 0, NULL);
 
         vkCmdBindPipeline(renderer->commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->debugDrawPipeline);
@@ -1003,23 +1009,9 @@ internal void VulkanRender(
             renderer->commandBuffer, renderer->debugDrawVertexCount, 1, 0, 0);
     }
 
-    if (outputFlags & Output_CpuRayTracer)
-    {
-        // CPU ray tracing
-        // Bind pipeline
-        vkCmdBindDescriptorSets(renderer->commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
-            &renderer->descriptorSets[imageIndex], 0, NULL);
-
-        vkCmdBindPipeline(renderer->commandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->fullscreenQuadPipeline);
-
-        // Draw mesh
-        vkCmdDraw(renderer->commandBuffer, 6, 1, 0, 0);
-    }
-
     vkCmdEndRenderPass(renderer->commandBuffer);
 
+    // Perform post-processing pass
     VkRenderPassBeginInfo renderPassPresentBegin = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     renderPassPresentBegin.renderPass = renderer->renderPass;

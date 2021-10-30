@@ -30,8 +30,7 @@ enum
 enum
 {
     Output_None = 0,
-    Output_VulkanRenderer = 1,
-    Output_CpuRayTracer = 2,
+    Output_ShowDebugDrawing = 1,
 };
 
 struct Mesh
@@ -186,14 +185,11 @@ struct VulkanRenderer
     VkPipelineCache pipelineCache;
     VkDescriptorSet descriptorSets[2];
 
+    // Post processing stuff
+    VkShaderModule fullscreenQuadVertexShader;
     VkShaderModule postProcessingFragmentShader;
     VkPipeline postProcessPipeline;
     VkDescriptorSet postProcessDescriptorSets[2];
-
-    // Fullscreen quad stuff
-    VkShaderModule fullscreenQuadVertexShader;
-    VkShaderModule fullscreenQuadFragmentShader;
-    VkPipeline fullscreenQuadPipeline;
 
     // Debug draw buffer
     VkShaderModule debugDrawVertexShader;

@@ -1,13 +1,13 @@
 /* TODO:
 List:
  - Tone mapping ray tracer output twice! [x]
+ - Fix Comparison view [x]
  - CPU bilinear sampling [ ]
 
 Bugs:
  - Resizing window crashes app
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
- - Comparison view is broken
  - IBL looks too dim, not sure what is causing it
 
 Tech Debt:
@@ -992,6 +992,7 @@ int main(int argc, char **argv)
     b32 drawTests = false;
     b32 isRayTracing = false;
     b32 showComparision = false;
+    b32 showDebugDrawing = true;
     f32 t = 0.0f;
     while (!glfwWindowShouldClose(g_Window))
     {
@@ -1057,6 +1058,11 @@ int main(int argc, char **argv)
             showComparision = !showComparision;
         }
 
+        if (WasPressed(input.buttonStates[KEY_F2]))
+        {
+            showDebugDrawing = !showDebugDrawing;
+        }
+
         if (drawTests)
         {
             // Force drawing through the vulkan renderer
@@ -1067,10 +1073,10 @@ int main(int argc, char **argv)
             TestTransformRayVsTriangle(&debugDrawBuffer);
         }
 
-        if (isRayTracing)
-        {
+        //if (isRayTracing)
+        //{
             VulkanCopyImageFromCPU(&renderer);
-        }
+        //}
         
 #if DRAW_ENTITY_AABBS
         DrawEntityAabbs(world, &debugDrawBuffer);
@@ -1119,14 +1125,24 @@ int main(int argc, char **argv)
 
         // TODO: Don't do this here
         UniformBufferObject *ubo = (UniformBufferObject *)renderer.uniformBuffer.data;
-        ubo->showComparision = showComparision;
+
+        if (isRayTracing)
+        {
+            ubo->showComparision = 1;
+            if (showComparision)
+                ubo->showComparision = 2;
+        }
+        else
+        {
+            ubo->showComparision = 0;
+        }
 
         renderer.debugDrawVertexCount = debugDrawBuffer.count;
 
-        u32 outputFlags = Output_VulkanRenderer;
-        if (isRayTracing)
+        u32 outputFlags = Output_None;
+        if (showDebugDrawing)
         {
-            outputFlags |= Output_CpuRayTracer;
+            outputFlags |= Output_ShowDebugDrawing;
         }
         VulkanRender(&renderer, outputFlags, world);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
