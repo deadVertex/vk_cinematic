@@ -35,3 +35,5 @@
 // Maximum radiance value to clamp to before tone mapping (this is used to
 // reduce fireflies)
 #define RADIANCE_CLAMP 10
+
+#define DRAW_DIFFUSE_SAMPLE_PATTERN 1

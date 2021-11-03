@@ -865,7 +865,8 @@ int main(int argc, char **argv)
     {
         char fullPath[256];
         snprintf(fullPath, sizeof(fullPath), "%s/%s", assetDir,
-            "kiara_4_mid-morning_4k.exr");
+            "studio_garden_4k.exr");
+            //"kiara_4_mid-morning_4k.exr");
 
         HdrImage image = {};
         if (LoadExrImage(&image, fullPath) != 0)
@@ -1088,6 +1089,7 @@ int main(int argc, char **argv)
         //DrawTree(rayTracer.aabbTree, &debugDrawBuffer, maxDepth);
 #endif
 
+#if 0
         // Draw sphere coords debug
         {
             DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 0, 0));
@@ -1114,12 +1116,42 @@ int main(int argc, char **argv)
             }
 
         }
+#endif
 
 #if 0
         DrawTree(
             rayTracer.meshes[Mesh_Bunny].aabbTree, &debugDrawBuffer, maxDepth);
         DrawMesh(
             rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
+#endif
+#if DRAW_DIFFUSE_SAMPLE_PATTERN
+        {
+            vec3 normal = Vec3(0, 1, 0);
+            vec3 origin = Vec3(0, 0, 0);
+            RandomNumberGenerator rng = {};
+            rng.state = 0xF51C0E49;
+            for (u32 i = 0; i < 64; ++i)
+            {
+                // Compute random direction on hemi-sphere around
+                // rayHit.normal
+                vec3 offset = Vec3(RandomBilateral(&rng), RandomBilateral(&rng),
+                    RandomBilateral(&rng));
+                vec3 dir = Normalize(normal + offset);
+                if (Dot(dir, normal) < 0.0f)
+                {
+                    dir = -dir;
+                }
+
+                DrawLine(&debugDrawBuffer, origin, origin + dir, Vec3(1, 0, 1));
+            }
+
+            DrawCircle(&debugDrawBuffer, origin, Vec3(1, 0, 0), Vec3(0, 1, 0),
+                Vec3(0, 1, 0));
+            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0),
+                Vec3(1, 0, 0), Vec3(0, 1, 0));
+            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0),
+                Vec3(0, 0, 1), Vec3(0, 1, 0));
+        }
 #endif
 
         // Move camera around
