@@ -20,7 +20,7 @@
 
 #define MAX_BOUNCES 3
 
-#define SAMPLES_PER_PIXEL 4
+#define SAMPLES_PER_PIXEL 16
 
 #define APPLICATION_MEMORY_LIMIT Megabytes(512)
 
@@ -34,6 +34,10 @@
 
 // Maximum radiance value to clamp to before tone mapping (this is used to
 // reduce fireflies)
-#define RADIANCE_CLAMP 10
+#define RADIANCE_CLAMP 2
 
-#define DRAW_DIFFUSE_SAMPLE_PATTERN 1
+//#define DRAW_DIFFUSE_SAMPLE_PATTERN 1
+
+#define USE_SMOOTH_SHADING 1
+
+//#define SHOW_SCENE_NORMALS 1

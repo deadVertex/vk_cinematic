@@ -3,6 +3,7 @@ List:
  - Tone mapping ray tracer output twice! [x]
  - Fix Comparison view [x]
  - Fix Cube map resolution for skybox is too low [x]
+ - CPU ray tracer smooth shading [ ]
  - CPU bilinear sampling [ ]
 
 Bugs:
@@ -18,6 +19,7 @@ Tech Debt:
 Features:
  - Linear space rendering [x]
  - Texture mapping [x]
+ - Smooth shading [ ]
  - Bilinear sampling
  - Image based lighting [x]
  - ACES tone mapping
@@ -36,7 +38,7 @@ Visualization infrastructure
 
 Usability
 - Realtime feedback of ray tracing
-- Live code reloading?
+- Live code reloading? +1
 - Scene definition from file
 - Resource definition from file
 
@@ -778,6 +780,38 @@ internal void UploadMaterialDataToCpuRayTracer(
         rayTracer->materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
+internal void DrawMeshDataNormals(
+    DebugDrawingBuffer *debugDrawBuffer, MeshData meshData)
+{
+    f32 normalLength = 0.1f;
+    u32 triangleCount = meshData.indexCount / 3;
+    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+    {
+        u32 i = triangleIndex * 3;
+        u32 j = triangleIndex * 3 + 1;
+        u32 k = triangleIndex * 3 + 2;
+
+        VertexPNT vertices[3];
+        vertices[0] = meshData.vertices[i];
+        vertices[1] = meshData.vertices[j];
+        vertices[2] = meshData.vertices[k];
+
+        DrawTriangle(debugDrawBuffer, vertices[0].position,
+            vertices[1].position, vertices[2].position, Vec3(0, 0.8, 1));
+
+        // Draw normals
+        DrawLine(debugDrawBuffer, vertices[0].position,
+            vertices[0].position + vertices[0].normal * normalLength,
+            Vec3(1, 0, 1));
+        DrawLine(debugDrawBuffer, vertices[1].position,
+            vertices[1].position + vertices[1].normal * normalLength,
+            Vec3(1, 0, 1));
+        DrawLine(debugDrawBuffer, vertices[2].position,
+            vertices[2].position + vertices[2].normal * normalLength,
+            Vec3(1, 0, 1));
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1124,6 +1158,7 @@ int main(int argc, char **argv)
         DrawMesh(
             rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
 #endif
+        DrawMeshDataNormals(&debugDrawBuffer, sceneMeshData.meshes[Mesh_Sphere]);
 #if DRAW_DIFFUSE_SAMPLE_PATTERN
         {
             vec3 normal = Vec3(0, 1, 0);

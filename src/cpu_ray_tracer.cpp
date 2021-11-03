@@ -133,14 +133,14 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
             indices[1] = meshData.indices[triangleIndex * 3 + 1];
             indices[2] = meshData.indices[triangleIndex * 3 + 2];
 
-            vec3 vertices[3];
-            vertices[0] = meshData.vertices[indices[0]].position;
-            vertices[1] = meshData.vertices[indices[1]].position;
-            vertices[2] = meshData.vertices[indices[2]].position;
+            VertexPNT vertices[3];
+            vertices[0] = meshData.vertices[indices[0]];
+            vertices[1] = meshData.vertices[indices[1]];
+            vertices[2] = meshData.vertices[indices[2]];
 
-            RayIntersectTriangleResult triangleIntersect =
-                RayIntersectTriangle(rayOrigin, rayDirection, vertices[0],
-                        vertices[1], vertices[2], tmin);
+            RayIntersectTriangleResult triangleIntersect = RayIntersectTriangle(
+                rayOrigin, rayDirection, vertices[0].position,
+                vertices[1].position, vertices[2].position, tmin);
 
             if (triangleIntersect.t > 0.0f)
             {
@@ -150,17 +150,23 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
                     // Compute UVs from barycentric coordinates
                     f32 w = 1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
                     vec2 uv =
-                        meshData.vertices[indices[0]].textureCoord * w + 
-                        meshData.vertices[indices[1]].textureCoord * triangleIntersect.uv.x +
-                        meshData.vertices[indices[2]].textureCoord * triangleIntersect.uv.y;
+                        vertices[0].textureCoord * w +
+                        vertices[1].textureCoord * triangleIntersect.uv.x +
+                        vertices[2].textureCoord * triangleIntersect.uv.y;
 
                     result.t = triangleIntersect.t;
                     result.isValid = true;
+#if USE_SMOOTH_SHADING
+                    result.normal =
+                        Normalize(vertices[0].normal * w +
+                                  vertices[1].normal * triangleIntersect.uv.x +
+                                  vertices[2].normal * triangleIntersect.uv.y);
+#else
                     result.normal = triangleIntersect.normal;
+#endif
                     result.uv = uv;
                     result.localPoint = rayOrigin + rayDirection * triangleIntersect.t;
                     tmin = triangleIntersect.t;
-                    // TODO: hitNormal, hitPoint, material, etc
                 }
             }
         }
@@ -418,7 +424,7 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                         vec3 baseColor = material.baseColor;
 
                         vec3 hitPoint = rayOrigin + rayDirection * rayHit.t;
-                        rayOrigin = hitPoint + rayHit.normal * 0.0000001f;
+                        rayOrigin = hitPoint + rayHit.normal * 0.01f;
 
                         // Compute random direction on hemi-sphere around
                         // rayHit.normal
@@ -461,6 +467,10 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                         break;
                     }
                 }
+
+#if SHOW_SCENE_NORMALS
+                radiance = pathVertices[0].surfaceNormal * 0.5f + Vec3(0.5f);
+#else
 
                 // Compute total radiance that reaches camera
                 vec3 outgoingRadiance = Vec3(0, 0, 0);
@@ -506,6 +516,7 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                     Clamp(outgoingRadiance, Vec3(0), Vec3(RADIANCE_CLAMP));
 
                 radiance += outgoingRadiance * (1.0f / (f32)SAMPLES_PER_PIXEL);
+#endif
             }
 
 #if 0
