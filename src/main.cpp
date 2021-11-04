@@ -3,7 +3,7 @@ List:
  - Tone mapping ray tracer output twice! [x]
  - Fix Comparison view [x]
  - Fix Cube map resolution for skybox is too low [x]
- - CPU ray tracer smooth shading [ ]
+ - CPU ray tracer smooth shading [x]
  - CPU bilinear sampling [ ]
 
 Bugs:
@@ -960,12 +960,21 @@ int main(int argc, char **argv)
     world.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     world.max = MAX_ENTITIES;
 
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
-    AddEntity(&world, Vec3(2, 2, 0), Quat(), Vec3(2), Mesh_Triangle, Material_Blue);
-    AddEntity(&world, Vec3(0, 4, 0), Quat(), Vec3(1), Mesh_Sphere, Material_White);
-    AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
-        Mesh_Plane, Material_CheckerBoard);
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(20), Mesh_Cube, Material_Background);
+    //AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
+    //AddEntity(&world, Vec3(2, 2, 0), Quat(), Vec3(2), Mesh_Triangle, Material_Blue);
+    //AddEntity(&world, Vec3(0, 4, 0), Quat(), Vec3(1), Mesh_Sphere, Material_White);
+    //AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
+        //Mesh_Plane, Material_CheckerBoard);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube, Material_Background);
+    for (u32 y = 0; y < 5; ++y)
+    {
+        for (u32 x = 0; x < 5; ++x)
+        {
+            vec3 origin = Vec3(-5, -5, 0);
+            vec3 p = origin + Vec3((f32)x, (f32)y, 0) * 3.0f;
+            AddEntity(&world, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
+        }
+    }
 #if 0
     AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
         Mesh_Bunny, Material_Red);
@@ -1162,7 +1171,7 @@ int main(int argc, char **argv)
         DrawMesh(
             rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
 #endif
-        DrawMeshDataNormals(&debugDrawBuffer, sceneMeshData.meshes[Mesh_Sphere]);
+        //DrawMeshDataNormals(&debugDrawBuffer, sceneMeshData.meshes[Mesh_Sphere]);
 #if DRAW_DIFFUSE_SAMPLE_PATTERN
         {
             vec3 normal = Vec3(0, 1, 0);
