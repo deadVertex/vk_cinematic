@@ -1,9 +1,6 @@
 #include "math_lib.h"
 #include "cpu_ray_tracer.h"
 
-#include "ray_intersection.cpp"
-#include "tree_utils.cpp"
-
 internal void DumpMetrics(Metrics *metrics)
 {
     LogMessage("Broad Phase Test Count: %llu / %llu",
@@ -47,8 +44,8 @@ internal void DumpMetrics(Metrics *metrics)
     LogMessage("Total Pixel Count: %llu", metrics->totalPixelCount);
 }
 
-internal RayTracerMesh CreateMesh(
-    MeshData meshData, MemoryArena *arena, MemoryArena *tempArena)
+internal RayTracerMesh CreateMesh(MeshData meshData, MemoryArena *arena,
+    MemoryArena *tempArena, b32 useSmoothShading)
 {
     u32 triangleCount = meshData.indexCount / 3;
     u32 meshletCount = MaxU32(triangleCount / MESHLET_SIZE, 1);
@@ -90,6 +87,7 @@ internal RayTracerMesh CreateMesh(
     result.meshData = meshData;
     result.aabbTree = BuildAabbTree(boxMin, boxMax, meshletCount,
         meshletCount * 3, arena, tempArena);
+    result.useSmoothShading = useSmoothShading;
 
     return result;
 }
@@ -148,7 +146,8 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
                 if (triangleIntersect.t < result.t)
                 {
                     // Compute UVs from barycentric coordinates
-                    f32 w = 1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
+                    f32 w =
+                        1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
                     vec2 uv =
                         vertices[0].textureCoord * w +
                         vertices[1].textureCoord * triangleIntersect.uv.x +
@@ -156,16 +155,20 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
 
                     result.t = triangleIntersect.t;
                     result.isValid = true;
-#if USE_SMOOTH_SHADING
-                    result.normal =
-                        Normalize(vertices[0].normal * w +
-                                  vertices[1].normal * triangleIntersect.uv.x +
-                                  vertices[2].normal * triangleIntersect.uv.y);
-#else
-                    result.normal = triangleIntersect.normal;
-#endif
+                    if (mesh.useSmoothShading)
+                    {
+                        result.normal = Normalize(
+                            vertices[0].normal * w +
+                            vertices[1].normal * triangleIntersect.uv.x +
+                            vertices[2].normal * triangleIntersect.uv.y);
+                    }
+                    else
+                    {
+                        result.normal = triangleIntersect.normal;
+                    }
                     result.uv = uv;
-                    result.localPoint = rayOrigin + rayDirection * triangleIntersect.t;
+                    result.localPoint =
+                        rayOrigin + rayDirection * triangleIntersect.t;
                     tmin = triangleIntersect.t;
                 }
             }

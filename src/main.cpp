@@ -115,14 +115,18 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "profiler.h"
 #include "debug.h"
 #include "world.h"
+#include "cpu_ray_tracer.h"
 
 #include "debug.cpp"
+#include "ray_intersection.cpp"
+#include "tree_utils.cpp"
 #include "cpu_ray_tracer.cpp"
 #include "cpu_ray_tracer_manual_tests.cpp"
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
 #include "cmdline.cpp"
 #include "cubemap.cpp"
+#include "mesh_generation.cpp"
 
 #include "image.cpp"
 
@@ -761,8 +765,8 @@ internal void UploadMeshDataToCpuRayTracer(RayTracer *rayTracer,
 {
     for (u32 meshId = 0; meshId < MAX_MESHES; ++meshId)
     {
-        rayTracer->meshes[meshId] =
-            CreateMesh(sceneMeshData->meshes[meshId], memoryArena, tempArena);
+        rayTracer->meshes[meshId] = CreateMesh(
+            sceneMeshData->meshes[meshId], memoryArena, tempArena, true);
     }
 }
 

@@ -39,6 +39,7 @@ struct RayTracerMesh
 {
     AabbTree aabbTree;
     MeshData meshData;
+    b32 useSmoothShading;
 };
 
 struct RayTracer
