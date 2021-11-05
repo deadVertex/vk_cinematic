@@ -493,13 +493,14 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                             ToSphericalCoordinates(vertex.surfacePointLocal);
                         vec2 uv = MapToEquirectangular(sphereCoords);
                         uv.y = 1.0f - uv.y; // Flip Y axis as usual
-                        vec4 color = SampleImage(rayTracer->image, uv);
+                        vec4 color = SampleImageNearest(rayTracer->image, uv);
 
                         emission = Vec3(color.x, color.y, color.z);
                     }
                     else if (materialIndex == Material_CheckerBoard)
                     {
-                        vec4 color = SampleImage(rayTracer->checkerBoardImage, vertex.uv);
+                        vec4 color = SampleImageNearest(
+                            rayTracer->checkerBoardImage, vertex.uv);
                         baseColor = color.xyz;
                     }
 

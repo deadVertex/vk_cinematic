@@ -97,7 +97,7 @@ internal HdrImage CreateDiffuseIrradianceTexture(
                 vec2 sphereCoords2 = ToSphericalCoordinates(sampleDir);
                 vec2 uv2 = MapToEquirectangular(sphereCoords2);
                 //uv2.y = 1.0f - uv2.y; // Flip Y axis as usual
-                vec4 sample = SampleImage(image, uv2);
+                vec4 sample = SampleImageNearest(image, uv2);
                 irradiance += sample * (1.0f / 32.0f) * cosine;
             }
 

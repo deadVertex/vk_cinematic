@@ -1,10 +1,10 @@
 /* TODO:
 List:
- - Tone mapping ray tracer output twice! [x]
- - Fix Comparison view [x]
- - Fix Cube map resolution for skybox is too low [x]
- - CPU ray tracer smooth shading [x]
+ - [ GOAL is to reduce cycle time for working on materials models/shaders ]
  - CPU bilinear sampling [ ]
+ - Startup time is too long! (building AABB trees for meshes most likely)
+ - Live code reloading? +1
+ - SIMD
 
 Bugs:
  - Resizing window crashes app
@@ -1034,6 +1034,8 @@ int main(int argc, char **argv)
 
     WorkQueue workQueue = {};
     ThreadPool threadPool = CreateThreadPool(&workQueue);
+
+    LogMessage("Start up time: %gs", glfwGetTime());
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;

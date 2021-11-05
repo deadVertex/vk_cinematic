@@ -63,17 +63,6 @@ internal BasisVectors MapCubeMapLayerIndexToBasisVectors(u32 layerIndex)
 }
 
 
-// TODO: Don't assume 4 color channels
-internal HdrImage AllocateImage(u32 width, u32 height, MemoryArena *arena)
-{
-    HdrImage image = {};
-    image.width = width;
-    image.height = height;
-    image.pixels = AllocateArray(arena, f32, image.width * image.height * 4);
-
-    return image;
-}
-
 // TODO: Does it rather make sense to pass in an already initialize HdrCubeMap
 // structure which has been allocated from the textureUploadArena
 internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
@@ -134,7 +123,7 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
 
                     vec2 sphereCoords = ToSphericalCoordinates(sampleDir);
                     vec2 uv = MapToEquirectangular(sphereCoords);
-                    vec4 sample = SampleImage(equirectangularImage, uv);
+                    vec4 sample = SampleImageNearest(equirectangularImage, uv);
                     irradiance += sample * sampleContribution * cosine;
                 }
 

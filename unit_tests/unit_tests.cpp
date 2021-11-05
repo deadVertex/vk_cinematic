@@ -11,9 +11,15 @@
 #include "tree_utils.cpp"
 #include "cpu_ray_tracer.cpp"
 
+#define MEMORY_ARENA_SIZE Megabytes(1)
+
+MemoryArena memoryArena;
+
 void setUp(void)
 {
     // set stuff up here
+    ClearToZero(memoryArena.base, (u32)memoryArena.size);
+    ResetMemoryArena(&memoryArena);
 }
 
 void tearDown(void)
@@ -396,18 +402,16 @@ void AssertWithinVec3(f32 delta, vec3 expected, vec3 actual)
 
 void TestRayIntersectTriangleMeshFlatShading()
 {
-    MemoryArena arena = {};
-    InitializeMemoryArena(&arena, malloc(4192), 4192);
-
     vec3 rayDirection = Vec3(0, 0, -1);
 
     // Given a mesh with different vertex normals and flat shading enabled
-    MeshData meshData = CreateTriangleMeshData(&arena);
+    MeshData meshData = CreateTriangleMeshData(&memoryArena);
     meshData.vertices[0].normal = Vec3(1, 0, 0);
     meshData.vertices[1].normal = Vec3(0, 1, 0);
     meshData.vertices[2].normal = Vec3(0, 0, 1);
 
-    RayTracerMesh mesh = CreateMesh(meshData, &arena, &arena, false);
+    RayTracerMesh mesh =
+        CreateMesh(meshData, &memoryArena, &memoryArena, false);
 
     // When we intersect a two rays with that mesh
     RayHitResult resultA = RayIntersectTriangleMesh(
@@ -421,24 +425,19 @@ void TestRayIntersectTriangleMeshFlatShading()
     TEST_ASSERT_TRUE(resultA.t >= 0);
     TEST_ASSERT_TRUE(resultB.t >= 0);
     AssertWithinVec3(EPSILON, resultA.normal, resultB.normal);
-
-    free(arena.base);
 };
 
 void TestRayIntersectTriangleMeshSmoothShading()
 {
-    MemoryArena arena = {};
-    InitializeMemoryArena(&arena, malloc(4192), 4192);
-
     vec3 rayDirection = Vec3(0, 0, -1);
 
     // Given a mesh with different vertex normals and smooth shading enabled
-    MeshData meshData = CreateTriangleMeshData(&arena);
+    MeshData meshData = CreateTriangleMeshData(&memoryArena);
     meshData.vertices[0].normal = Vec3(1, 0, 0);
     meshData.vertices[1].normal = Vec3(0, 1, 0);
     meshData.vertices[2].normal = Vec3(0, 0, 1);
 
-    RayTracerMesh mesh = CreateMesh(meshData, &arena, &arena, true);
+    RayTracerMesh mesh = CreateMesh(meshData, &memoryArena, &memoryArena, true);
 
     // When we intersect a two rays with that mesh
     RayHitResult resultA = RayIntersectTriangleMesh(
@@ -451,12 +450,45 @@ void TestRayIntersectTriangleMeshSmoothShading()
     TEST_ASSERT_TRUE(resultA.t >= 0);
     TEST_ASSERT_TRUE(resultB.t >= 0);
     TEST_ASSERT_TRUE(Length(resultA.normal - resultB.normal) > EPSILON);
-
-    free(arena.base);
 };
+
+void TestNearestSampling()
+{
+    // Given an image   | (0, 0, 0, 0) | (1, 1, 1, 1) |
+    HdrImage image = AllocateImage(2, 1, &memoryArena);
+    SetPixel(&image, 0, 0, Vec4(0));
+    SetPixel(&image, 1, 0, Vec4(1));
+
+    // When we sample the center of the image
+    vec4 sample = SampleImageNearest(image, Vec2(0.5, 0.5));
+
+    // Then we get the color of the nearest pixel
+    TEST_ASSERT_EQUAL_FLOAT(1, sample.r);
+}
+
+void TestBilinearSampling()
+{
+    // Given an image with a checkerboard pattern
+    // | (0, 0, 0, 0) | (1, 1, 1, 1) |
+    // | (1, 1, 1, 1) | (0, 0, 0, 0) |
+    HdrImage image = AllocateImage(2, 2, &memoryArena);
+    SetPixel(&image, 0, 0, Vec4(0));
+    SetPixel(&image, 1, 0, Vec4(1));
+    SetPixel(&image, 0, 1, Vec4(1));
+    SetPixel(&image, 1, 1, Vec4(0));
+
+    // When we sample the center of the image
+    vec4 sample = SampleImageBilinear(image, Vec2(0.5, 0.5));
+
+    // Then we get the color of the 4 nearest pixels blended together
+    TEST_ASSERT_EQUAL_FLOAT(0.5, sample.r);
+}
 
 int main()
 {
+    InitializeMemoryArena(
+        &memoryArena, calloc(1, MEMORY_ARENA_SIZE), MEMORY_ARENA_SIZE);
+
     RUN_TEST(TestComputeTiles);
     RUN_TEST(TestComputeTilesNonDivisible);
     RUN_TEST(TestComputeTilesInsufficientSpace);
@@ -478,6 +510,11 @@ int main()
 
     RUN_TEST(TestRayIntersectTriangleMeshFlatShading);
     RUN_TEST(TestRayIntersectTriangleMeshSmoothShading);
+
+    RUN_TEST(TestNearestSampling);
+    RUN_TEST(TestBilinearSampling);
+
+    free(memoryArena.base);
 
     return UNITY_END();
 }
