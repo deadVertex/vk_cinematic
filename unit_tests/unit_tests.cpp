@@ -484,6 +484,26 @@ void TestBilinearSampling()
     TEST_ASSERT_EQUAL_FLOAT(0.5, sample.r);
 }
 
+void TestBilinearSamplingClampEdge()
+{
+    // Given an image with a checkerboard pattern
+    // | (0, 0, 0, 0) | (1, 1, 1, 1) |
+    // | (1, 1, 1, 1) | (0, 0, 0, 0) |
+    HdrImage image = AllocateImage(2, 2, &memoryArena);
+    SetPixel(&image, 0, 0, Vec4(0));
+    SetPixel(&image, 1, 0, Vec4(1));
+    SetPixel(&image, 0, 1, Vec4(1));
+    SetPixel(&image, 1, 1, Vec4(0));
+
+    // When we sample the edge of the image
+    vec4 sampleMax = SampleImageBilinear(image, Vec2(1.0, 0.5));
+    vec4 sampleMin = SampleImageBilinear(image, Vec2(0.0, 0.5));
+
+    // Then we get the color of the edge pixels blended
+    TEST_ASSERT_EQUAL_FLOAT(0.5, sampleMax.r);
+    TEST_ASSERT_EQUAL_FLOAT(0.5, sampleMin.r);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -513,6 +533,7 @@ int main()
 
     RUN_TEST(TestNearestSampling);
     RUN_TEST(TestBilinearSampling);
+    RUN_TEST(TestBilinearSamplingClampEdge);
 
     free(memoryArena.base);
 

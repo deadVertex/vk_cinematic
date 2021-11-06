@@ -217,11 +217,19 @@ inline vec4 GetPixel(HdrImage image, u32 x, u32 y)
     return result;
 }
 
+// TODO: Would be nice not to do 2 stages of clamping
 inline vec4 SampleImageBilinear(HdrImage image, vec2 uv)
 {
+    Assert(uv.x >= 0.0f && uv.x <= 1.0f);
+    Assert(uv.y >= 0.0f && uv.y <= 1.0f);
+
     // Compute pixel coordinates to sample
     f32 px = (uv.x * image.width) - 0.5f;
     f32 py = (uv.y * image.height) - 0.5f;
+
+    // Clamp sample coords to valid range i.e. ClampToEdge wrapping mode
+    px = Max(px, 0.0f);
+    py = Max(py, 0.0f);
 
     u32 x0 = (u32)Floor(px);
     u32 x1 = x0 + 1;
@@ -231,6 +239,10 @@ inline vec4 SampleImageBilinear(HdrImage image, vec2 uv)
 
     f32 fx = px - (f32)x0;
     f32 fy = py - (f32)y0;
+
+    // Clamp sample coords to valid range i.e. ClampToEdge wrapping mode
+    x1 = MinU32(x1, image.width - 1);
+    y1 = MinU32(y1, image.height - 1);
 
     // Sample 4 pixels
     vec4 samples[4];
