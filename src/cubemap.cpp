@@ -123,8 +123,10 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
 
                     vec2 sphereCoords = ToSphericalCoordinates(sampleDir);
                     vec2 uv = MapToEquirectangular(sphereCoords);
-                    vec4 sample = SampleImageNearest(equirectangularImage, uv);
-                    irradiance += sample * sampleContribution * cosine;
+                    vec4 sample = SampleImageBilinear(equirectangularImage, uv);
+                    vec4 radiance =
+                        Clamp(sample * cosine, Vec4(0), Vec4(RADIANCE_CLAMP));
+                    irradiance += radiance * sampleContribution;
                 }
 
                 irradiance.a = 1.0;

@@ -929,6 +929,7 @@ int main(int argc, char **argv)
     rayTracer.checkerBoardImage = checkerBoardImage;
 
     // Create and upload irradiance equirectangular map
+    // FIXME: Remove this, its not used anymore!
     HdrImage irradianceImage =
         CreateDiffuseIrradianceTexture(rayTracer.image, &tempArena);
     //UploadHdrImageToVulkan(&renderer, irradianceImage, Image_Irradiance, 7);

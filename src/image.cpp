@@ -243,8 +243,8 @@ internal void UploadIrradianceCubeMapToGPU(VulkanRenderer *renderer,
 {
     Assert(imageId < MAX_IMAGES);
 
-    u32 width = 64;
-    u32 height = 64;
+    u32 width = 128;
+    u32 height = 128;
 
     // Create image
     VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -259,7 +259,7 @@ internal void UploadIrradianceCubeMapToGPU(VulkanRenderer *renderer,
         renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
 
     HdrCubeMap irradianceCubeMap = CreateIrradianceCubeMap(
-        equirectangularImage, &textureUploadArena, width, height, 64);
+        equirectangularImage, &textureUploadArena, width, height, 32);
 
     // Submit cube map data for upload to GPU
     VulkanTransitionImageLayout(renderer->images[imageId].handle,
