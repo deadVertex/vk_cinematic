@@ -3,6 +3,7 @@
 set BUILD_SHADERS=0
 set BUILD_UNIT_TESTS=0
 set BUILD_INTEGRATION_TESTS=0
+set BUILD_LIB=1
 set BUILD_EXECUTABLE=1
 set BUILD_ASSET_LOADER=0
 
@@ -84,6 +85,23 @@ if %BUILD_ASSET_LOADER%==1 (
         -link -DLL ^
         %LinkerFlags% ^
         miniz.obj
+)
+
+if %BUILD_LIB%==1 (
+    echo WATING FOR PDB > lock.tmp
+    del lib_*.pdb > NUL 2> NUL
+
+    cl ../src/lib.cpp ^
+        %CompilerFlags% ^
+        -O2 ^
+        -I./ ^
+        -LD ^
+        -link ^
+        -PDB:lib_%random%.pdb ^
+        -DLL ^
+        %LinkerFlags%
+
+    del lock.tmp
 )
 
 if %BUILD_EXECUTABLE%==1 (

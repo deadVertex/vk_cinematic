@@ -1,9 +1,10 @@
 /* TODO:
 List:
  - [ GOAL is to reduce cycle time for working on materials models/shaders ]
- - CPU bilinear sampling [ ]
- - Startup time is too long! (building AABB trees for meshes most likely)
+ - CPU bilinear sampling [X]
  - Live code reloading? +1
+ - Profiling! (What is our current cost per ray?)
+ - Startup time is too long! (building AABB trees for meshes most likely)
  - SIMD
 
 Bugs:
@@ -816,9 +817,101 @@ internal void DrawMeshDataNormals(
     }
 }
 
+#if LIVE_CODE_RELOADING_TEST_ENABLED
+typedef void LibraryFunction(void);
+
+struct LibraryCode
+{
+    LibraryFunction *doThing;
+#ifdef PLATFORM_LINUX
+    void *handle;
+    time_t lastWriteTime;
+#elif defined(PLATFORM_WINDOWS)
+    HMODULE handle;
+    FILETIME lastWriteTime;
+#endif
+};
+
+#define LIBRARY_PATH "lib.dll"
+#define LIBRARY_PATH_TEMP "lib_temp.dll"
+#define LIBRARY_LOCK_PATH "lock.tmp"
+
+// TODO: 64-bit version?
+inline FILETIME GetLastWriteTime(const char *fileName)
+{
+    FILETIME lastWriteTime = {};
+
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (GetFileAttributesEx(fileName, GetFileExInfoStandard, &data))
+    {
+        lastWriteTime = data.ftLastWriteTime;
+    }
+    return lastWriteTime;
+}
+
+internal LibraryCode LoadLibraryCode()
+{
+    LibraryCode result = {};
+    result.lastWriteTime = GetLastWriteTime(LIBRARY_PATH);
+    CopyFile(LIBRARY_PATH, LIBRARY_PATH_TEMP, false);
+
+    result.handle = LoadLibraryA(LIBRARY_PATH_TEMP);
+    if (result.handle != NULL)
+    {
+        result.doThing =
+            (LibraryFunction *)GetProcAddress(result.handle, "DoThing");
+        Assert(result.doThing); // FIXME: Should error not assert!
+    }
+    else
+    {
+        LogMessage("Failed to load library code!");
+    }
+
+    return result;
+};
+
+internal b32 IsLockFileActive(const char *lockPath)
+{
+    WIN32_FILE_ATTRIBUTE_DATA ignored;
+    if (!GetFileAttributesEx(lockPath, GetFileExInfoStandard, &ignored))
+        return false;
+
+    return true;
+}
+
+internal b32 WasLibraryCodeModified(LibraryCode *lib)
+{
+    b32 result = false;
+    FILETIME newWriteTime = GetLastWriteTime(LIBRARY_PATH);
+    if (CompareFileTime(&newWriteTime, &lib->lastWriteTime) != 0)
+    {
+        if (!IsLockFileActive(LIBRARY_LOCK_PATH))
+        {
+            result = true;
+        }
+    }
+
+    return result;
+}
+
+// TODO: Take LibraryCode by ref and clear it
+internal void UnloadLibraryCode(LibraryCode lib)
+{
+    if (lib.handle != NULL)
+    {
+        FreeLibrary(lib.handle);
+    }
+}
+
+#endif
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
+
+#if LIVE_CODE_RELOADING_TEST_ENABLED
+    LibraryCode libraryCode = LoadLibraryCode();
+#endif
 
     // Parse command line args
     const char *assetDir = "./";
@@ -1062,6 +1155,18 @@ int main(int argc, char **argv)
         f64 frameStart = glfwGetTime();
         InputBeginFrame(&input);
         glfwPollEvents();
+
+#if LIVE_CODE_RELOADING_TEST_ENABLED
+        // Check if library has been modified, if so reload it
+        if (WasLibraryCodeModified(&libraryCode))
+        {
+            LogMessage("Reloading LibraryCode");
+            UnloadLibraryCode(libraryCode);
+            libraryCode = LoadLibraryCode();
+        }
+
+        libraryCode.doThing();
+#endif
 
 #if 0
         t += dt;
