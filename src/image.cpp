@@ -56,61 +56,6 @@ internal void UploadHdrImageToVulkan(
     }
 }
 
-internal HdrImage CreateDiffuseIrradianceTexture(
-    HdrImage image, MemoryArena *tempArena)
-{
-    RandomNumberGenerator rng = {};
-    rng.state = 0x45BA12F3;
-
-    HdrImage dstImage = {};
-    dstImage.width = 128;
-    dstImage.height = 64;
-    dstImage.pixels =
-        AllocateArray(tempArena, f32, dstImage.width * dstImage.height * 4);
-
-    for (u32 y = 0; y < dstImage.height; ++y)
-    {
-        for (u32 x = 0; x < dstImage.width; ++x)
-        {
-            vec2 uv = {};
-            uv.x = (f32)x / (f32)dstImage.width;
-            uv.y = (f32)y / (f32)dstImage.height;
-
-            vec2 sphereCoords = MapEquirectangularToSphereCoordinates(uv);
-            vec3 dir = MapSphericalToCartesianCoordinates(sphereCoords);
-
-            vec4 irradiance = {};
-            for (u32 sampleIndex = 0; sampleIndex < 512; ++sampleIndex)
-            {
-                // Compute random direction on hemi-sphere around
-                // rayHit.normal
-                vec3 offset = Vec3(RandomBilateral(&rng),
-                        RandomBilateral(&rng), RandomBilateral(&rng));
-                vec3 sampleDir = Normalize(dir + offset);
-                if (Dot(sampleDir, dir) < 0.0f)
-                {
-                    sampleDir = -sampleDir;
-                }
-
-                f32 cosine = Max(Dot(dir, sampleDir), 0.0f);
-
-                vec2 sphereCoords2 = ToSphericalCoordinates(sampleDir);
-                vec2 uv2 = MapToEquirectangular(sphereCoords2);
-                //uv2.y = 1.0f - uv2.y; // Flip Y axis as usual
-                vec4 sample = SampleImageNearest(image, uv2);
-                irradiance += sample * (1.0f / 32.0f) * cosine;
-            }
-
-            irradiance.a = 1.0;
-
-            u32 pixelIndex = (y * dstImage.width + x) * 4;
-            *(vec4 *)(dstImage.pixels + pixelIndex) = irradiance;
-        }
-    }
-
-    return dstImage;
-}
-
 internal HdrImage CreateCheckerBoardImage(MemoryArena *tempArena)
 {
     u32 width = 256;

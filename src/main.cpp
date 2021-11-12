@@ -2,6 +2,7 @@
 List:
  - [ GOAL is to reduce cycle time for working on materials models/shaders ]
  - CPU bilinear sampling [X]
+ - Scene definition from file [ ]
  - Live code reloading? +1
  - Profiling! (What is our current cost per ray?)
  - Startup time is too long! (building AABB trees for meshes most likely)
@@ -894,13 +895,14 @@ internal b32 WasLibraryCodeModified(LibraryCode *lib)
     return result;
 }
 
-// TODO: Take LibraryCode by ref and clear it
-internal void UnloadLibraryCode(LibraryCode lib)
+internal void UnloadLibraryCode(LibraryCode *lib)
 {
-    if (lib.handle != NULL)
+    if (lib->handle != NULL)
     {
-        FreeLibrary(lib.handle);
+        FreeLibrary(lib->handle);
     }
+
+    ClearToZero(lib, sizeof(*lib));
 }
 
 #endif
@@ -1021,12 +1023,6 @@ int main(int argc, char **argv)
     UploadHdrImageToVulkan(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
     rayTracer.checkerBoardImage = checkerBoardImage;
 
-    // Create and upload irradiance equirectangular map
-    // FIXME: Remove this, its not used anymore!
-    HdrImage irradianceImage =
-        CreateDiffuseIrradianceTexture(rayTracer.image, &tempArena);
-    //UploadHdrImageToVulkan(&renderer, irradianceImage, Image_Irradiance, 7);
-
     // Create and upload test cube map
     UploadTestCubeMapToGPU(
         &renderer, rayTracer.image, Image_CubeMapTest, 6, 1024, 1024);
@@ -1054,12 +1050,8 @@ int main(int argc, char **argv)
     world.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     world.max = MAX_ENTITIES;
 
-    //AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(4), Mesh_Bunny, Material_Red);
-    //AddEntity(&world, Vec3(2, 2, 0), Quat(), Vec3(2), Mesh_Triangle, Material_Blue);
-    //AddEntity(&world, Vec3(0, 4, 0), Quat(), Vec3(1), Mesh_Sphere, Material_White);
-    //AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(10),
-        //Mesh_Plane, Material_CheckerBoard);
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube, Material_Background);
+    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube,
+        Material_Background);
     for (u32 y = 0; y < 5; ++y)
     {
         for (u32 x = 0; x < 5; ++x)
@@ -1069,28 +1061,6 @@ int main(int argc, char **argv)
             AddEntity(&world, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
         }
     }
-#if 0
-    AddEntity(&world, Vec3(2, 0, 0), Quat(Vec3(0, 1, 0), PI * 0.5f), Vec3(1),
-        Mesh_Bunny, Material_Red);
-    AddEntity(&world, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), -PI * 0.5f), Vec3(10),
-        Mesh_Plane, Material_Red);
-
-    u32 gridDim = 10;
-    for (u32 y = 0; y < gridDim; ++y)
-    {
-        for (u32 z = 0; z < gridDim; ++z)
-        {
-            for (u32 x = 0; x < gridDim; ++x)
-            {
-                vec3 origin = Vec3(-5.0f, 0.0f, -5.0f);
-                vec3 p = origin + Vec3((f32)x, (f32)y, (f32)z);
-                u32 mesh = x % 2 == 0 ? Mesh_Monkey : Mesh_Bunny;
-                vec3 scale = mesh == Mesh_Monkey ? Vec3(0.1) : Vec3(1);
-                AddEntity(&world, p, Quat(), scale, mesh, Material_Blue);
-            }
-        }
-    }
-#endif
 
     // Compute bounding box for each entity
     // TODO: Should not rely on CPU ray tracer for computing bounding boxes,
@@ -1161,16 +1131,11 @@ int main(int argc, char **argv)
         if (WasLibraryCodeModified(&libraryCode))
         {
             LogMessage("Reloading LibraryCode");
-            UnloadLibraryCode(libraryCode);
+            UnloadLibraryCode(&libraryCode);
             libraryCode = LoadLibraryCode();
         }
 
         libraryCode.doThing();
-#endif
-
-#if 0
-        t += dt;
-        world.entities[0].position.y = Sin(t);
 #endif
 
         if (WasPressed(input.buttonStates[KEY_SPACE]))
@@ -1195,8 +1160,6 @@ int main(int argc, char **argv)
         {
             lastCameraPosition = g_camera.position;
             lastCameraRotation = g_camera.rotation;
-            // FIXME: Re-enable this
-            //isDirty = true;
         }
 
         if (WasPressed(input.buttonStates[KEY_UP]))
@@ -1221,100 +1184,17 @@ int main(int argc, char **argv)
             showDebugDrawing = !showDebugDrawing;
         }
 
-        if (drawTests)
-        {
-            // Force drawing through the vulkan renderer
-            isRayTracing = false;
-
-            // Run tests
-            //TestTransformRayVsAabb(&debugDrawBuffer);
-            TestTransformRayVsTriangle(&debugDrawBuffer);
-        }
-
-        //if (isRayTracing)
-        //{
-            VulkanCopyImageFromCPU(&renderer);
-        //}
+        VulkanCopyImageFromCPU(&renderer);
         
 #if DRAW_ENTITY_AABBS
         DrawEntityAabbs(world, &debugDrawBuffer);
 #endif
-
-#if DRAW_BROAD_PHASE_TREE
-        //DrawTree(rayTracer.aabbTree, &debugDrawBuffer, maxDepth);
-#endif
-
-#if 0
-        // Draw sphere coords debug
-        {
-            DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 0, 0));
-            DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0), Vec3(0, 1, 0));
-            DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 0, 1), Vec3(0, 0, 1));
-
-            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(1, 0, 0),
-                Vec3(0, 1, 0), Vec3(0, 1, 0));
-            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 0, 1),
-                Vec3(1, 0, 0), Vec3(1, 0, 0));
-            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0),
-                Vec3(0, 0, 1), Vec3(0, 0, 1));
-
-            vec3 vertices[] = {
-                MapSphericalToCartesianCoordinates(Vec2(0.25f * PI, 0.75f * PI)),
-                MapSphericalToCartesianCoordinates(Vec2(0.75f * PI, 0.75f * PI)),
-                MapSphericalToCartesianCoordinates(Vec2(0.25f * PI, 1.25f * PI)),
-                MapSphericalToCartesianCoordinates(Vec2(0.75f * PI, 1.25f * PI)),
-            };
-
-            for (u32 i = 0; i < ArrayCount(vertices); ++i)
-            {
-                DrawLine(&debugDrawBuffer, Vec3(0, 0, 0), vertices[i], Vec3(1, 0, 1));
-            }
-
-        }
-#endif
-
-#if 0
-        DrawTree(
-            rayTracer.meshes[Mesh_Bunny].aabbTree, &debugDrawBuffer, maxDepth);
-        DrawMesh(
-            rayTracer.meshes[Mesh_Bunny], &debugDrawBuffer);
-#endif
-        //DrawMeshDataNormals(&debugDrawBuffer, sceneMeshData.meshes[Mesh_Sphere]);
-#if DRAW_DIFFUSE_SAMPLE_PATTERN
-        {
-            vec3 normal = Vec3(0, 1, 0);
-            vec3 origin = Vec3(0, 0, 0);
-            RandomNumberGenerator rng = {};
-            rng.state = 0xF51C0E49;
-            for (u32 i = 0; i < 64; ++i)
-            {
-                // Compute random direction on hemi-sphere around
-                // rayHit.normal
-                vec3 offset = Vec3(RandomBilateral(&rng), RandomBilateral(&rng),
-                    RandomBilateral(&rng));
-                vec3 dir = Normalize(normal + offset);
-                if (Dot(dir, normal) < 0.0f)
-                {
-                    dir = -dir;
-                }
-
-                DrawLine(&debugDrawBuffer, origin, origin + dir, Vec3(1, 0, 1));
-            }
-
-            DrawCircle(&debugDrawBuffer, origin, Vec3(1, 0, 0), Vec3(0, 1, 0),
-                Vec3(0, 1, 0));
-            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0),
-                Vec3(1, 0, 0), Vec3(0, 1, 0));
-            DrawCircle(&debugDrawBuffer, Vec3(0, 0, 0), Vec3(0, 1, 0),
-                Vec3(0, 0, 1), Vec3(0, 1, 0));
-        }
-#endif
-
         // Move camera around
         Update(&renderer, &rayTracer, &input, dt);
 
         // TODO: Don't do this here
-        UniformBufferObject *ubo = (UniformBufferObject *)renderer.uniformBuffer.data;
+        UniformBufferObject *ubo =
+            (UniformBufferObject *)renderer.uniformBuffer.data;
 
         if (isRayTracing)
         {
