@@ -54,6 +54,11 @@ internal void DumpMetrics(Metrics *metrics)
     LogMessage("CPU Cycles per ray: %g",
             (f64)metrics->cycleCount / (f64)metrics->rayCount);
 
+    LogMessage("Avg meshes tested per ray: %g",
+            (f64)metrics->meshTestCount / (f64)metrics->rayCount);
+    LogMessage("Avg midphase nodes tested per mesh: %g",
+            (f64)metrics->midphaseAabbTestCount / (f64)metrics->meshTestCount);
+
     f64 avgCyclesPerRay = (f64)metrics->cycleCount / (f64)metrics->rayCount;
 
     for (u32 i = 0; i < MAX_CYCLE_COUNTS; ++i)
@@ -76,8 +81,17 @@ internal void DumpMetrics(Metrics *metrics)
             case CycleCount_RayIntersectMesh:
                 name = "RayIntersectMesh";
                 break;
+            case CycleCount_Midphase:
+                name = "Midphase";
+                break;
+            case CycleCount_TriangleIntersect:
+                name = "TriangleIntersect";
+                break;
+            case CycleCount_ConsumeMidPhaseResults:
+                name = "ConsumeMidPhaseResults";
+                break;
             default:
-                InvalidCodePath();
+                name = "Unknown";
                 break;
         }
 
@@ -137,7 +151,7 @@ internal RayTracerMesh CreateMesh(MeshData meshData, MemoryArena *arena,
 
 internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
     vec3 rayOrigin, vec3 rayDirection, DebugDrawingBuffer *debugDrawBuffer,
-    u32 maxDepth, f32 tmin)
+    u32 maxDepth, f32 tmin, LocalMetrics *localMetrics)
 {
     RayHitResult result = {};
     result.t = F32_MAX;
@@ -149,9 +163,13 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
     u32 leafIndices[256];
     f32 tValues[256];
 
+    i64 midPhaseStartCycles = __rdtsc();
     u32 count = RayIntersectAabbTree(mesh.aabbTree, rayOrigin, rayDirection,
-        leafIndices, tValues, ArrayCount(leafIndices));
+        leafIndices, tValues, ArrayCount(leafIndices), localMetrics);
+    localMetrics->cycleCounts[CycleCount_Midphase] +=
+        __rdtsc() - midPhaseStartCycles;
 
+    i64 consumeMidPhaseResultStartCycles = __rdtsc();
     for (u32 index = 0; index < count; ++index)
     {
         u32 leafIndex = leafIndices[index];
@@ -179,9 +197,12 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
             vertices[1] = meshData.vertices[indices[1]];
             vertices[2] = meshData.vertices[indices[2]];
 
+            i64 triangleIntersectStartCycles = __rdtsc();
             RayIntersectTriangleResult triangleIntersect = RayIntersectTriangle(
                 rayOrigin, rayDirection, vertices[0].position,
                 vertices[1].position, vertices[2].position, tmin);
+            localMetrics->cycleCounts[CycleCount_TriangleIntersect] +=
+                __rdtsc() - triangleIntersectStartCycles;
 
             if (triangleIntersect.t > 0.0f)
             {
@@ -217,6 +238,8 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
             }
         }
     }
+    localMetrics->cycleCounts[CycleCount_ConsumeMidPhaseResults] +=
+        __rdtsc() - consumeMidPhaseResultStartCycles;
 
     return result;
 }
@@ -224,7 +247,7 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
 internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
     vec3 rayOrigin, vec3 rayDirection, LocalMetrics *localMetrics)
 {
-    InterlockedIncrement64(&g_Metrics.rayCount);
+    AtomicIncrement64(&g_Metrics.rayCount);
     PROFILE_FUNCTION_SCOPE();
 
     RayHitResult worldResult = {};
@@ -282,7 +305,8 @@ internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
 
             entityResult = RayIntersectTriangleMesh(mesh, transformRayOrigin,
                 transformRayDirection, rayTracer->debugDrawBuffer,
-                rayTracer->maxDepth, transformedTmin);
+                rayTracer->maxDepth, transformedTmin, localMetrics);
+            localMetrics->meshTestCount++;
 
             localMetrics->cycleCounts[CycleCount_RayIntersectMesh] +=
                 __rdtsc() - rayIntersectMeshStartCycles;
@@ -589,6 +613,10 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
         AtomicExchangeAdd64(
             &g_Metrics.cycleCounts[i], localMetrics.cycleCounts[i]);
     }
+
+    AtomicExchangeAdd64(&g_Metrics.meshTestCount, localMetrics.meshTestCount);
+    AtomicExchangeAdd64(
+        &g_Metrics.midphaseAabbTestCount, localMetrics.midphaseAabbTestCount);
 }
 
 internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)

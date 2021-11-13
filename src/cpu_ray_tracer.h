@@ -75,11 +75,16 @@ enum
     CycleCount_BuildModelMatrices,
     CycleCount_TransformRay,
     CycleCount_RayIntersectMesh,
+    CycleCount_Midphase,
+    CycleCount_TriangleIntersect,
+    CycleCount_ConsumeMidPhaseResults,
     MAX_CYCLE_COUNTS,
 };
 
 struct LocalMetrics
 {
+    i64 meshTestCount;
+    i64 midphaseAabbTestCount;
     i64 cycleCounts[MAX_CYCLE_COUNTS];
 };
 
@@ -89,6 +94,9 @@ struct Metrics
     i64 sampleCount;
     i64 pixelCount;
     i64 cycleCount;
+
+    i64 meshTestCount;
+    i64 midphaseAabbTestCount;
 
     i64 cycleCounts[MAX_CYCLE_COUNTS];
 

@@ -117,7 +117,8 @@ struct StackNode
 };
 
 internal u32 RayIntersectAabbTree(AabbTree tree, vec3 rayOrigin,
-    vec3 rayDirection, u32 *leafIndices, f32 *tValues, u32 maxLeaves)
+    vec3 rayDirection, u32 *leafIndices, f32 *tValues, u32 maxLeaves,
+    LocalMetrics *localMetrics = NULL)
 {
     u32 count = 0;
 
@@ -136,6 +137,11 @@ internal u32 RayIntersectAabbTree(AabbTree tree, vec3 rayOrigin,
         u32 topIndex = --stackSizes[readIndex];
         StackNode top = stack[readIndex][topIndex];
         AabbTreeNode *node = top.node;
+
+        if (localMetrics)
+        {
+            localMetrics->midphaseAabbTestCount++;
+        }
 
         f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
         if (t >= 0.0f)

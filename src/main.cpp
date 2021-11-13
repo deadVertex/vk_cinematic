@@ -2,7 +2,7 @@
 List:
  - [ GOAL is to reduce cycle time for working on materials models/shaders ]
  - CPU bilinear sampling [X]
- - Profiling! (What is our current cost per ray?)
+ - Profiling! (What is our current cost per ray?) - Midphase is culprit (tree is too deep/unbalanced)
  - Startup time is too long! (building AABB trees for meshes most likely)
  - SIMD
  - Scene definition from file [ ]
@@ -1078,6 +1078,8 @@ int main(int argc, char **argv)
     EvaluateTree(rayTracer.meshes[Mesh_Bunny].aabbTree);
     LogMessage("Evaluate Mesh_Monkey tree");
     EvaluateTree(rayTracer.meshes[Mesh_Monkey].aabbTree);
+    LogMessage("Evaluate Mesh_Sphere tree");
+    EvaluateTree(rayTracer.meshes[Mesh_Sphere].aabbTree);
 #endif
 
     g_Profiler.samples =
