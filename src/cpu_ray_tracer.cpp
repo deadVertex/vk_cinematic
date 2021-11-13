@@ -3,6 +3,7 @@
 
 internal void DumpMetrics(Metrics *metrics)
 {
+#if 0
     LogMessage("Broad Phase Test Count: %llu / %llu",
         metrics->broadPhaseHitCount, metrics->broadPhaseTestCount);
     LogMessage("Mid Phase Test Count: %llu / %llu", metrics->midPhaseHitCount,
@@ -11,7 +12,9 @@ internal void DumpMetrics(Metrics *metrics)
         metrics->triangleTestCount);
     LogMessage("Mesh Test Count: %llu / %llu", metrics->meshHitCount,
         metrics->meshTestCount);
+#endif
 
+#if 0
     LogMessage("Broadphase Cycles : %llu %llu %llu %g",
         metrics->broadphaseCycleCount, metrics->rayCount,
         metrics->broadphaseCycleCount / metrics->rayCount,
@@ -38,10 +41,50 @@ internal void DumpMetrics(Metrics *metrics)
     LogMessage("Ray Trace Scene Cycles : %llu %llu %llu",
         metrics->rayTraceSceneCycleCount, metrics->rayCount,
         metrics->rayTraceSceneCycleCount / metrics->rayCount);
+#endif
 
-    LogMessage("Ray Count: %llu", metrics->rayCount);
-    LogMessage("Total Sample Count: %llu", metrics->totalSampleCount);
-    LogMessage("Total Pixel Count: %llu", metrics->totalPixelCount);
+    LogMessage("Ray Count: %lld", metrics->rayCount);
+    LogMessage("Sample Count: %lld", metrics->sampleCount);
+    LogMessage("Pixel Count: %lld", metrics->pixelCount);
+    LogMessage("CPU Cycle Count: %lld", metrics->cycleCount);
+    LogMessage("Rays per pixel: %g",
+        (f64)metrics->rayCount / (f64)metrics->pixelCount);
+    LogMessage("CPU Cycles per pixel: %g",
+            (f64)metrics->cycleCount / (f64)metrics->pixelCount);
+    LogMessage("CPU Cycles per ray: %g",
+            (f64)metrics->cycleCount / (f64)metrics->rayCount);
+
+    f64 avgCyclesPerRay = (f64)metrics->cycleCount / (f64)metrics->rayCount;
+
+    for (u32 i = 0; i < MAX_CYCLE_COUNTS; ++i)
+    {
+        f64 avgCostPerRay =
+            (f64)metrics->cycleCounts[i] / (f64)metrics->rayCount;
+
+        const char *name = "";
+        switch (i)
+        {
+            case CycleCount_Broadphase:
+                name = "Broadphase";
+                break;
+            case CycleCount_BuildModelMatrices:
+                name = "BuildModelMatrices";
+                break;
+            case CycleCount_TransformRay:
+                name = "TransformRay";
+                break;
+            case CycleCount_RayIntersectMesh:
+                name = "RayIntersectMesh";
+                break;
+            default:
+                InvalidCodePath();
+                break;
+        }
+
+        f64 percentage = avgCostPerRay / avgCyclesPerRay;
+        LogMessage("%s Cycles : %llu %g %g%%",
+            name, metrics->cycleCounts[i], avgCostPerRay, percentage * 100.0f);
+    }
 }
 
 internal RayTracerMesh CreateMesh(MeshData meshData, MemoryArena *arena,
@@ -142,7 +185,7 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
 
             if (triangleIntersect.t > 0.0f)
             {
-                g_Metrics.triangleHitCount++;
+                //g_Metrics.triangleHitCount++;
                 if (triangleIntersect.t < result.t)
                 {
                     // Compute UVs from barycentric coordinates
@@ -178,11 +221,10 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
     return result;
 }
 
-internal RayHitResult TraceRayThroughScene(
-    RayTracer *rayTracer, World *world, vec3 rayOrigin, vec3 rayDirection)
+internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
+    vec3 rayOrigin, vec3 rayDirection, LocalMetrics *localMetrics)
 {
-    u64 rayTraceSceneStartCycles = __rdtsc();
-    g_Metrics.rayCount++;
+    InterlockedIncrement64(&g_Metrics.rayCount);
     PROFILE_FUNCTION_SCOPE();
 
     RayHitResult worldResult = {};
@@ -192,7 +234,7 @@ internal RayHitResult TraceRayThroughScene(
     f32 entityTmins[MAX_ENTITIES];
     u32 entityCount = RayIntersectAabbTree(rayTracer->aabbTree, rayOrigin,
         rayDirection, entitiesToTest, entityTmins, ArrayCount(entitiesToTest));
-    g_Metrics.broadphaseCycleCount += __rdtsc() - broadphaseStartCycles;
+    localMetrics->cycleCounts[CycleCount_Broadphase] += __rdtsc() - broadphaseStartCycles;
 
     f32 tmin = F32_MAX;
     for (u32 index = 0; index < entityCount; index++)
@@ -200,7 +242,7 @@ internal RayHitResult TraceRayThroughScene(
         u32 entityIndex = entitiesToTest[index];
         if (entityTmins[index] < tmin)
         {
-            g_Metrics.meshTestCount++;
+            //g_Metrics.meshTestCount++;
 
             Entity *entity = world->entities + entityIndex;
 
@@ -218,7 +260,7 @@ internal RayHitResult TraceRayThroughScene(
                 Rotate(Conjugate(entity->rotation)) *
                 Translate(-entity->position);
             PROFILE_END_SCOPE("model matrices");
-            g_Metrics.buildModelMatricesCycleCount +=
+            localMetrics->cycleCounts[CycleCount_BuildModelMatrices] +=
                 __rdtsc() - buildModelMatricesStartCycles;
 
             RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
@@ -228,7 +270,7 @@ internal RayHitResult TraceRayThroughScene(
             vec3 transformRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
             vec3 transformRayDirection =
                 Normalize(TransformVector(rayDirection, invModelMatrix));
-            g_Metrics.transformRayCycleCount +=
+            localMetrics->cycleCounts[CycleCount_TransformRay] +=
                 __rdtsc() - transformRayStartCycles;
 
             u64 rayIntersectMeshStartCycles = __rdtsc();
@@ -242,7 +284,7 @@ internal RayHitResult TraceRayThroughScene(
                 transformRayDirection, rayTracer->debugDrawBuffer,
                 rayTracer->maxDepth, transformedTmin);
 
-            g_Metrics.rayIntersectMeshCycleCount +=
+            localMetrics->cycleCounts[CycleCount_RayIntersectMesh] +=
                 __rdtsc() - rayIntersectMeshStartCycles;
 
             // Transform the hit point and normal back into world space
@@ -262,7 +304,7 @@ internal RayHitResult TraceRayThroughScene(
 
             if (entityResult.isValid)
             {
-                g_Metrics.meshHitCount++;
+                //g_Metrics.meshHitCount++;
                 if (worldResult.isValid)
                 {
                     // FIXME: Probably not correct to compare t values from
@@ -281,8 +323,6 @@ internal RayHitResult TraceRayThroughScene(
             }
         }
     }
-
-    g_Metrics.rayTraceSceneCycleCount += __rdtsc() - rayTraceSceneStartCycles;
 
     return worldResult;
 }
@@ -386,6 +426,7 @@ inline vec3 PerformToneMapping(vec3 input)
 internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
     RayTracer *rayTracer, World *world, Tile tile, RandomNumberGenerator *rng)
 {
+    u64 startCycles = __rdtsc();
     PROFILE_FUNCTION_SCOPE();
 
     // TODO: Don't recompute this for every tile
@@ -396,18 +437,20 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
     vec3 lightDirection = Normalize(Vec3(1, 1, 0.5));
     vec3 backgroundColor = Vec3(0, 0, 0);
 
+    LocalMetrics localMetrics = {};
+
     for (u32 y = tile.minY; y < tile.maxY; ++y)
     {
         for (u32 x = tile.minX; x < tile.maxX; ++x)
         {
-            g_Metrics.totalPixelCount++;
+            AtomicIncrement64(&g_Metrics.pixelCount);
 
             vec3 radiance = {};
             for (u32 sample = 0; sample < SAMPLES_PER_PIXEL; ++sample)
             {
                 vec3 filmP = CalculateFilmP(&camera, width, height, x, y, rng);
 
-                g_Metrics.totalSampleCount++;
+                AtomicIncrement64(&g_Metrics.sampleCount);
 
                 vec3 rayOrigin = camera.cameraPosition;
                 vec3 rayDirection = Normalize(filmP - camera.cameraPosition);
@@ -417,8 +460,8 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
 
                 for (u32 i = 0; i < MAX_BOUNCES; ++i)
                 {
-                    RayHitResult rayHit = TraceRayThroughScene(
-                        rayTracer, world, rayOrigin, rayDirection);
+                    RayHitResult rayHit = TraceRayThroughScene(rayTracer, world,
+                        rayOrigin, rayDirection, &localMetrics);
 
                     if (rayHit.t > 0.0f)
                     {
@@ -536,6 +579,15 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
 
             pixels[y * width + x] = Vec4(radiance, 1);
         }
+    }
+
+    AtomicExchangeAdd64(&g_Metrics.cycleCount, __rdtsc() - startCycles);
+
+    // Publish thread local metrics
+    for (u32 i = 0; i < MAX_CYCLE_COUNTS; ++i)
+    {
+        AtomicExchangeAdd64(
+            &g_Metrics.cycleCounts[i], localMetrics.cycleCounts[i]);
     }
 }
 

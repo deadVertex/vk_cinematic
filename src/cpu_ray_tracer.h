@@ -1,6 +1,7 @@
 #pragma once
 
 #include "platform.h"
+#include "intrinsics.h"
 #include "math_lib.h"
 #include "mesh.h"
 #include "debug.h"
@@ -68,29 +69,48 @@ struct RayHitResult
     vec2 uv;
 };
 
+enum
+{
+    CycleCount_Broadphase,
+    CycleCount_BuildModelMatrices,
+    CycleCount_TransformRay,
+    CycleCount_RayIntersectMesh,
+    MAX_CYCLE_COUNTS,
+};
+
+struct LocalMetrics
+{
+    i64 cycleCounts[MAX_CYCLE_COUNTS];
+};
+
 struct Metrics
 {
-    u64 broadPhaseTestCount;
-    u64 broadPhaseHitCount;
+    i64 rayCount;
+    i64 sampleCount;
+    i64 pixelCount;
+    i64 cycleCount;
 
-    u64 midPhaseTestCount;
-    u64 midPhaseHitCount;
+    i64 cycleCounts[MAX_CYCLE_COUNTS];
 
-    u64 triangleTestCount;
-    u64 triangleHitCount;
+#if 0
+    // Old
+    i64 broadphaseCycleCount;
+    i64 buildModelMatricesCycleCount;
+    i64 transformRayCycleCount;
+    i64 rayIntersectMeshCycleCount;
 
-    u64 meshTestCount;
-    u64 meshHitCount;
+    i64 broadPhaseTestCount;
+    i64 broadPhaseHitCount;
 
-    u64 rayCount;
-    u64 totalSampleCount;
-    u64 totalPixelCount;
+    i64 midPhaseTestCount;
+    i64 midPhaseHitCount;
 
-    u64 broadphaseCycleCount;
-    u64 buildModelMatricesCycleCount;
-    u64 transformRayCycleCount;
-    u64 rayIntersectMeshCycleCount;
-    u64 rayTraceSceneCycleCount;
+    i64 triangleTestCount;
+    i64 triangleHitCount;
+
+    i64 meshTestCount;
+    i64 meshHitCount;
+#endif
 };
 
 global Metrics g_Metrics;
@@ -163,16 +183,7 @@ struct WorkQueue
 inline Task WorkQueuePop(WorkQueue *queue)
 {
     Assert(queue->head != queue->tail);
-    //u32 index = queue->head++;
-#ifdef PLATFORM_WINDOWS
-    // FIXME: This is windows specific, need our intrinsics header
-    i32 index = _InterlockedExchangeAdd((volatile long *)&queue->head, 1);
-#elif defined(PLATFORM_LINUX)
-    // TODO: Probably not the right memory model - https://gcc.gnu.org/wiki/Atomic/GCCMM/AtomicSync
-    i32 index = __atomic_fetch_add(&queue->head, 1, __ATOMIC_SEQ_CST);
-#else
-#error "UNSUPPORTED PLATFORM"
-#endif
+    i32 index = AtomicExchangeAdd(&queue->head, 1);
     return queue->tasks[index];
 }
 

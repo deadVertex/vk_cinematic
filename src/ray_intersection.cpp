@@ -91,7 +91,7 @@ internal RayIntersectTriangleResult RayIntersectTriangleSlow(vec3 rayOrigin,
     RayIntersectTriangleResult result = {};
     result.t = -1.0f;
 
-    g_Metrics.triangleTestCount++;
+    //g_Metrics.triangleTestCount++;
     //PROFILE_FUNCTION_SCOPE();
 
     vec3 edgeCA = c - a;

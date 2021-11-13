@@ -2,11 +2,11 @@
 List:
  - [ GOAL is to reduce cycle time for working on materials models/shaders ]
  - CPU bilinear sampling [X]
- - Scene definition from file [ ]
- - Live code reloading? +1
  - Profiling! (What is our current cost per ray?)
  - Startup time is too long! (building AABB trees for meshes most likely)
  - SIMD
+ - Scene definition from file [ ]
+ - Live code reloading? +1
 
 Bugs:
  - Resizing window crashes app
@@ -635,7 +635,7 @@ internal void WorkerThread(WorkQueue *queue)
         {
             // FIXME: Use a semaphore for signalling
 #ifdef PLATFORM_WINDOWS
-            Sleep(1000);
+            Sleep(10);
 #elif defined(PLATFORM_LINUX)
             usleep(1000);
 #endif
@@ -1153,6 +1153,11 @@ int main(int argc, char **argv)
             {
                 isRayTracing = false;
             }
+        }
+
+        if (WasPressed(input.buttonStates[KEY_P]))
+        {
+            DumpMetrics(&g_Metrics);
         }
 
         if (LengthSq(g_camera.position - lastCameraPosition) > 0.0001f ||
