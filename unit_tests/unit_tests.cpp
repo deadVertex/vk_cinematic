@@ -413,12 +413,14 @@ void TestRayIntersectTriangleMeshFlatShading()
     RayTracerMesh mesh =
         CreateMesh(meshData, &memoryArena, &memoryArena, false);
 
+    LocalMetrics localMetrics = {};
+
     // When we intersect a two rays with that mesh
     RayHitResult resultA = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0, 5), rayDirection, NULL, 0, 0.0f);
+        mesh, Vec3(0, 0, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
 
     RayHitResult resultB = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0.5, 5), rayDirection, NULL, 0, 0.0f);
+        mesh, Vec3(0, 0.5, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
 
     // Then we get the same normal regards of where the ray intersects the
     // triangle
@@ -439,12 +441,14 @@ void TestRayIntersectTriangleMeshSmoothShading()
 
     RayTracerMesh mesh = CreateMesh(meshData, &memoryArena, &memoryArena, true);
 
+    LocalMetrics localMetrics = {};
+
     // When we intersect a two rays with that mesh
     RayHitResult resultA = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0, 5), rayDirection, NULL, 0, 0.0f);
+        mesh, Vec3(0, 0, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
 
     RayHitResult resultB = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0.5, 5), rayDirection, NULL, 0, 0.0f);
+        mesh, Vec3(0, 0.5, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
 
     // Then we get different normals for the intersection point
     TEST_ASSERT_TRUE(resultA.t >= 0);
