@@ -193,8 +193,8 @@ internal void UploadIrradianceCubeMapToGPU(VulkanRenderer *renderer,
 {
     Assert(imageId < MAX_IMAGES);
 
-    u32 width = 128;
-    u32 height = 128;
+    u32 width = 32;
+    u32 height = 32;
 
     // Create image
     VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;

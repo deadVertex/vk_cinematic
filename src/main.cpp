@@ -1,6 +1,6 @@
 /* TODO:
 List:
- - [RAS] Reduce noise in irradiance texture
+ - [RAS] Reduce noise in irradiance texture (using uniform sampling) [x]
 
 Bugs:
  - Resizing window crashes app
@@ -48,6 +48,7 @@ Optimizations
 - [ALL] Startup time is too long! (building AABB trees for meshes most likely)
 - [CPU] Profiling! (What is our current cost per ray?) - Midphase is culprit (tree is too deep/unbalanced)
 - [CPU] Don't ray trace whole screen when using comparison view
+- [CPU] Don't model skybox using geometry
 
 Analysis
 - AABB trees

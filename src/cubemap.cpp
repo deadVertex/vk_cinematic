@@ -149,6 +149,49 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
                 dir = Normalize(dir);
 
                 vec3 irradiance = {};
+
+// From https://learnopengl.com/PBR/IBL/Diffuse-irradiance
+#if IRRADIANCE_CUBEMAP_USE_UNIFORM_SAMPLING
+                vec3 normal = dir;
+                vec3 tangent = Normalize(Cross(basis.up, normal));
+                vec3 bitangent = Normalize(Cross(normal, tangent));
+
+                f32 sampleDelta = 0.1f; // TODO: Parameterize
+                u32 sampleCount = 0;
+                for (f32 phi = 0.0f; phi < 2.0f * PI; phi += sampleDelta)
+                {
+                    for (f32 theta = 0.0f; theta < 0.5f * PI; theta += sampleDelta)
+                    {
+                        // Get sample vector in tangent space
+                        vec3 tangentDir = MapSphericalToCartesianCoordinates(
+                            Vec2(phi, theta));
+
+                        // Map vector from tangent space to world space so we
+                        // can sample the environment map
+                        vec3 worldDir = normal * tangentDir.y +
+                                        tangent * tangentDir.x +
+                                        bitangent * tangentDir.z;
+
+                        // Sample environment map
+                        vec2 sphereCoords = ToSphericalCoordinates(worldDir);
+                        vec2 uv = MapToEquirectangular(sphereCoords);
+                        uv.y = 1.0f - uv.y; // Flip Y axis as usual
+                        vec3 sample =
+                            SampleImageBilinear(equirectangularImage, uv).xyz;
+
+                        // Perform radiance clamp
+                        vec3 radiance =
+                            Clamp(sample, Vec3(0), Vec3(RADIANCE_CLAMP));
+
+                        // Add irradiance contribution for integral
+                        irradiance += radiance * Cos(theta) * Sin(theta);
+                        sampleCount++;
+                    }
+                }
+
+                irradiance = PI * irradiance * (1.0f / (f32)sampleCount);
+
+#else // Random sampling
                 for (u32 sampleIndex = 0; sampleIndex < samplesPerPixel;
                      ++sampleIndex)
                 {
@@ -175,6 +218,7 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
 
                     irradiance += radiance * sampleContribution;
                 }
+#endif
 
                 // Write irradiance value to image
                 u32 pixelIndex = (y * dstImage->width + x) * 4;

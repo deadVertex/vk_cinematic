@@ -568,6 +568,26 @@ void TestMapCubeMapFaceToBasisVectors()
     }
 }
 
+void TestSphereCoordsSample()
+{
+    f32 phi = 0.0f;
+    f32 theta = 0.0f;
+
+    // Get sample vector in tangent space
+    vec3 tangentDir = MapSphericalToCartesianCoordinates(Vec2(phi, theta));
+
+    AssertWithinVec3(EPSILON, Vec3(0, 1, 0), tangentDir);
+
+    vec3 normal = Vec3(1, 0, 0);
+    vec3 tangent = Vec3(0, 1, 0);
+    vec3 bitangent = Vec3(0, 0, -1);
+
+    vec3 worldDir = normal * tangentDir.y + tangent * tangentDir.x +
+                    bitangent * tangentDir.z;
+
+    AssertWithinVec3(EPSILON, Vec3(1, 0, 0), worldDir);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -601,6 +621,7 @@ int main()
 
     RUN_TEST(TestMapCubeMapFaceToVector);
     RUN_TEST(TestMapCubeMapFaceToBasisVectors);
+    RUN_TEST(TestSphereCoordsSample);
 
     free(memoryArena.base);
 
