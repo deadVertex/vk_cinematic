@@ -1,9 +1,12 @@
 /* TODO:
 List:
  - [RAS] Reduce noise in irradiance texture (using uniform sampling) [x]
+ - Resizing window crashes app
+   - Pass new window size to renderer
+   - Destroy swapchain
+   - Create new swapchain for the new size
 
 Bugs:
- - Resizing window crashes app
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - IBL looks too dim, not sure what is causing it
@@ -1125,6 +1128,20 @@ int main(int argc, char **argv)
         f64 frameStart = glfwGetTime();
         InputBeginFrame(&input);
         glfwPollEvents();
+
+        i32 framebufferWidth, framebufferHeight;
+        glfwGetFramebufferSize(g_Window, &framebufferWidth, &framebufferHeight);
+        if ((u32)framebufferWidth != g_FramebufferWidth ||
+            (u32)framebufferHeight != g_FramebufferHeight)
+        {
+            LogMessage("Framebuffer resized to %d x %d", framebufferWidth,
+                framebufferHeight);
+
+            // TODO: Recreate vulkan swapchain
+
+            g_FramebufferWidth = framebufferWidth;
+            g_FramebufferHeight = framebufferHeight;
+        }
 
 #if LIVE_CODE_RELOADING_TEST_ENABLED
         // Check if library has been modified, if so reload it

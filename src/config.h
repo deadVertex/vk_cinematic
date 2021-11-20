@@ -12,14 +12,14 @@
 
 #define COMPUTE_SLOW_ENTITY_AABBS 1
 
-#define TILE_WIDTH 256
-#define TILE_HEIGHT 256
+#define TILE_WIDTH 64
+#define TILE_HEIGHT 64
 
-#define MAX_THREADS 8
+#define MAX_THREADS 16
 
 #define MAX_BOUNCES 3
 
-#define SAMPLES_PER_PIXEL 32
+#define SAMPLES_PER_PIXEL 64
 
 #define APPLICATION_MEMORY_LIMIT Megabytes(512)
 
@@ -28,8 +28,8 @@
 
 //#define MIN_VOLUME
 
-#define RAY_TRACER_WIDTH (1024 / 1)
-#define RAY_TRACER_HEIGHT (768 / 1)
+#define RAY_TRACER_WIDTH (1024 / 2)
+#define RAY_TRACER_HEIGHT (768 / 2)
 
 // Maximum radiance value to clamp to before tone mapping (this is used to
 // reduce fireflies)
