@@ -120,8 +120,8 @@ struct VulkanHdrSwapchainFramebuffer
 
 struct VulkanHdrSwapchain
 {
-    VkRenderPass renderPass;
     VulkanHdrSwapchainFramebuffer framebuffers[2];
+    u32 imageCount;
 };
 
 struct MeshPushConstants
@@ -147,6 +147,7 @@ struct VulkanRenderer
     VkRenderPass renderPass;
     VulkanSwapchain swapchain;
 
+    VkRenderPass hdrRenderPass;
     VulkanHdrSwapchain hdrSwapchain;
 
     VkSemaphore acquireSemaphore;

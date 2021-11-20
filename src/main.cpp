@@ -1,10 +1,7 @@
 /* TODO:
 List:
  - [RAS] Reduce noise in irradiance texture (using uniform sampling) [x]
- - Resizing window crashes app
-   - Pass new window size to renderer
-   - Destroy swapchain
-   - Create new swapchain for the new size
+ - Resizing window crashes app [x]
 
 Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
@@ -1137,7 +1134,9 @@ int main(int argc, char **argv)
             LogMessage("Framebuffer resized to %d x %d", framebufferWidth,
                 framebufferHeight);
 
-            // TODO: Recreate vulkan swapchain
+            // Recreate vulkan swapchain
+            VulkanFramebufferResize(
+                &renderer, framebufferWidth, framebufferHeight);
 
             g_FramebufferWidth = framebufferWidth;
             g_FramebufferHeight = framebufferHeight;

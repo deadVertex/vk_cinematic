@@ -616,19 +616,13 @@ internal VkRenderPass VulkanCreateRenderPass(
 
 internal VulkanHdrSwapchain CreateHdrSwapchain(VkDevice device,
     VkPhysicalDevice physicalDevice, VkFormat format, u32 width, u32 height,
-    u32 imageCount)
+    u32 imageCount, VkRenderPass renderPass)
 {
     Assert(imageCount == 2);
 
     VulkanHdrSwapchain swapchain = {};
 
-    // TODO: Pass depth format?
-    VulkanRenderPassSpec hdrRenderPassSpec = {};
-    hdrRenderPassSpec.colorAttachmentFormat = format;
-    hdrRenderPassSpec.colorAttachmentFinalLayout =
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    hdrRenderPassSpec.useDepth = true;
-    swapchain.renderPass = VulkanCreateRenderPass(device, hdrRenderPassSpec);
+    swapchain.imageCount = imageCount;
 
     for (u32 i = 0; i < imageCount; ++i)
     {
@@ -644,11 +638,22 @@ internal VulkanHdrSwapchain CreateHdrSwapchain(VkDevice device,
                 VK_IMAGE_USAGE_SAMPLED_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-        framebuffer->handle = VulkanCreateFramebuffer(device,
-            swapchain.renderPass, framebuffer->color.view,
-            framebuffer->depth.view, width, height);
+        framebuffer->handle = VulkanCreateFramebuffer(device, renderPass,
+            framebuffer->color.view, framebuffer->depth.view, width, height);
     }
 
     return swapchain;
+}
+
+internal void DestroyHdrSwapchain(VkDevice device, VulkanHdrSwapchain swapchain)
+{
+    for (u32 i = 0; i < swapchain.imageCount; ++i)
+    {
+        VulkanHdrSwapchainFramebuffer framebuffer = swapchain.framebuffers[i];
+
+        vkDestroyFramebuffer(device, framebuffer.handle, NULL);
+        VulkanDestroyImage(device, framebuffer.depth);
+        VulkanDestroyImage(device, framebuffer.color);
+    }
 }
 

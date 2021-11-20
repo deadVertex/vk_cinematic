@@ -377,6 +377,125 @@ internal VkPipelineLayout VulkanCreatePipelineLayout(VkDevice device,
     return layout;
 }
 
+internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
+{
+    u32 width = RAY_TRACER_WIDTH;
+    u32 height = RAY_TRACER_HEIGHT;
+
+    VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue);
+
+    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
+        renderer->images[Image_CpuRayTracer].handle, width, height, 0);
+
+    VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue);
+}
+
+internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
+{
+    VulkanCopyBuffer(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->vertexDataUploadBuffer.handle,
+        renderer->vertexDataBuffer.handle,
+        renderer->vertexDataUploadBufferSize);
+
+    VulkanCopyBuffer(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->indexUploadBuffer.handle,
+        renderer->indexBuffer.handle, 
+        renderer->indexUploadBufferSize);
+}
+
+internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World world)
+{
+    mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
+    for (u32 i = 0; i < world.count; ++i)
+    {
+        Entity *entity = world.entities + i;
+        modelMatrices[i] = Translate(entity->position) *
+                           Rotate(entity->rotation) * Scale(entity->scale);
+    }
+}
+
+internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
+{
+    // Post processing descriptor sets
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorBufferInfo uniformBufferInfo = {};
+        uniformBufferInfo.buffer = renderer->uniformBuffer.handle;
+        uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo vertexDataBufferInfo = {};
+        vertexDataBufferInfo.buffer =
+            renderer->vertexDataBuffer.handle;
+        vertexDataBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo modelMatrixBufferInfo = {};
+        modelMatrixBufferInfo.buffer = renderer->modelMatricesBuffer.handle;
+        modelMatrixBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo materialBufferInfo = {};
+        materialBufferInfo.buffer = renderer->materialBuffer.handle;
+        materialBufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorImageInfo vulkanImageInfo = {};
+        vulkanImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vulkanImageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
+
+        VkDescriptorImageInfo rayTracerImageInfo = {};
+        rayTracerImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        rayTracerImageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
+
+        VkWriteDescriptorSet descriptorWrites[6] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &vertexDataBufferInfo;
+        // Binding 2 is for the defaultSampler
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[2].dstBinding = 3;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pImageInfo = &vulkanImageInfo;
+        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[3].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[3].dstBinding = 4;
+        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[3].descriptorCount = 1;
+        descriptorWrites[3].pBufferInfo = &modelMatrixBufferInfo;
+        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[4].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[4].dstBinding = 5;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[4].descriptorCount = 1;
+        descriptorWrites[4].pBufferInfo = &materialBufferInfo;
+        // Binding 6 is for the test cube map
+        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[5].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[5].dstBinding = 9;
+        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[5].descriptorCount = 1;
+        descriptorWrites[5].pImageInfo = &rayTracerImageInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
+
+}
+
 // TODO: Handle errors gracefully?
 internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 {
@@ -431,10 +550,18 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     // TODO: Config option to support 16-bit floats?
     VkFormat linearFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 
-    renderer->hdrSwapchain =
-        CreateHdrSwapchain(renderer->device, renderer->physicalDevice,
-            linearFormat, surfaceCapabilities.currentExtent.width,
-            surfaceCapabilities.currentExtent.height, 2);
+    VulkanRenderPassSpec hdrRenderPassSpec = {};
+    hdrRenderPassSpec.colorAttachmentFormat = linearFormat;
+    hdrRenderPassSpec.colorAttachmentFinalLayout =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    hdrRenderPassSpec.useDepth = true;
+    renderer->hdrRenderPass =
+        VulkanCreateRenderPass(renderer->device, hdrRenderPassSpec);
+
+    renderer->hdrSwapchain = CreateHdrSwapchain(renderer->device,
+        renderer->physicalDevice, linearFormat,
+        surfaceCapabilities.currentExtent.width,
+        surfaceCapabilities.currentExtent.height, 2, renderer->hdrRenderPass);
 
     // Create swapchain
     renderer->swapchain =
@@ -578,7 +705,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     pipelineDefinition.depthWriteEnabled = true;
 
     renderer->pipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
+        renderer->pipelineCache, renderer->hdrRenderPass,
         renderer->pipelineLayout, renderer->testVertexShader,
         renderer->testFragmentShader, &pipelineDefinition);
 
@@ -606,7 +733,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     debugDrawPipelineDefinition.depthWriteEnabled = false;
 
     renderer->debugDrawPipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
+        renderer->pipelineCache, renderer->hdrRenderPass,
         renderer->debugDrawPipelineLayout, renderer->debugDrawVertexShader,
         renderer->debugDrawFragmentShader, &debugDrawPipelineDefinition);
 
@@ -621,7 +748,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     skyboxPipelineDefinition.depthWriteEnabled = true;
 
     renderer->skyboxPipeline = VulkanCreatePipeline(renderer->device,
-        renderer->pipelineCache, renderer->hdrSwapchain.renderPass,
+        renderer->pipelineCache, renderer->hdrRenderPass,
         renderer->pipelineLayout, renderer->testVertexShader,
         renderer->skyboxFragmentShader, &skyboxPipelineDefinition);
 
@@ -756,76 +883,7 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             descriptorWrites, 0, NULL);
     }
 
-    // Post processing descriptor sets
-    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
-    {
-        VkDescriptorBufferInfo uniformBufferInfo = {};
-        uniformBufferInfo.buffer = renderer->uniformBuffer.handle;
-        uniformBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkDescriptorBufferInfo vertexDataBufferInfo = {};
-        vertexDataBufferInfo.buffer =
-            renderer->vertexDataBuffer.handle;
-        vertexDataBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkDescriptorBufferInfo modelMatrixBufferInfo = {};
-        modelMatrixBufferInfo.buffer = renderer->modelMatricesBuffer.handle;
-        modelMatrixBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkDescriptorBufferInfo materialBufferInfo = {};
-        materialBufferInfo.buffer = renderer->materialBuffer.handle;
-        materialBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkDescriptorImageInfo vulkanImageInfo = {};
-        vulkanImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        vulkanImageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
-
-        VkDescriptorImageInfo rayTracerImageInfo = {};
-        rayTracerImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        rayTracerImageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
-
-        VkWriteDescriptorSet descriptorWrites[6] = {};
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &uniformBufferInfo;
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pBufferInfo = &vertexDataBufferInfo;
-        // Binding 2 is for the defaultSampler
-        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[2].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[2].dstBinding = 3;
-        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pImageInfo = &vulkanImageInfo;
-        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[3].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[3].dstBinding = 4;
-        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[3].descriptorCount = 1;
-        descriptorWrites[3].pBufferInfo = &modelMatrixBufferInfo;
-        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[4].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[4].dstBinding = 5;
-        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[4].descriptorCount = 1;
-        descriptorWrites[4].pBufferInfo = &materialBufferInfo;
-        // Binding 6 is for the test cube map
-        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[5].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[5].dstBinding = 9;
-        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[5].descriptorCount = 1;
-        descriptorWrites[5].pImageInfo = &rayTracerImageInfo;
-        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
-            descriptorWrites, 0, NULL);
-    }
+    UpdatePostProcessingDescriptorSets(renderer);
 
     // Update debug draw descriptor sets
     for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
@@ -858,50 +916,6 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
 }
 
-internal void VulkanCopyImageFromCPU(VulkanRenderer *renderer)
-{
-    u32 width = RAY_TRACER_WIDTH;
-    u32 height = RAY_TRACER_HEIGHT;
-
-    VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
-        renderer->commandPool, renderer->graphicsQueue);
-
-    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
-        renderer->graphicsQueue, renderer->imageUploadBuffer.handle,
-        renderer->images[Image_CpuRayTracer].handle, width, height, 0);
-
-    VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
-        renderer->commandPool, renderer->graphicsQueue);
-}
-
-internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
-{
-    VulkanCopyBuffer(renderer->device, renderer->commandPool,
-        renderer->graphicsQueue, renderer->vertexDataUploadBuffer.handle,
-        renderer->vertexDataBuffer.handle,
-        renderer->vertexDataUploadBufferSize);
-
-    VulkanCopyBuffer(renderer->device, renderer->commandPool,
-        renderer->graphicsQueue, renderer->indexUploadBuffer.handle,
-        renderer->indexBuffer.handle, 
-        renderer->indexUploadBufferSize);
-}
-
-internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World world)
-{
-    mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
-    for (u32 i = 0; i < world.count; ++i)
-    {
-        Entity *entity = world.entities + i;
-        modelMatrices[i] = Translate(entity->position) *
-                           Rotate(entity->rotation) * Scale(entity->scale);
-    }
-}
-
 internal void VulkanRender(
     VulkanRenderer *renderer, u32 outputFlags, World world)
 {
@@ -925,7 +939,7 @@ internal void VulkanRender(
 
     VkRenderPassBeginInfo renderPassBegin = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-    renderPassBegin.renderPass = renderer->hdrSwapchain.renderPass;
+    renderPassBegin.renderPass = renderer->hdrRenderPass;
     renderPassBegin.framebuffer = renderer->hdrSwapchain.framebuffers[imageIndex].handle;
     renderPassBegin.renderArea.extent.width = renderer->swapchain.width;
     renderPassBegin.renderArea.extent.height = renderer->swapchain.height;
@@ -1060,4 +1074,31 @@ internal void VulkanRender(
 
     // FIXME: Remove this to allow CPU and GPU to run in parallel
     VK_CHECK(vkDeviceWaitIdle(renderer->device));
+}
+
+internal void VulkanFramebufferResize(
+    VulkanRenderer *renderer, u32 framebufferWidth, u32 framebufferHeight)
+{
+    // Make doubly sure no resources are still in use
+    vkDeviceWaitIdle(renderer->device);
+
+    // Destroy swapchain
+    VulkanDestroySwapchain(renderer->swapchain, renderer->device);
+    DestroyHdrSwapchain(renderer->device, renderer->hdrSwapchain);
+
+    // Recreate swapchain
+    renderer->swapchain =
+        VulkanSetupSwapchain(renderer->device, renderer->physicalDevice,
+            renderer->surface, renderer->queueFamilyIndices,
+            renderer->renderPass, 2, framebufferWidth, framebufferHeight);
+
+    // TODO: Config option to support 16-bit floats?
+    VkFormat linearFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+
+    renderer->hdrSwapchain = CreateHdrSwapchain(renderer->device,
+        renderer->physicalDevice, linearFormat, framebufferWidth,
+        framebufferHeight, 2, renderer->hdrRenderPass);
+
+    // Update descriptor sets to point to new image views
+    UpdatePostProcessingDescriptorSets(renderer);
 }
