@@ -1,12 +1,6 @@
 /* TODO:
 List:
- - [ GOAL is to reduce cycle time for working on materials models/shaders ]
- - CPU bilinear sampling [X]
- - Profiling! (What is our current cost per ray?) - Midphase is culprit (tree is too deep/unbalanced)
- - Startup time is too long! (building AABB trees for meshes most likely)
- - SIMD
- - Scene definition from file [ ]
- - Live code reloading? +1
+ - [RAS] Reduce noise in irradiance texture
 
 Bugs:
  - Resizing window crashes app
@@ -21,13 +15,14 @@ Tech Debt:
 Features:
  - Linear space rendering [x]
  - Texture mapping [x]
- - Smooth shading [ ]
- - Bilinear sampling
+ - Smooth shading [x]
+ - Bilinear sampling [x]
  - Image based lighting [x]
  - ACES tone mapping
  - Bloom
  - gltf importing
  - Cube map texture loading
+ - Scene definition from file [ ]
 
 Performance testing infrastructure
 - Performance test suite
@@ -44,12 +39,14 @@ Usability
 - Scene definition from file
 - Resource definition from file
 
-Optimizations - CPU ray tracer
-- Multiple triangles per tree leaf node
-- SIMD
-- Multi-core [X]
-- Sample cube maps in shaders rather than equirectangular images [x]
-- Startup time is too long! (building AABB trees for meshes most likely)
+Optimizations
+- [CPU] Multiple triangles per tree leaf node
+- [CPU] SIMD
+- [CPU] Multi-core [X]
+- [RAS] Sample cube maps in shaders rather than equirectangular images [x]
+- [ALL] Startup time is too long! (building AABB trees for meshes most likely)
+- [CPU] Profiling! (What is our current cost per ray?) - Midphase is culprit (tree is too deep/unbalanced)
+- [CPU] Don't ray trace whole screen when using comparison view
 
 Analysis
 - AABB trees
@@ -61,9 +58,6 @@ Observability
 - More metrics
 - More logs
 - More profiling
-
-Optimizations
-- Don't ray trace whole screen when using comparison view
 */
 
 #include <cstdarg>
@@ -1080,6 +1074,8 @@ int main(int argc, char **argv)
     EvaluateTree(rayTracer.meshes[Mesh_Monkey].aabbTree);
     LogMessage("Evaluate Mesh_Sphere tree");
     EvaluateTree(rayTracer.meshes[Mesh_Sphere].aabbTree);
+    LogMessage("Triangle count: %u",
+        rayTracer.meshes[Mesh_Sphere].meshData.indexCount / 3);
 #endif
 
     g_Profiler.samples =
