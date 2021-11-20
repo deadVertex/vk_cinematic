@@ -279,6 +279,7 @@ inline vec4 SampleImageBilinear(HdrImage image, vec2 uv)
 }
 
 // NOTE: dir must be normalized
+// TODO: Nothing uses this because it hard-codes the sampler method to nearest
 inline vec4 SampleEquirectangularImage(HdrImage image, vec3 sampleDir)
 {
     vec2 sphereCoords = ToSphericalCoordinates(sampleDir);

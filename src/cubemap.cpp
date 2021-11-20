@@ -10,16 +10,56 @@ struct BasisVectors
     vec3 right;
 };
 
+enum
+{
+    CubeMapFace_PositiveX,
+    CubeMapFace_NegativeX,
+    CubeMapFace_PositiveY,
+    CubeMapFace_NegativeY,
+    CubeMapFace_PositiveZ,
+    CubeMapFace_NegativeZ,
+};
+
+internal vec3 MapCubeMapLayerIndexToVector(u32 layerIndex)
+{
+    vec3 result = {};
+
+    switch (layerIndex)
+    {
+        case CubeMapFace_PositiveX:
+            result = Vec3(1, 0, 0);
+            break;
+        case CubeMapFace_NegativeX:
+            result = Vec3(-1, 0, 0);
+            break;
+        case CubeMapFace_PositiveY:
+            result = Vec3(0, 1, 0);
+            break;
+        case CubeMapFace_NegativeY:
+            result = Vec3(0, -1, 0);
+            break;
+        case CubeMapFace_PositiveZ:
+            result = Vec3(0, 0, 1);
+            break;
+        case CubeMapFace_NegativeZ:
+            result = Vec3(0, 0, -1);
+            break;
+        default:
+            InvalidCodePath();
+            break;
+    }
+
+    return result;
+}
+
 internal BasisVectors MapCubeMapLayerIndexToBasisVectors(u32 layerIndex)
 {
     vec3 forward = {};
     vec3 up = {};
     vec3 right = {};
 
-    // Mapping doesn't make sense, it seems like the right vector is always
-    // flipped but visually it matches the ray tracer which is directly
-    // sampling the equirectangular image
-    // TODO: Does this match the cross product?
+    // NOTE: Doesn't match the cross product
+    // https://en.wikipedia.org/wiki/Cube_mapping#/media/File:Cube_map.svg
     switch (layerIndex)
     {
     case 0: // X+
@@ -33,13 +73,13 @@ internal BasisVectors MapCubeMapLayerIndexToBasisVectors(u32 layerIndex)
         right = Vec3(0, 0, 1);
         break;
     case 2: // Y+
-        forward = Vec3(0, -1, 0);
-        up = Vec3(0, 0, 1);
+        forward = Vec3(0, 1, 0);
+        up = Vec3(0, 0, -1);
         right = Vec3(1, 0, 0);
         break;
     case 3: // Y-
-        forward = Vec3(0, 1, 0);
-        up = Vec3(0, 0, -1);
+        forward = Vec3(0, -1, 0);
+        up = Vec3(0, 0, 1);
         right = Vec3(1, 0, 0);
         break;
     case 4: // Z+
@@ -98,6 +138,9 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
                 f32 fx = (f32)x / (f32)width;
                 f32 fy = (f32)y / (f32)height;
 
+                // Flip Y axis
+                fy = 1.0f - fy;
+
                 // Map to -1 to 1
                 fx = fx * 2.0f - 1.0f;
                 fy = fy * 2.0f - 1.0f;
@@ -105,7 +148,7 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
                 vec3 dir = basis.forward + basis.right * fx + basis.up * fy;
                 dir = Normalize(dir);
 
-                vec4 irradiance = {};
+                vec3 irradiance = {};
                 for (u32 sampleIndex = 0; sampleIndex < samplesPerPixel;
                      ++sampleIndex)
                 {
@@ -123,17 +166,19 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
 
                     vec2 sphereCoords = ToSphericalCoordinates(sampleDir);
                     vec2 uv = MapToEquirectangular(sphereCoords);
-                    vec4 sample = SampleImageBilinear(equirectangularImage, uv);
-                    vec4 radiance =
-                        Clamp(sample * cosine, Vec4(0), Vec4(RADIANCE_CLAMP));
+                    uv.y = 1.0f - uv.y; // Flip Y axis as usual
+                    vec3 sample = SampleImageBilinear(equirectangularImage, uv).xyz;
+
+                    // Perform radiance clamp
+                    vec3 radiance =
+                        Clamp(sample * cosine, Vec3(0), Vec3(RADIANCE_CLAMP));
+
                     irradiance += radiance * sampleContribution;
                 }
 
-                irradiance.a = 1.0;
-
                 // Write irradiance value to image
                 u32 pixelIndex = (y * dstImage->width + x) * 4;
-                *(vec4 *)(dstImage->pixels + pixelIndex) = irradiance;
+                *(vec4 *)(dstImage->pixels + pixelIndex) = Vec4(irradiance, 1);
             }
         }
     }

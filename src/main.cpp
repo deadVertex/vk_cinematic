@@ -7,6 +7,7 @@ Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - IBL looks too dim, not sure what is causing it
+ - [RAS] Tonemapping on skybox/background is wrong, too dark
 
 Tech Debt:
  - Hard-coded material id to texture mapping in shader

@@ -122,6 +122,9 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
                 f32 fx = (f32)x / (f32)width;
                 f32 fy = (f32)y / (f32)height;
 
+                // Flip Y axis
+                fy = 1.0f - fy;
+
                 // Map to -1 to 1
                 fx = fx * 2.0f - 1.0f;
                 fy = fy * 2.0f - 1.0f;
@@ -130,8 +133,10 @@ internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
                 dir = Normalize(dir);
 
                 // Sample equirectangular texture using direction vector
-                vec4 sample =
-                    SampleEquirectangularImage(equirectangularImage, dir);
+                vec2 sphereCoords = ToSphericalCoordinates(dir);
+                vec2 uv = MapToEquirectangular(sphereCoords);
+                uv.y = 1.0f - uv.y; // Flip Y axis as usual
+                vec4 sample = SampleImageBilinear(equirectangularImage, uv);
 
                 // Store sample for pixel
                 u32 pixelOffset = (y * width + x) * bytesPerPixel;

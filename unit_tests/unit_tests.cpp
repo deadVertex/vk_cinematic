@@ -508,6 +508,66 @@ void TestBilinearSamplingClampEdge()
     TEST_ASSERT_EQUAL_FLOAT(0.5, sampleMin.r);
 }
 
+void TestMapCubeMapFaceToVector()
+{
+    u32 layerIndices[] = {
+        CubeMapFace_PositiveX,
+        CubeMapFace_NegativeX,
+        CubeMapFace_PositiveY,
+        CubeMapFace_NegativeY,
+        CubeMapFace_PositiveZ,
+        CubeMapFace_NegativeZ,
+    };
+
+    vec3 directions[] = {
+        Vec3(1, 0, 0),
+        Vec3(-1, 0, 0),
+        Vec3(0, 1, 0),
+        Vec3(0, -1, 0),
+        Vec3(0, 0, 1),
+        Vec3(0, 0, -1),
+    };
+
+    for (u32 i = 0; i < ArrayCount(layerIndices); ++i)
+    {
+        vec3 expected = directions[i];
+        vec3 dir = MapCubeMapLayerIndexToVector(layerIndices[i]);
+        AssertWithinVec3(EPSILON, expected, dir);
+    }
+}
+
+void TestMapCubeMapFaceToBasisVectors()
+{
+    u32 layerIndices[] = {
+        CubeMapFace_PositiveX,
+        CubeMapFace_NegativeX,
+        CubeMapFace_PositiveY,
+        CubeMapFace_NegativeY,
+        CubeMapFace_PositiveZ,
+        CubeMapFace_NegativeZ,
+    };
+
+    // { forward, up, right } (normal, tangent, bitangent)?
+    BasisVectors basisVectors[] = {
+        {Vec3(1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, -1)}, // +X
+        {Vec3(-1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, 1)}, // -X
+        {Vec3(0, 1, 0), Vec3(0, 0, -1), Vec3(1, 0, 0)}, // +Y
+        {Vec3(0, -1, 0), Vec3(0, 0, 1), Vec3(1, 0, 0)}, // -Y
+        {Vec3(0, 0, 1), Vec3(0, 1, 0), Vec3(1, 0, 0)}, // +Z
+        {Vec3(0, 0, -1), Vec3(0, 1, 0), Vec3(-1, 0, 0)}, // -Z
+    };
+
+    for (u32 i = 0; i < ArrayCount(layerIndices); ++i)
+    {
+        BasisVectors expected = basisVectors[i];
+        BasisVectors actual =
+            MapCubeMapLayerIndexToBasisVectors(layerIndices[i]);
+        AssertWithinVec3(EPSILON, expected.forward, actual.forward);
+        AssertWithinVec3(EPSILON, expected.up, actual.up);
+        AssertWithinVec3(EPSILON, expected.right, actual.right);
+    }
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -538,6 +598,9 @@ int main()
     RUN_TEST(TestNearestSampling);
     RUN_TEST(TestBilinearSampling);
     RUN_TEST(TestBilinearSamplingClampEdge);
+
+    RUN_TEST(TestMapCubeMapFaceToVector);
+    RUN_TEST(TestMapCubeMapFaceToBasisVectors);
 
     free(memoryArena.base);
 
