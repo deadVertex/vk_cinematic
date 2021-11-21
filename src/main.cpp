@@ -1,17 +1,15 @@
 /* TODO:
 List:
- - [RAS] Reduce noise in irradiance texture (using uniform sampling) [x]
- - Resizing window crashes app [x]
+ - Code duplication for creating and uploading images/cube maps to GPU [x]
+- [CPU] Don't model skybox using geometry [x]
 
 Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - IBL looks too dim, not sure what is causing it
- - [RAS] Tonemapping on skybox/background is wrong, too dark (double SRGB?)
 
 Tech Debt:
  - Hard-coded material id to texture mapping in shader
- - Code duplication for creating and uploading images/cube maps to GPU
  - [CPU] Ray tracer image resolution is hard-coded
 
 Features:
@@ -48,7 +46,6 @@ Optimizations
 - [ALL] Startup time is too long! (building AABB trees for meshes most likely)
 - [CPU] Profiling! (What is our current cost per ray?) - Midphase is culprit (tree is too deep/unbalanced)
 - [CPU] Don't ray trace whole screen when using comparison view
-- [CPU] Don't model skybox using geometry
 
 Analysis
 - AABB trees
@@ -545,6 +542,8 @@ internal void Update(
 
     ubo->viewMatrices[0] =
         Rotate(Conjugate(cameraRotation)) * Translate(-cameraPosition);
+    ubo->viewMatrices[1] =
+        Rotate(Conjugate(cameraRotation));
 
     f32 aspect =
         (f32)renderer->swapchain.width / (f32)renderer->swapchain.height;
@@ -557,6 +556,7 @@ internal void Update(
     correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
     ubo->projectionMatrices[0] =
         correctionMatrix * Perspective(50.0f, aspect, 0.01f, 100.0f);
+    ubo->projectionMatrices[1] = ubo->projectionMatrices[0];
 
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
@@ -1015,10 +1015,10 @@ int main(int argc, char **argv)
         &accelerationStructureMemoryArena, &tempArena);
 
     // Load image data
-    HdrImage image =
-        LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
     //HdrImage image =
-        //LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
+        //LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
+    HdrImage image =
+        LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
     rayTracer.image = image;
 
     // Create checkerboard image
@@ -1055,8 +1055,11 @@ int main(int argc, char **argv)
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
 
-    AddEntity(&scene, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube,
-        Material_Background);
+    //AddEntity(&scene, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube,
+        //Material_Background);
+    AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
+        Mesh_Plane, Material_CheckerBoard);
+
     for (u32 y = 0; y < 5; ++y)
     {
         for (u32 x = 0; x < 5; ++x)

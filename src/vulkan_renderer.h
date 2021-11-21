@@ -129,6 +129,7 @@ struct MeshPushConstants
     u32 modelMatrixIndex;
     u32 vertexDataOffset;
     u32 materialIndex;
+    u32 cameraIndex;
 };
 
 struct VulkanRenderer

@@ -35,6 +35,7 @@ layout(push_constant) uniform PushConstants
     uint modelMatrixIndex;
     uint vertexDataOffset;
     uint materialIndex;
+    uint cameraIndex;
 };
 
 layout(location = 0) out vec3 fragNormal;
@@ -44,8 +45,6 @@ layout(location = 3) out vec2 fragTexCoord;
 
 void main()
 {
-    uint uboIndex = 0;
-
     mat4 modelMatrix = modelMatrices[modelMatrixIndex];
     mat3 invModelMatrix = transpose(mat3(modelMatrix));
 
@@ -63,8 +62,8 @@ void main()
             vertices[gl_VertexIndex + vertexDataOffset].tx,
             vertices[gl_VertexIndex + vertexDataOffset].ty);
 
-    gl_Position = ubo.projectionMatrices[uboIndex] *
-                  ubo.viewMatrices[uboIndex] * 
+    gl_Position = ubo.projectionMatrices[cameraIndex] *
+                  ubo.viewMatrices[cameraIndex] * 
                   modelMatrix *
                   vec4(inPosition, 1.0);
 

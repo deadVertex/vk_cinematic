@@ -413,11 +413,13 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
 internal void UploadSceneDataToGpu(VulkanRenderer *renderer, Scene scene)
 {
     mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
+    modelMatrices[0] = Identity(); // 0 slot reserved for skybox
+
     for (u32 i = 0; i < scene.count; ++i)
     {
         Entity *entity = scene.entities + i;
-        modelMatrices[i] = Translate(entity->position) *
-                           Rotate(entity->rotation) * Scale(entity->scale);
+        modelMatrices[i + 1] = Translate(entity->position) *
+                               Rotate(entity->rotation) * Scale(entity->scale);
     }
 }
 
@@ -744,8 +746,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     skyboxPipelineDefinition.primitive = Primitive_Triangle;
     skyboxPipelineDefinition.polygonMode = PolygonMode_Fill;
     skyboxPipelineDefinition.cullMode = CullMode_Front;
-    skyboxPipelineDefinition.depthTestEnabled = true; // TODO: fix
-    skyboxPipelineDefinition.depthWriteEnabled = true;
+    skyboxPipelineDefinition.depthTestEnabled = false;
+    skyboxPipelineDefinition.depthWriteEnabled = false;
 
     renderer->skyboxPipeline = VulkanCreatePipeline(renderer->device,
         renderer->pipelineCache, renderer->hdrRenderPass,
@@ -962,6 +964,32 @@ internal void VulkanRender(
         VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
         &renderer->descriptorSets[imageIndex], 0, NULL);
 
+    // Draw skybox
+    {
+        u32 meshIndex = Mesh_Cube;
+        u32 materialIndex = Material_Background;
+        Mesh mesh = renderer->meshes[meshIndex];
+        vkCmdBindPipeline(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
+
+        // FIXME: Code dup
+        vkCmdBindIndexBuffer(renderer->commandBuffer,
+            renderer->indexBuffer.handle, mesh.indexDataOffset,
+            VK_INDEX_TYPE_UINT32);
+
+        MeshPushConstants pushConstants = {};
+        pushConstants.modelMatrixIndex = 0;
+        pushConstants.vertexDataOffset = mesh.vertexDataOffset;
+        pushConstants.materialIndex = materialIndex;
+        pushConstants.cameraIndex = 1; // Skybox camera
+
+        vkCmdPushConstants(renderer->commandBuffer, renderer->pipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants),
+            &pushConstants);
+
+        vkCmdDrawIndexed(renderer->commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+    }
+
     // Draw mesh
     for (u32 i = 0; i < scene.count; ++i)
     {
@@ -987,7 +1015,7 @@ internal void VulkanRender(
             VK_INDEX_TYPE_UINT32);
 
         MeshPushConstants pushConstants = {};
-        pushConstants.modelMatrixIndex = i;
+        pushConstants.modelMatrixIndex = i + 1; // FIXME: 0 is reserved for skybox
         pushConstants.vertexDataOffset = mesh.vertexDataOffset;
         pushConstants.materialIndex = materialIndex;
 

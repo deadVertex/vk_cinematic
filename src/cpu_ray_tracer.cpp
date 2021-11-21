@@ -522,18 +522,11 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                     else
                     {
                         // Add dummy path vertex for background intersection
-#if 0
-                        pathVertices[pathVertexCount].incomingDirection =
-                            Vec3(0, 0, 0);
-                        pathVertices[pathVertexCount].outgoingDirection =
-                            rayDirection;
-                        pathVertices[pathVertexCount].surfaceNormal =
-                            Vec3(0, 0, 0);
-                        pathVertices[pathVertexCount].materialIndex =
-                            Material_Background;
-                        pathVertexCount++;
-#endif
-
+                        PathVertex vertex = {};
+                        vertex.outgoingDirection = rayDirection;
+                        vertex.surfaceNormal = Vec3(0, 0, 0);
+                        vertex.materialIndex = Material_Background;
+                        pathVertices[pathVertexCount++] = vertex;
                         break;
                     }
                 }
@@ -557,7 +550,7 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                     if (materialIndex == Material_Background)
                     {
                         vec2 sphereCoords =
-                            ToSphericalCoordinates(vertex.surfacePointLocal);
+                            ToSphericalCoordinates(vertex.outgoingDirection);
                         vec2 uv = MapToEquirectangular(sphereCoords);
                         uv.y = 1.0f - uv.y; // Flip Y axis as usual
                         vec4 color = SampleImageNearest(rayTracer->image, uv);
