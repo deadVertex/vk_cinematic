@@ -2,7 +2,6 @@
 List:
  - [RAS] Reduce noise in irradiance texture (using uniform sampling) [x]
  - Resizing window crashes app [x]
- - Scene definition from file [ ]
 
 Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
@@ -38,7 +37,7 @@ Visualization infrastructure
 Usability
 - Realtime feedback of ray tracing
 - Live code reloading? +1
-- Scene definition from file
+- Scene definition from file [ ] (Nice to have)
 - Resource definition from file
 
 Optimizations
@@ -815,6 +814,30 @@ internal void DrawMeshDataNormals(
     }
 }
 
+internal HdrImage LoadImage(
+    const char *relativePath, MemoryArena *imageDataArena, const char *assetDir)
+{
+    char fullPath[256];
+    snprintf(fullPath, sizeof(fullPath), "%s/%s", assetDir, relativePath);
+
+    HdrImage tempImage = {};
+    if (LoadExrImage(&tempImage, fullPath) != 0)
+    {
+        LogMessage("Failed to EXR image - %s", fullPath);
+        InvalidCodePath();
+    }
+
+    HdrImage result = tempImage;
+    result.pixels =
+        AllocateArray(imageDataArena, f32, result.width * result.height * 4);
+    CopyMemory(result.pixels, tempImage.pixels,
+        sizeof(f32) * result.width * result.height * 4);
+
+    free(tempImage.pixels);
+
+    return result;
+}
+
 #if LIVE_CODE_RELOADING_TEST_ENABLED
 typedef void LibraryFunction(void);
 
@@ -992,41 +1015,26 @@ int main(int argc, char **argv)
         &accelerationStructureMemoryArena, &tempArena);
 
     // Load image data
-    {
-        char fullPath[256];
-        snprintf(fullPath, sizeof(fullPath), "%s/%s", assetDir,
-            "studio_garden_4k.exr");
-            //"kiara_4_mid-morning_4k.exr");
-
-        HdrImage image = {};
-        if (LoadExrImage(&image, fullPath) != 0)
-        {
-            LogMessage("Failed to EXR image - %s", fullPath);
-            InvalidCodePath();
-        }
-        rayTracer.image = image;
-        rayTracer.image.pixels =
-            AllocateArray(&imageDataArena, f32, image.width * image.height * 4);
-        CopyMemory(rayTracer.image.pixels, image.pixels,
-            sizeof(f32) * image.width * image.height * 4);
-        free(image.pixels);
-    }
-
-    // Upload equirectangular environment map to GPU
-    UploadHdrImageToVulkan(&renderer, rayTracer.image, Image_EnvMapTest, 6);
+    HdrImage image =
+        LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
+    //HdrImage image =
+        //LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
+    rayTracer.image = image;
 
     // Create checkerboard image
     HdrImage checkerBoardImage = CreateCheckerBoardImage(&imageDataArena);
-    UploadHdrImageToVulkan(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
+    UploadHdrImageToGPU(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
     rayTracer.checkerBoardImage = checkerBoardImage;
 
     // Create and upload test cube map
-    UploadTestCubeMapToGPU(
-        &renderer, rayTracer.image, Image_CubeMapTest, 6, 1024, 1024);
+    HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);
+    UploadCubeMapToGPU(&renderer, cubeMap, Image_CubeMapTest, 6, 1024, 1024);
 
     // Create and upload irradiance cube map
-    UploadIrradianceCubeMapToGPU(
-        &renderer, rayTracer.image, Image_IrradianceCubeMap, 7);
+    HdrCubeMap irradianceCubeMap =
+        CreateIrradianceCubeMap(image, &imageDataArena, 32, 32);
+    UploadCubeMapToGPU(
+        &renderer, irradianceCubeMap, Image_IrradianceCubeMap, 7, 32, 32);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};

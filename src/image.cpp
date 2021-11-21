@@ -1,4 +1,4 @@
-internal void UploadHdrImageToVulkan(
+internal void UploadHdrImageToGPU(
     VulkanRenderer *renderer, HdrImage image, u32 imageId, u32 dstBinding)
 {
     Assert(imageId < MAX_IMAGES);
@@ -56,6 +56,74 @@ internal void UploadHdrImageToVulkan(
     }
 }
 
+internal void UploadCubeMapToGPU(VulkanRenderer *renderer, HdrCubeMap cubeMap,
+    u32 imageId, u32 dstBinding, u32 width, u32 height)
+{
+    u32 bytesPerPixel = sizeof(f32) * 4; // Using VK_FORMAT_R32G32B32A32_SFLOAT
+
+    // Create image
+    VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    renderer->images[imageId] = VulkanCreateImage(renderer->device,
+        renderer->physicalDevice, width, height, format,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
+
+    // Allocate cube map from upload buffer
+    MemoryArena textureUploadArena = {};
+    InitializeMemoryArena(&textureUploadArena,
+        renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
+
+    u32 layerCount = 6;
+    void *pixels = AllocateBytes(
+        &textureUploadArena, width * height * bytesPerPixel * layerCount);
+
+    for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
+    {
+        // Map layer index to basis vectors for cube map face
+        BasisVectors basis =
+            MapCubeMapLayerIndexToBasisVectors(layerIndex);
+
+        HdrImage *srcImage = cubeMap.images + layerIndex;
+
+        u32 layerOffset = layerIndex * width * height * bytesPerPixel;
+        void *dst = (u8 *)pixels + layerOffset;
+
+        CopyMemory(dst, srcImage->pixels, width * height * bytesPerPixel);
+    }
+
+    // Submit cube map data for upload to GPU
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue, true);
+
+    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
+        renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
+        renderer->images[imageId].handle, width, height, 0, true);
+
+    VulkanTransitionImageLayout(renderer->images[imageId].handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
+        renderer->commandPool, renderer->graphicsQueue, true);
+
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VkDescriptorImageInfo imageInfo = {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = renderer->images[imageId].view;
+
+        VkWriteDescriptorSet descriptorWrites[1] = {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[0].dstBinding = dstBinding;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pImageInfo = &imageInfo;
+        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
+            descriptorWrites, 0, NULL);
+    }
+}
+
 internal HdrImage CreateCheckerBoardImage(MemoryArena *tempArena)
 {
     u32 width = 256;
@@ -83,163 +151,4 @@ internal HdrImage CreateCheckerBoardImage(MemoryArena *tempArena)
     }
 
     return result;
-}
-
-internal void UploadTestCubeMapToGPU(VulkanRenderer *renderer,
-    HdrImage equirectangularImage, u32 imageId, u32 dstBinding, u32 width,
-    u32 height)
-{
-    // Create image
-    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-    renderer->images[imageId] = VulkanCreateImage(renderer->device,
-        renderer->physicalDevice, width, height, format,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
-
-    // Allocate cube map from upload buffer
-    MemoryArena textureUploadArena = {};
-    InitializeMemoryArena(&textureUploadArena,
-        renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
-
-    u32 bytesPerPixel = 4; // Using VK_FORMAT_R8G8B8A8_UNORM
-    u32 layerCount = 6;
-    void *pixels = AllocateBytes(
-        &textureUploadArena, width * height * bytesPerPixel * layerCount);
-
-    // Copy test data into upload buffer
-    for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
-    {
-        // Map layer index to basis vectors for cube map face
-        BasisVectors basis =
-            MapCubeMapLayerIndexToBasisVectors(layerIndex);
-
-        u32 layerOffset = layerIndex * width * height * bytesPerPixel;
-        for (u32 y = 0; y < height; ++y)
-        {
-            for (u32 x = 0; x < width; ++x)
-            {
-                // Convert pixel to cartesian direction vector
-                f32 fx = (f32)x / (f32)width;
-                f32 fy = (f32)y / (f32)height;
-
-                // Flip Y axis
-                fy = 1.0f - fy;
-
-                // Map to -1 to 1
-                fx = fx * 2.0f - 1.0f;
-                fy = fy * 2.0f - 1.0f;
-
-                vec3 dir = basis.forward + basis.right * fx + basis.up * fy;
-                dir = Normalize(dir);
-
-                // Sample equirectangular texture using direction vector
-                vec2 sphereCoords = ToSphericalCoordinates(dir);
-                vec2 uv = MapToEquirectangular(sphereCoords);
-                uv.y = 1.0f - uv.y; // Flip Y axis as usual
-                vec4 sample = SampleImageBilinear(equirectangularImage, uv);
-
-                // Store sample for pixel
-                u32 pixelOffset = (y * width + x) * bytesPerPixel;
-                u32 index = layerOffset + pixelOffset;
-
-                u32 *pixel = (u32 *)((u8 *)pixels + index);
-
-                // FIXME: Need to do proper tone mapping but without SRGB conversion
-                vec4 color = Clamp(sample, Vec4(0), Vec4(1));
-
-                color *= 255.0f;
-                *pixel =
-                    (0xFF000000 | ((u32)color.z) << 16 | ((u32)color.y) << 8) |
-                    (u32)color.x;
-            }
-        }
-    }
-
-    // Submit cube map data for upload to GPU
-    VulkanTransitionImageLayout(renderer->images[imageId].handle,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
-        renderer->commandPool, renderer->graphicsQueue, true);
-
-    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
-        renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
-        renderer->images[imageId].handle, width, height, 0, true);
-
-    VulkanTransitionImageLayout(renderer->images[imageId].handle,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
-        renderer->commandPool, renderer->graphicsQueue, true);
-
-    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
-    {
-        VkDescriptorImageInfo imageInfo = {};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = renderer->images[imageId].view;
-
-        VkWriteDescriptorSet descriptorWrites[1] = {};
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[0].dstBinding = dstBinding;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pImageInfo = &imageInfo;
-        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
-            descriptorWrites, 0, NULL);
-    }
-}
-
-internal void UploadIrradianceCubeMapToGPU(VulkanRenderer *renderer,
-    HdrImage equirectangularImage, u32 imageId, u32 dstBinding)
-{
-    Assert(imageId < MAX_IMAGES);
-
-    u32 width = 32;
-    u32 height = 32;
-
-    // Create image
-    VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    renderer->images[imageId] = VulkanCreateImage(renderer->device,
-        renderer->physicalDevice, width, height, format,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, true);
-
-    // Allocate cube map from upload buffer
-    MemoryArena textureUploadArena = {};
-    InitializeMemoryArena(&textureUploadArena,
-        renderer->textureUploadBuffer.data, TEXTURE_UPLOAD_BUFFER_SIZE);
-
-    HdrCubeMap irradianceCubeMap = CreateIrradianceCubeMap(
-        equirectangularImage, &textureUploadArena, width, height, 32);
-
-    // Submit cube map data for upload to GPU
-    VulkanTransitionImageLayout(renderer->images[imageId].handle,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->device,
-        renderer->commandPool, renderer->graphicsQueue, true);
-
-    VulkanCopyBufferToImage(renderer->device, renderer->commandPool,
-        renderer->graphicsQueue, renderer->textureUploadBuffer.handle,
-        renderer->images[imageId].handle, width, height, 0, true);
-
-    VulkanTransitionImageLayout(renderer->images[imageId].handle,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, renderer->device,
-        renderer->commandPool, renderer->graphicsQueue, true);
-
-    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
-    {
-        VkDescriptorImageInfo imageInfo = {};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = renderer->images[imageId].view;
-
-        VkWriteDescriptorSet descriptorWrites[1] = {};
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = renderer->descriptorSets[i];
-        descriptorWrites[0].dstBinding = dstBinding;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pImageInfo = &imageInfo;
-        vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
-            descriptorWrites, 0, NULL);
-    }
 }

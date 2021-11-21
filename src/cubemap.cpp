@@ -229,3 +229,61 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
 
     return result;
 }
+
+// TODO: Does it rather make sense to pass in an already initialize HdrCubeMap
+// structure which has been allocated from the textureUploadArena
+internal HdrCubeMap CreateCubeMap(HdrImage equirectangularImage,
+    MemoryArena *arena, u32 width, u32 height)
+{
+    HdrCubeMap result = {};
+
+    u32 bytesPerPixel = sizeof(f32) * 4;
+    u32 layerCount = 6;
+
+    for (u32 i = 0; i < 6; ++i)
+    {
+        result.images[i] = AllocateImage(width, height, arena);
+    }
+
+    // Copy test data into upload buffer
+    for (u32 layerIndex = 0; layerIndex < layerCount; ++layerIndex)
+    {
+        // Map layer index to basis vectors for cube map face
+        BasisVectors basis =
+            MapCubeMapLayerIndexToBasisVectors(layerIndex);
+
+        HdrImage *dstImage = result.images + layerIndex;
+
+        for (u32 y = 0; y < height; ++y)
+        {
+            for (u32 x = 0; x < width; ++x)
+            {
+                // Convert pixel to cartesian direction vector
+                f32 fx = (f32)x / (f32)width;
+                f32 fy = (f32)y / (f32)height;
+
+                // Flip Y axis
+                fy = 1.0f - fy;
+
+                // Map to -1 to 1
+                fx = fx * 2.0f - 1.0f;
+                fy = fy * 2.0f - 1.0f;
+
+                vec3 dir = basis.forward + basis.right * fx + basis.up * fy;
+                dir = Normalize(dir);
+
+                // Sample equirectangular texture using direction vector
+                vec2 sphereCoords = ToSphericalCoordinates(dir);
+                vec2 uv = MapToEquirectangular(sphereCoords);
+                uv.y = 1.0f - uv.y; // Flip Y axis as usual
+                vec4 sample = SampleImageBilinear(equirectangularImage, uv);
+
+                // Store sample for pixel
+                u32 pixelIndex = (y * dstImage->width + x) * 4;
+                *(vec4 *)(dstImage->pixels + pixelIndex) = sample;
+            }
+        }
+    }
+
+    return result;
+}
