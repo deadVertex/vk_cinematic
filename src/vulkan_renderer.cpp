@@ -410,12 +410,12 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
         renderer->indexUploadBufferSize);
 }
 
-internal void UploadWorldDataToGpu(VulkanRenderer *renderer, World world)
+internal void UploadSceneDataToGpu(VulkanRenderer *renderer, Scene scene)
 {
     mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
-    for (u32 i = 0; i < world.count; ++i)
+    for (u32 i = 0; i < scene.count; ++i)
     {
-        Entity *entity = world.entities + i;
+        Entity *entity = scene.entities + i;
         modelMatrices[i] = Translate(entity->position) *
                            Rotate(entity->rotation) * Scale(entity->scale);
     }
@@ -917,9 +917,9 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 }
 
 internal void VulkanRender(
-    VulkanRenderer *renderer, u32 outputFlags, World world)
+    VulkanRenderer *renderer, u32 outputFlags, Scene scene)
 {
-    UploadWorldDataToGpu(renderer, world);
+    UploadSceneDataToGpu(renderer, scene);
 
     u32 imageIndex;
     VK_CHECK(vkAcquireNextImageKHR(renderer->device, renderer->swapchain.handle,
@@ -963,11 +963,11 @@ internal void VulkanRender(
         &renderer->descriptorSets[imageIndex], 0, NULL);
 
     // Draw mesh
-    for (u32 i = 0; i < world.count; ++i)
+    for (u32 i = 0; i < scene.count; ++i)
     {
-        u32 meshIndex = world.entities[i].mesh;
+        u32 meshIndex = scene.entities[i].mesh;
         Mesh mesh = renderer->meshes[meshIndex];
-        u32 materialIndex = world.entities[i].material;
+        u32 materialIndex = scene.entities[i].material;
 
         // FIXME: Should be defined from the material!
         if (materialIndex == Material_Background)

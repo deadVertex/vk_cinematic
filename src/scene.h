@@ -13,7 +13,7 @@ struct Entity
 
 #define MAX_ENTITIES 1024
 
-struct World
+struct Scene
 {
     Entity *entities;
     u32 count;

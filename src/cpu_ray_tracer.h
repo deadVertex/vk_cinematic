@@ -6,7 +6,7 @@
 #include "mesh.h"
 #include "debug.h"
 #include "config.h"
-#include "world.h"
+#include "scene.h"
 
 #include "asset_loader/asset_loader.h"
 
@@ -63,7 +63,7 @@ struct RayHitResult
     f32 t;
     vec3 normal;
     vec3 localPoint;
-    vec3 worldPoint;
+    vec3 scenePoint;
     u32 depth;
     u32 materialIndex;
     vec2 uv;
@@ -170,7 +170,7 @@ struct ThreadData
     u32 height;
     vec4 *imageBuffer;
     RayTracer *rayTracer;
-    World *world;
+    Scene *scene;
 };
 
 struct Task
@@ -201,7 +201,7 @@ struct PathVertex
     vec3 outgoingDirection;
     vec3 surfaceNormal;
     vec3 surfacePointLocal;
-    vec3 surfacePointWorld;
+    vec3 surfacePointScene;
     vec2 uv;
     u32 materialIndex;
 };

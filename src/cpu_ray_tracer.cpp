@@ -244,13 +244,13 @@ internal RayHitResult RayIntersectTriangleMesh(RayTracerMesh mesh,
     return result;
 }
 
-internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
+internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, Scene *scene,
     vec3 rayOrigin, vec3 rayDirection, LocalMetrics *localMetrics)
 {
     AtomicIncrement64(&g_Metrics.rayCount);
     PROFILE_FUNCTION_SCOPE();
 
-    RayHitResult worldResult = {};
+    RayHitResult sceneResult = {};
 
     u64 broadphaseStartCycles = __rdtsc();
     u32 entitiesToTest[MAX_ENTITIES];
@@ -267,9 +267,9 @@ internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
         {
             //g_Metrics.meshTestCount++;
 
-            Entity *entity = world->entities + entityIndex;
+            Entity *entity = scene->entities + entityIndex;
 
-            // TODO: Skip testing entity if our worldResult.tmin is closer than
+            // TODO: Skip testing entity if our sceneResult.tmin is closer than
             // the tmin for entity bounding box.
 
             u64 buildModelMatricesStartCycles = __rdtsc();
@@ -311,14 +311,14 @@ internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
             localMetrics->cycleCounts[CycleCount_RayIntersectMesh] +=
                 __rdtsc() - rayIntersectMeshStartCycles;
 
-            // Transform the hit point and normal back into world space
+            // Transform the hit point and normal back into scene space
             // PROBLEM: t value needs a bit more thought, luckily its not used
             // for anything other than checking if we intersected anythinh yet.
             // result.point = TransformPoint(result->point, modelMatrix);
             entityResult.normal =
                 Normalize(TransformVector(entityResult.normal, modelMatrix));
 
-            entityResult.worldPoint =
+            entityResult.scenePoint =
                 TransformPoint(entityResult.localPoint, modelMatrix);
 
             // FIXME: This is assuming we only support uniform scaling
@@ -329,26 +329,26 @@ internal RayHitResult TraceRayThroughScene(RayTracer *rayTracer, World *world,
             if (entityResult.isValid)
             {
                 //g_Metrics.meshHitCount++;
-                if (worldResult.isValid)
+                if (sceneResult.isValid)
                 {
                     // FIXME: Probably not correct to compare t values from
                     // different spaces, just going with it for now.
-                    if (entityResult.t < worldResult.t)
+                    if (entityResult.t < sceneResult.t)
                     {
-                        worldResult = entityResult;
-                        tmin = worldResult.t;
+                        sceneResult = entityResult;
+                        tmin = sceneResult.t;
                     }
                 }
                 else
                 {
-                    worldResult = entityResult;
-                    tmin = worldResult.t;
+                    sceneResult = entityResult;
+                    tmin = sceneResult.t;
                 }
             }
         }
     }
 
-    return worldResult;
+    return sceneResult;
 }
 
 struct CameraConstants
@@ -448,7 +448,7 @@ inline vec3 PerformToneMapping(vec3 input)
 }
 
 internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
-    RayTracer *rayTracer, World *world, Tile tile, RandomNumberGenerator *rng)
+    RayTracer *rayTracer, Scene *scene, Tile tile, RandomNumberGenerator *rng)
 {
     u64 startCycles = __rdtsc();
     PROFILE_FUNCTION_SCOPE();
@@ -484,7 +484,7 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
 
                 for (u32 i = 0; i < MAX_BOUNCES; ++i)
                 {
-                    RayHitResult rayHit = TraceRayThroughScene(rayTracer, world,
+                    RayHitResult rayHit = TraceRayThroughScene(rayTracer, scene,
                         rayOrigin, rayDirection, &localMetrics);
 
                     if (rayHit.t > 0.0f)
@@ -511,7 +511,7 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
                         vertex.outgoingDirection = rayDirection;
                         vertex.surfaceNormal = rayHit.normal;
                         vertex.surfacePointLocal = rayHit.localPoint;
-                        vertex.surfacePointWorld = rayHit.worldPoint;
+                        vertex.surfacePointScene = rayHit.scenePoint;
                         vertex.uv = rayHit.uv;
                         vertex.materialIndex = rayHit.materialIndex;
                         pathVertices[pathVertexCount++] = vertex;
@@ -619,11 +619,11 @@ internal void DoRayTracing(u32 width, u32 height, vec4 *pixels,
         &g_Metrics.midphaseAabbTestCount, localMetrics.midphaseAabbTestCount);
 }
 
-internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
+internal void ComputeEntityBoundingBoxes(Scene *scene, RayTracer *rayTracer)
 {
-    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+    for (u32 entityIndex = 0; entityIndex < scene->count; ++entityIndex)
     {
-        Entity *entity = world->entities + entityIndex;
+        Entity *entity = scene->entities + entityIndex;
         RayTracerMesh mesh = rayTracer->meshes[entity->mesh];
         vec3 boxMin = mesh.aabbTree.root->min;
         vec3 boxMax = mesh.aabbTree.root->max;
@@ -669,21 +669,21 @@ internal void ComputeEntityBoundingBoxes(World *world, RayTracer *rayTracer)
     }
 }
 
-internal AabbTree BuildWorldBroadphase(
-    World *world, MemoryArena *arena, MemoryArena *tempArena)
+internal AabbTree BuildSceneBroadphase(
+    Scene *scene, MemoryArena *arena, MemoryArena *tempArena)
 {
-    vec3 *boxMin = AllocateArray(tempArena, vec3, world->count);
-    vec3 *boxMax = AllocateArray(tempArena, vec3, world->count);
+    vec3 *boxMin = AllocateArray(tempArena, vec3, scene->count);
+    vec3 *boxMax = AllocateArray(tempArena, vec3, scene->count);
 
-    for (u32 entityIndex = 0; entityIndex < world->count; ++entityIndex)
+    for (u32 entityIndex = 0; entityIndex < scene->count; ++entityIndex)
     {
-        Entity *entity = world->entities + entityIndex;
+        Entity *entity = scene->entities + entityIndex;
         boxMin[entityIndex] = entity->aabbMin;
         boxMax[entityIndex] = entity->aabbMax;
     }
 
     AabbTree aabbTree = BuildAabbTree(
-        boxMin, boxMax, world->count, MAX_AABB_TREE_NODES, arena, tempArena);
+        boxMin, boxMax, scene->count, MAX_AABB_TREE_NODES, arena, tempArena);
 
     return aabbTree;
 }

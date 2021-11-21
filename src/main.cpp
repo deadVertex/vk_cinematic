@@ -2,16 +2,18 @@
 List:
  - [RAS] Reduce noise in irradiance texture (using uniform sampling) [x]
  - Resizing window crashes app [x]
+ - Scene definition from file [ ]
 
 Bugs:
  - Race condition when submitting work to queue when queue is empty but worker
    threads are still working on the tasks they've pulled from the queue.
  - IBL looks too dim, not sure what is causing it
- - [RAS] Tonemapping on skybox/background is wrong, too dark
+ - [RAS] Tonemapping on skybox/background is wrong, too dark (double SRGB?)
 
 Tech Debt:
  - Hard-coded material id to texture mapping in shader
  - Code duplication for creating and uploading images/cube maps to GPU
+ - [CPU] Ray tracer image resolution is hard-coded
 
 Features:
  - Linear space rendering [x]
@@ -23,7 +25,6 @@ Features:
  - Bloom
  - gltf importing
  - Cube map texture loading
- - Scene definition from file [ ]
 
 Performance testing infrastructure
 - Performance test suite
@@ -112,7 +113,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "mesh.h"
 #include "profiler.h"
 #include "debug.h"
-#include "world.h"
+#include "scene.h"
 #include "cpu_ray_tracer.h"
 
 #include "debug.cpp"
@@ -561,14 +562,14 @@ internal void Update(
     rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
-internal void AddEntity(World *world, vec3 position, quat rotation, vec3 scale,
+internal void AddEntity(Scene *scene, vec3 position, quat rotation, vec3 scale,
     u32 mesh, u32 material)
 {
     // TODO: Support non-uniform scaling in the ray tracer
     Assert(scale.x == scale.y && scale.x == scale.z);
-    if (world->count < world->max)
+    if (scene->count < scene->max)
     {
-        Entity *entity = world->entities + world->count++;
+        Entity *entity = scene->entities + scene->count++;
         entity->position = position;
         entity->rotation = rotation;
         entity->scale = scale;
@@ -577,11 +578,11 @@ internal void AddEntity(World *world, vec3 position, quat rotation, vec3 scale,
     }
 }
 
-internal void DrawEntityAabbs(World world, DebugDrawingBuffer *debugDrawBuffer)
+internal void DrawEntityAabbs(Scene scene, DebugDrawingBuffer *debugDrawBuffer)
 {
-    for (u32 entityIndex = 0; entityIndex < world.count; ++entityIndex)
+    for (u32 entityIndex = 0; entityIndex < scene.count; ++entityIndex)
     {
-        Entity *entity = world.entities + entityIndex;
+        Entity *entity = scene.entities + entityIndex;
         DrawBox(debugDrawBuffer, entity->aabbMin, entity->aabbMax,
             Vec3(0.8, 0.4, 0.2));
     }
@@ -625,7 +626,7 @@ internal void WorkerThread(WorkQueue *queue)
 
             DoRayTracing(threadData->width, threadData->height,
                 threadData->imageBuffer, threadData->rayTracer,
-                threadData->world, task.tile, &rng);
+                threadData->scene, task.tile, &rng);
         }
         else
         {
@@ -1041,12 +1042,12 @@ int main(int argc, char **argv)
     // Publish material data to CPU ray tracer
     UploadMaterialDataToCpuRayTracer(&rayTracer, materialData);
 
-    // Create world
-    World world = {};
-    world.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
-    world.max = MAX_ENTITIES;
+    // Create scene
+    Scene scene = {};
+    scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
+    scene.max = MAX_ENTITIES;
 
-    AddEntity(&world, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube,
+    AddEntity(&scene, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube,
         Material_Background);
     for (u32 y = 0; y < 5; ++y)
     {
@@ -1054,18 +1055,18 @@ int main(int argc, char **argv)
         {
             vec3 origin = Vec3(-5, -5, 0);
             vec3 p = origin + Vec3((f32)x, (f32)y, 0) * 3.0f;
-            AddEntity(&world, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
+            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
         }
     }
 
     // Compute bounding box for each entity
     // TODO: Should not rely on CPU ray tracer for computing bounding boxes,
     // they should be calculated as part of mesh loading.
-    ComputeEntityBoundingBoxes(&world, &rayTracer);
+    ComputeEntityBoundingBoxes(&scene, &rayTracer);
 
-    // Upload world to CPU ray tracer
-    rayTracer.aabbTree = BuildWorldBroadphase(
-        &world, &accelerationStructureMemoryArena, &tempArena);
+    // Upload scene to CPU ray tracer
+    rayTracer.aabbTree = BuildSceneBroadphase(
+        &scene, &accelerationStructureMemoryArena, &tempArena);
 
 #if ANALYZE_BROAD_PHASE_TREE
     LogMessage("Evaluate Broadphase tree");
@@ -1094,7 +1095,7 @@ int main(int argc, char **argv)
     threadData.height = RAY_TRACER_HEIGHT;
     threadData.imageBuffer = (vec4 *)renderer.imageUploadBuffer.data;
     threadData.rayTracer = &rayTracer;
-    threadData.world = &world;
+    threadData.scene = &scene;
 
     WorkQueue workQueue = {};
     ThreadPool threadPool = CreateThreadPool(&workQueue);
@@ -1208,7 +1209,7 @@ int main(int argc, char **argv)
         VulkanCopyImageFromCPU(&renderer);
         
 #if DRAW_ENTITY_AABBS
-        DrawEntityAabbs(world, &debugDrawBuffer);
+        DrawEntityAabbs(scene, &debugDrawBuffer);
 #endif
         // Move camera around
         Update(&renderer, &rayTracer, &input, dt);
@@ -1235,7 +1236,7 @@ int main(int argc, char **argv)
         {
             outputFlags |= Output_ShowDebugDrawing;
         }
-        VulkanRender(&renderer, outputFlags, world);
+        VulkanRender(&renderer, outputFlags, scene);
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;
