@@ -706,7 +706,7 @@ internal void AddRayTracingWorkQueue(
     // store a queue of tile indices that the worker threads read from. They
     // can then construct the tile data for each index from just the image
     // dimensions and tile dimensions.
-    Tile tiles[64];
+    Tile tiles[MAX_TILES];
     u32 tileCount = ComputeTiles(threadData->width, threadData->height,
         TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
 
