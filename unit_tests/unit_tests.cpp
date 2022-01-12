@@ -3,6 +3,8 @@
 #include "cpu_ray_tracer.h"
 #include "profiler.h"
 
+#include "custom_assertions.h"
+
 #include "debug.cpp"
 #include "cmdline.cpp"
 #include "cubemap.cpp"
@@ -388,18 +390,6 @@ void TestRayIntersectTriangleMTBarycentricCoordsIssue()
     TEST_ASSERT_FLOAT_WITHIN(EPSILON, -1.0f, result.t);
 }
 
-void AssertWithinVec3(f32 delta, vec3 expected, vec3 actual)
-{
-    b32 x = Abs(expected.x - actual.x) <= delta;
-    b32 y = Abs(expected.y - actual.y) <= delta;
-    b32 z = Abs(expected.z - actual.z) <= delta;
-
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "Expected [%g, %g, %g] Was [%g, %g, %g].",
-            expected.x, expected.y, expected.z, actual.x, actual.y, actual.z);
-    TEST_ASSERT_MESSAGE(x && y && z, buffer);
-}
-
 void TestRayIntersectTriangleMeshFlatShading()
 {
     vec3 rayDirection = Vec3(0, 0, -1);
@@ -593,6 +583,7 @@ int main()
     InitializeMemoryArena(
         &memoryArena, calloc(1, MEMORY_ARENA_SIZE), MEMORY_ARENA_SIZE);
 
+    UNITY_BEGIN();
     RUN_TEST(TestComputeTiles);
     RUN_TEST(TestComputeTilesNonDivisible);
     RUN_TEST(TestComputeTilesInsufficientSpace);

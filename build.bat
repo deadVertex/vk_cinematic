@@ -49,8 +49,17 @@ if %BUILD_UNIT_TESTS%==1 (
         -link %LinkerFlags% ^
         %unity_lib%
 
+    REM Build SIMD path tracer
+    cl ../unit_tests/test_simd_path_tracer.cpp ^
+        %CompilerFlags% ^
+        -Od ^
+        -I %unity_include_dir% ^
+        -link %LinkerFlags% ^
+        %unity_lib%
+
     REM Run unit tests
     unit_tests.exe
+    test_simd_path_tracer.exe
 )
 
 if %BUILD_INTEGRATION_TESTS%==1 (
