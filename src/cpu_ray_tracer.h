@@ -139,22 +139,6 @@ struct Task
     Tile tile;
 };
 
-#define MAX_TASKS 256
-
-struct WorkQueue
-{
-    i32 volatile head;
-    i32 volatile tail;
-    Task tasks[MAX_TASKS];
-};
-
-inline Task WorkQueuePop(WorkQueue *queue)
-{
-    Assert(queue->head != queue->tail);
-    i32 index = AtomicExchangeAdd(&queue->head, 1);
-    return queue->tasks[index];
-}
-
 struct PathVertex
 {
     vec3 incomingDirection;

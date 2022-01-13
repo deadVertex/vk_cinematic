@@ -2,6 +2,7 @@
 
 #include "cpu_ray_tracer.h"
 #include "profiler.h"
+#include "work_queue.h"
 
 #include "custom_assertions.h"
 
@@ -70,20 +71,47 @@ void TestComputeTilesInsufficientSpace()
     TEST_ASSERT_EQUAL_UINT32(tileCount, ArrayCount(tiles));
 }
 
+struct TestWorkQueueTask
+{
+    u32 value;
+};
+
+void TestWorkQueuePush()
+{
+    // Given a work queue
+    WorkQueue queue = CreateWorkQueue(&memoryArena, sizeof(TestWorkQueueTask), 4);
+
+    // When I push on a new task onto the queue
+    TestWorkQueueTask task = {};
+    task.value = 1;
+    TEST_ASSERT_TRUE(WorkQueuePush(&queue, &task, sizeof(task)));
+
+    // Then the length of the queue increases
+    TEST_ASSERT_EQUAL_UINT32(1, queue.tail);
+}
+
 void TestWorkQueuePop()
 {
-    WorkQueue queue = {};
-    queue.tasks[0].tile.minX = 1;
-    queue.tasks[1].tile.minX = 2;
+    // Given a work queue with tasks queued
+    WorkQueue queue =
+        CreateWorkQueue(&memoryArena, sizeof(TestWorkQueueTask), 4);
 
-    queue.tail = 5;
-    queue.head = 0;
+    TestWorkQueueTask tasksToAdd[2];
+    tasksToAdd[0].value = 1;
+    tasksToAdd[1].value = 2;
 
-    Task first = WorkQueuePop(&queue);
-    Task second = WorkQueuePop(&queue);
+    WorkQueuePush(&queue, &tasksToAdd[0], sizeof(tasksToAdd[0]));
+    WorkQueuePush(&queue, &tasksToAdd[1], sizeof(tasksToAdd[1]));
 
-    TEST_ASSERT_EQUAL_UINT32(first.tile.minX, 1);
-    TEST_ASSERT_EQUAL_UINT32(second.tile.minX, 2);
+    // When I pop items from the queue
+    TestWorkQueueTask first =
+        *(TestWorkQueueTask *)WorkQueuePop(&queue, sizeof(TestWorkQueueTask));
+    TestWorkQueueTask second =
+        *(TestWorkQueueTask *)WorkQueuePop(&queue, sizeof(TestWorkQueueTask));
+
+    // Then they are returned in the order they were added
+    TEST_ASSERT_EQUAL_UINT32(first.value, 1);
+    TEST_ASSERT_EQUAL_UINT32(second.value, 2);
 }
 
 void TestParseCommandLineArgs()
@@ -587,6 +615,7 @@ int main()
     RUN_TEST(TestComputeTiles);
     RUN_TEST(TestComputeTilesNonDivisible);
     RUN_TEST(TestComputeTilesInsufficientSpace);
+    RUN_TEST(TestWorkQueuePush);
     RUN_TEST(TestWorkQueuePop);
     RUN_TEST(TestParseCommandLineArgs);
     RUN_TEST(TestParseCommandLineArgsEmpty);
