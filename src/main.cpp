@@ -112,6 +112,8 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "scene.h"
 #include "intrinsics.h"
 #include "work_queue.h"
+#include "tile.h"
+#include "simd_path_tracer.h"
 #include "cpu_ray_tracer.h"
 
 #include "debug.cpp"
@@ -126,6 +128,13 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "mesh_generation.cpp"
 
 #include "image.cpp"
+#include "simd_path_tracer.cpp"
+
+struct sp_Task
+{
+    sp_Context *context;
+    Tile tile;
+};
 
 global GLFWwindow *g_Window;
 global u32 g_FramebufferWidth = 1024;
@@ -615,19 +624,23 @@ internal void WorkerThread(WorkQueue *queue)
 {
     while (1)
     {
+        // If not empty
         if (queue->head != queue->tail)
         {
-            // Work to do
-            Task task = *(Task *)WorkQueuePop(queue, sizeof(Task));
-
-            ThreadData *threadData = task.threadData;
-
             RandomNumberGenerator rng = {};
             rng.state = 0xF51C0E49;
 
+            // Work to do
+#if USE_SIMD_PATH_TRACER
+            sp_Task *task = (sp_Task *)WorkQueuePop(queue, sizeof(sp_Task));
+            sp_PathTraceTile(task->context, task->tile);
+#else
+            Task task = *(Task *)WorkQueuePop(queue, sizeof(Task));
+            ThreadData *threadData = task.threadData;
             DoRayTracing(threadData->width, threadData->height,
                 threadData->imageBuffer, threadData->rayTracer,
                 threadData->scene, task.tile, &rng);
+#endif
         }
         else
         {
@@ -700,7 +713,7 @@ internal ThreadPool CreateThreadPool(WorkQueue *queue)
 }
 
 internal void AddRayTracingWorkQueue(
-    WorkQueue *workQueue, ThreadData *threadData)
+    WorkQueue *workQueue, ThreadData *threadData, sp_Context *ctx)
 {
     Assert(workQueue->head == workQueue->tail);
 
@@ -715,9 +728,15 @@ internal void AddRayTracingWorkQueue(
     workQueue->tail = 0; // oof
     for (u32 i = 0; i < tileCount; ++i)
     {
+#if USE_SIMD_PATH_TRACER
+        sp_Task task = {};
+        task.context = ctx;
+        task.tile = tiles[i];
+#else
         Task task = {};
         task.threadData = threadData;
         task.tile = tiles[i];
+#endif
         WorkQueuePush(workQueue, &task, sizeof(task));
     }
 
@@ -1010,6 +1029,9 @@ int main(int argc, char **argv)
     RayTracer rayTracer = {};
     rayTracer.useAccelerationStructure = true;
 
+    // Create SIMD Path tracer
+    sp_Context context = {};
+
     // Load mesh data
     SceneMeshData sceneMeshData = {};
     LoadMeshData(&sceneMeshData, &meshDataArena, assetDir);
@@ -1115,6 +1137,15 @@ int main(int argc, char **argv)
     threadData.rayTracer = &rayTracer;
     threadData.scene = &scene;
 
+    ImagePlane imagePlane = {};
+    imagePlane.pixels = (vec4 *)renderer.imageUploadBuffer.data;
+    imagePlane.width = RAY_TRACER_WIDTH;
+    imagePlane.height = RAY_TRACER_HEIGHT;
+
+    sp_Camera camera = {};
+    camera.imagePlane = &imagePlane;
+    context.camera = &camera;
+
     WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);
     ThreadPool threadPool = CreateThreadPool(&workQueue);
 
@@ -1181,7 +1212,7 @@ int main(int argc, char **argv)
                 if (workQueue.head == workQueue.tail)
                 {
                     isRayTracing = true;
-                    AddRayTracingWorkQueue(&workQueue, &threadData);
+                    AddRayTracingWorkQueue(&workQueue, &threadData, &context);
                 }
             }
             else
