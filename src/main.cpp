@@ -110,6 +110,8 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "profiler.h"
 #include "debug.h"
 #include "scene.h"
+#include "intrinsics.h"
+#include "work_queue.h"
 #include "cpu_ray_tracer.h"
 
 #include "debug.cpp"
@@ -616,7 +618,7 @@ internal void WorkerThread(WorkQueue *queue)
         if (queue->head != queue->tail)
         {
             // Work to do
-            Task task = WorkQueuePop(queue);
+            Task task = *(Task *)WorkQueuePop(queue, sizeof(Task));
 
             ThreadData *threadData = task.threadData;
 
@@ -710,18 +712,19 @@ internal void AddRayTracingWorkQueue(
     u32 tileCount = ComputeTiles(threadData->width, threadData->height,
         TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
 
-    Assert(tileCount < MAX_TASKS);
+    workQueue->tail = 0; // oof
     for (u32 i = 0; i < tileCount; ++i)
     {
-        workQueue->tasks[i].threadData = threadData;
-        workQueue->tasks[i].tile = tiles[i];
+        Task task = {};
+        task.threadData = threadData;
+        task.tile = tiles[i];
+        WorkQueuePush(workQueue, &task, sizeof(task));
     }
 
     // TODO: Should have a nicer method for clearing the image
     ClearToZero(threadData->imageBuffer,
         sizeof(vec4) * threadData->width * threadData->height);
 
-    workQueue->tail = tileCount;
     workQueue->head = 0; // ooof
 }
 
@@ -971,6 +974,10 @@ int main(int argc, char **argv)
     InitializeMemoryArena(&applicationMemoryArena,
         AllocateMemory(applicationMemorySize), applicationMemorySize);
 
+    u32 workQueueArenaSize = Kilobytes(32);
+    MemoryArena workQueueArena =
+        SubAllocateArena(&applicationMemoryArena, workQueueArenaSize);
+
     u32 tempMemorySize = Megabytes(64); // TODO: Config option
     MemoryArena tempArena =
         SubAllocateArena(&applicationMemoryArena, tempMemorySize);
@@ -1108,7 +1115,7 @@ int main(int argc, char **argv)
     threadData.rayTracer = &rayTracer;
     threadData.scene = &scene;
 
-    WorkQueue workQueue = {};
+    WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);
     ThreadPool threadPool = CreateThreadPool(&workQueue);
 
     LogMessage("Start up time: %gs", glfwGetTime());

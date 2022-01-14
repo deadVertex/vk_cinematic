@@ -24,6 +24,7 @@ inline WorkQueue CreateWorkQueue(
 inline b32 WorkQueuePush(WorkQueue *queue, void *object, u32 objectSize)
 {
     Assert(objectSize == queue->objectSize);
+    Assert(queue->tail < (i32)queue->maxObjects);
     // TODO: Check for overflow
     // FIXME: This won't work as a circular buffer!
     CopyMemory(
