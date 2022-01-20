@@ -1143,7 +1143,7 @@ int main(int argc, char **argv)
     imagePlane.height = RAY_TRACER_HEIGHT;
 
     sp_Camera camera = {};
-    camera.imagePlane = &imagePlane;
+    sp_ConfigureCamera(&camera, &imagePlane, Vec3(0, 0, 1), Quat(), 0.3f);
     context.camera = &camera;
 
     WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);

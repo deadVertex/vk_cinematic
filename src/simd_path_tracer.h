@@ -13,20 +13,28 @@ struct ImagePlane
     u32 height;
 };
 
+struct Basis
+{
+    vec3 right;
+    vec3 up;
+    vec3 forward;
+};
+
 struct sp_Camera
 {
+    Basis basis;
+    vec3 position;
+    vec3 filmCenter;
+
+
+    ImagePlane *imagePlane;
+
     f32 halfPixelWidth;
     f32 halfPixelHeight;
 
     f32 halfFilmWidth;
     f32 halfFilmHeight;
 
-    vec3 cameraRight;
-    vec3 cameraUp;
-    vec3 cameraPosition;
-    vec3 filmCenter;
-
-    ImagePlane *imagePlane;
 };
 
 struct sp_Context

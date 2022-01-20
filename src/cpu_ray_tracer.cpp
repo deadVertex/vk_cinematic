@@ -421,6 +421,7 @@ inline vec3 CalculateFilmP(CameraConstants *camera, u32 width, u32 height,
     f32 filmX = -1.0f + 2.0f * ((f32)x / (f32)width);
     f32 filmY = -1.0f + 2.0f * (1.0f - ((f32)y / (f32)height));
 
+#if 0
     f32 offsetX = filmX + camera->halfPixelWidth +
                   camera->halfPixelWidth * RandomBilateral(rng);
 
@@ -430,6 +431,12 @@ inline vec3 CalculateFilmP(CameraConstants *camera, u32 width, u32 height,
     vec3 filmP = camera->halfFilmWidth * offsetX * camera->cameraRight +
                  camera->halfFilmHeight * offsetY * camera->cameraUp +
                  camera->filmCenter;
+#endif
+    vec3 filmP = (camera->halfFilmWidth * filmX + camera->halfPixelWidth +
+        camera->halfPixelWidth * RandomBilateral(rng)) * camera->cameraRight;
+    filmP += (camera->halfFilmHeight * filmY + camera->halfPixelHeight +
+        camera->halfPixelHeight * RandomBilateral(rng)) * camera->cameraUp;
+    filmP += camera->filmCenter;
 
     return filmP;
 }
