@@ -1,0 +1,15 @@
+site_name: vk_cinematic
+docs_dir: build/doxybook2
+site_dir: build/mkdocs
+theme:
+  name: 'material'
+markdown_extensions:
+  - admonition
+nav:
+  - Home: /index.md
+  - Classes: /Classes
+  - Namespaces: /Namespaces
+  - Modules: /Modules
+  - Files: /Files
+  - Related Pages: /Pages
+  - Examples: /Examples
