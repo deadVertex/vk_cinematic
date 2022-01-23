@@ -75,6 +75,7 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
     {
         for (u32 x = minX; x < maxX; x++)
         {
+            // TODO: Multiple samples per pixel
             vec2 pixelPosition = Vec2((f32)x, (f32)y);
 
             // Calculate position on film plane that ray passes through
@@ -85,6 +86,7 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
             vec3 rayOrigin = camera->position;
             vec3 rayDirection = Normalize(filmP - camera->position);
 
+            // TODO: Multiple bounces
             vec3 a = Vec3(-0.5, -0.5, 0);
             vec3 b = Vec3(0.5, -0.5, 0);
             vec3 c = Vec3(0.0, 0.5, 0);

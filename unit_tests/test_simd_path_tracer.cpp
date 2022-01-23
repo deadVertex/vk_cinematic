@@ -4,17 +4,28 @@
 #include "math_lib.h"
 #include "tile.h"
 #include "simd_path_tracer.h"
+#include "memory_pool.h"
+#include "bvh.h"
 
 #include "custom_assertions.h"
 
+#include "memory_pool.cpp"
 #include "ray_intersection.cpp"
 
 // Include cpp file for faster unity build
 #include "simd_path_tracer.cpp"
 
+#include "bvh.cpp"
+
+#define MEMORY_ARENA_SIZE Megabytes(1)
+
+MemoryArena memoryArena;
+
 void setUp(void)
 {
     // set stuff up here
+    ClearToZero(memoryArena.base, (u32)memoryArena.size);
+    ResetMemoryArena(&memoryArena);
 }
 
 void tearDown(void)
@@ -155,12 +166,80 @@ void TestCalculateFilmP()
     AssertWithinVec3(EPSILON, Vec3(0.375, 2.375, -0.1), filmPositions[3]);
 }
 
+void TestCreateBvh()
+{
+    vec3 aabbMin[] = {Vec3(-0.5)};
+    vec3 aabbMax[] = {Vec3(0.5)};
+
+    // Build Bvh
+    bvh_Tree worldBvh =
+        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+    TEST_ASSERT_NOT_NULL(worldBvh.root);
+
+    //  Check node min and max
+    AssertWithinVec3(EPSILON, aabbMin[0], worldBvh.root->min);
+    AssertWithinVec3(EPSILON, aabbMax[0], worldBvh.root->max);
+}
+
+void TestCreateBvhMultipleNodes()
+{
+    vec3 aabbMin[] = {Vec3(-0.5), Vec3(1)};
+    vec3 aabbMax[] = {Vec3(0.5), Vec3(2)};
+
+    // Build Bvh
+    bvh_Tree worldBvh =
+        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    TEST_ASSERT_NOT_NULL(worldBvh.root);
+    TEST_ASSERT_NOT_NULL(worldBvh.root->children[0]);
+    TEST_ASSERT_NOT_NULL(worldBvh.root->children[1]);
+
+    // Check memory pool for world bvh
+    TEST_ASSERT_NOT_NULL(worldBvh.memoryPool.storage);
+    TEST_ASSERT_EQUAL_UINT32(sizeof(bvh_Node), worldBvh.memoryPool.objectSize);
+
+    // Check bounding volume for root contains all children
+    AssertWithinVec3(EPSILON, Vec3(-0.5f), worldBvh.root->min);
+    AssertWithinVec3(EPSILON, Vec3(2), worldBvh.root->max);
+}
+
+void TestBvh()
+{
+    vec3 aabbMin[] = {Vec3(-0.5f, -0.5f, -0.5f), Vec3(-0.5f, -0.5f, -1.5f)};
+    vec3 aabbMax[] = {Vec3(0.5f, 0.5f, 0.5f), Vec3(0.5f, 0.5f, -0.5f)};
+
+    // Build Bvh
+    bvh_Tree worldBvh =
+        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    bvh_Node *intersectedNodes[4] = {};
+
+    vec3 rayOrigin = Vec3(0, 0, 10);
+    vec3 rayDirection = Vec3(0, 0, -1);
+
+    // Test ray intersection against it
+    u32 intersectionCount = bvh_IntersectRay(&worldBvh, rayOrigin, rayDirection,
+        intersectedNodes, ArrayCount(intersectedNodes));
+
+    // Check that it returns the expected objects
+    TEST_ASSERT_EQUAL_UINT32(2, intersectionCount);
+}
+
 int main()
 {
+    InitializeMemoryArena(
+        &memoryArena, calloc(1, MEMORY_ARENA_SIZE), MEMORY_ARENA_SIZE);
+
     UNITY_BEGIN();
     RUN_TEST(TestPathTraceSingleColor);
     RUN_TEST(TestPathTraceTile);
     RUN_TEST(TestConfigureCamera);
     RUN_TEST(TestCalculateFilmP);
+    RUN_TEST(TestCreateBvh);
+    RUN_TEST(TestCreateBvhMultipleNodes);
+    RUN_TEST(TestBvh);
+
+    free(memoryArena.base);
+
     return UNITY_END();
 }
