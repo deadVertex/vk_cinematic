@@ -43,10 +43,13 @@ struct sp_Context
     sp_Camera *camera;
 
     // Scene
+
     // Mesh data
     // Material data
     // Texture data
+
     // Broadphase structure
+    bvh_Tree broadphaseTree;
 };
 
 void sp_PathTraceTile(sp_Context *ctx, Tile tile);

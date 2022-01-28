@@ -16,3 +16,10 @@ struct bvh_Tree
     bvh_Node *root;
     MemoryPool memoryPool;
 };
+
+struct bvh_IntersectRayResult
+{
+    b32 errorOccurred;
+    u32 count;
+};
+

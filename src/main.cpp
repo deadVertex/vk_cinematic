@@ -113,6 +113,8 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "intrinsics.h"
 #include "work_queue.h"
 #include "tile.h"
+#include "memory_pool.h"
+#include "bvh.h"
 #include "simd_path_tracer.h"
 #include "cpu_ray_tracer.h"
 

@@ -3,9 +3,9 @@
 #include "platform.h"
 #include "math_lib.h"
 #include "tile.h"
-#include "simd_path_tracer.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
 
@@ -218,11 +218,60 @@ void TestBvh()
     vec3 rayDirection = Vec3(0, 0, -1);
 
     // Test ray intersection against it
-    u32 intersectionCount = bvh_IntersectRay(&worldBvh, rayOrigin, rayDirection,
-        intersectedNodes, ArrayCount(intersectedNodes));
+    bvh_IntersectRayResult result = bvh_IntersectRay(&worldBvh, rayOrigin,
+        rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
 
     // Check that it returns the expected objects
-    TEST_ASSERT_EQUAL_UINT32(2, intersectionCount);
+    TEST_ASSERT_EQUAL_UINT32(2, result.count);
+    TEST_ASSERT_FALSE(result.errorOccurred);
+
+    // Test oversubscription
+    bvh_IntersectRayResult result2 = bvh_IntersectRay(&worldBvh, rayOrigin,
+        rayDirection, intersectedNodes, 1);
+    TEST_ASSERT_EQUAL_UINT32(1, result2.count);
+    TEST_ASSERT_TRUE(result2.errorOccurred);
+}
+
+void TestPathTraceBroadphaseBvh()
+{
+    // Given a context with a broadphase bvh
+    vec4 pixels[16] = {};
+    ImagePlane imagePlane = {};
+    imagePlane.pixels = pixels;
+    imagePlane.width = 4;
+    imagePlane.height = 4;
+
+    vec3 position = Vec3(0, 2, 0);
+    quat rotation = Quat();
+    f32 filmDistance = 0.1f;
+
+    sp_Camera camera = {};
+    sp_ConfigureCamera(&camera, &imagePlane, position, rotation, filmDistance);
+
+    sp_Context ctx = {};
+    ctx.camera = &camera;
+
+    // When we path trace a tile
+    Tile tile = {};
+    tile.minX = 0;
+    tile.minY = 0;
+    tile.maxX = 3;
+    tile.maxY = 3;
+    sp_PathTraceTile(&ctx, tile);
+
+    // Then only the pixels within that tile are updated
+    // clang-format off
+    vec4 expectedPixels[16] = {
+        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0),
+        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 0),
+        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 0),
+        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0),
+    };
+    // clang-format on
+    for (u32 i = 0; i < 16; i++)
+    {
+        AssertWithinVec4(EPSILON, expectedPixels[i], pixels[i]);
+    }
 }
 
 int main()

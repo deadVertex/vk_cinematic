@@ -132,10 +132,10 @@ bvh_Tree bvh_CreateTree(
 }
 
 // TODO: tmax
-u32 bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin, vec3 rayDirection,
-    bvh_Node **intersectedNodes, u32 maxIntersections)
+bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
+    vec3 rayDirection, bvh_Node **intersectedNodes, u32 maxIntersections)
 {
-    u32 count = 0;
+    bvh_IntersectRayResult result = {};
 
     // TODO: This should be a parameter of the tree structure for iteration
     bvh_Node *stack[2][BVH_STACK_SIZE];
@@ -171,14 +171,15 @@ u32 bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin, vec3 rayDirection,
             else
             {
                 Assert(node->children[1] == NULL);
-                if (count < maxIntersections)
+                if (result.count < maxIntersections)
                 {
-                    u32 index = count++;
+                    u32 index = result.count++;
                     intersectedNodes[index] = node;
                 }
                 else
                 {
-                    // FIXME: Don't like this silently failing!
+                    // Insufficient space to store all results, set error bit
+                    result.errorOccurred = true;
                     break;
                 }
             }
@@ -190,7 +191,5 @@ u32 bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin, vec3 rayDirection,
         }
     }
 
-    // TODO: Return error in case we found more intersections than we could
-    // store
-    return count;
+    return result;
 }
