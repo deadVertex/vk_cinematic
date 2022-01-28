@@ -1,0 +1,228 @@
+void InitializeCollisionWorld(CollisionWorld *collisionWorld, MemoryArena *arena)
+{
+    collisionWorld->memoryArena = SubAllocateArena(arena, Kilobytes(4));
+}
+
+// FIXME: What do we do with the memory!?!??!
+CollisionMesh CreateCollisionMesh(CollisionWorld *collisionWorld,
+    vec3 *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
+{
+    CollisionMesh result = {};
+    result.vertices = vertices;
+    result.vertexCount = vertexCount;
+    result.indices = indices;
+    result.indexCount = indexCount;
+
+    return result;
+}
+
+struct Aabb
+{
+    vec3 min;
+    vec3 max;
+};
+
+Aabb ComputeAabb(vec3 *vertices, u32 vertexCount)
+{
+    Assert(vertices != NULL);
+    Assert(vertexCount > 0);
+
+    Aabb result = {};
+    result.min = vertices[0];
+    result.max = vertices[0];
+
+    // Build AABB by taking the min and max value of each component of the
+    // input vertices
+    for (u32 i = 1; i < vertexCount; ++i)
+    {
+        result.min = Min(result.min, vertices[i]);
+        result.max = Max(result.max, vertices[i]);
+    }
+
+    return result;
+}
+
+Aabb TransformAabb(
+    vec3 boxMin, vec3 boxMax, vec3 position, quat orientation, vec3 scale)
+{
+    // Compute model matrix to transform each vertex by
+    mat4 modelMatrix = Translate(position) * Rotate(orientation) * Scale(scale);
+
+    // Build list of vertices for AABB
+    vec3 vertices[8];
+    vertices[0] = Vec3(boxMin.x, boxMin.y, boxMin.z);
+    vertices[1] = Vec3(boxMax.x, boxMin.y, boxMin.z);
+    vertices[2] = Vec3(boxMax.x, boxMin.y, boxMax.z);
+    vertices[3] = Vec3(boxMin.x, boxMin.y, boxMax.z);
+    vertices[4] = Vec3(boxMin.x, boxMax.y, boxMin.z);
+    vertices[5] = Vec3(boxMax.x, boxMax.y, boxMin.z);
+    vertices[6] = Vec3(boxMax.x, boxMax.y, boxMax.z);
+    vertices[7] = Vec3(boxMin.x, boxMax.y, boxMax.z);
+
+    // Transform each vertex of the AABB by the model matrix
+    vec3 transformedVertices[8];
+    for (u32 i = 0; i < ArrayCount(vertices); ++i)
+    {
+        transformedVertices[i] = TransformPoint(vertices[i], modelMatrix);
+    }
+
+    // Compute a new AABB from the transformed vertices
+    Aabb result =
+        ComputeAabb(transformedVertices, ArrayCount(transformedVertices));
+
+    return result;
+}
+
+void AddObject(CollisionWorld *collisionWorld, CollisionMesh mesh,
+        vec3 position, quat orientation, vec3 scale)
+{
+    // TODO: Do we want to add padding to AABBs to handle 0 length vector
+    // components
+    // Compute AABB for mesh
+    Aabb aabb = ComputeAabb(mesh.vertices, mesh.vertexCount);
+
+    // Transform AABB
+    Aabb transformedAabb =
+        TransformAabb(aabb.min, aabb.max, position, orientation, scale);
+
+    // Compute model matrix
+    mat4 modelMatrix= Translate(position) * Rotate(orientation) * Scale(scale);
+
+    // Compute inverse model matrix
+    mat4 invModelMatrix = Scale(Inverse(scale)) *
+                          Rotate(Conjugate(orientation)) *
+                          Translate(-position);
+
+    // Compute object index
+    Assert(collisionWorld->objectCount < COLLISION_WORLD_MAX_OBJECTS);
+    u32 index = collisionWorld->objectCount++;
+
+    // Store AABB
+    collisionWorld->aabbMin[index] = transformedAabb.min;
+    collisionWorld->aabbMax[index] = transformedAabb.max;
+
+    // Store inverse model matrix
+    collisionWorld->invModelMatrices[index] = invModelMatrix;
+
+    // Store model matrix
+    collisionWorld->modelMatrices[index] = modelMatrix;
+
+    // Store collision mesh
+    collisionWorld->collisionMeshes[index] = mesh;
+}
+
+void BuildBroadphaseTree(CollisionWorld *collisionWorld)
+{
+    // TODO: Not very memory efficient
+    collisionWorld->broadphaseTree =
+        bvh_CreateTree(&collisionWorld->memoryArena, collisionWorld->aabbMin,
+            collisionWorld->aabbMax, collisionWorld->objectCount);
+}
+
+// TODO: Use BVH to reduce number of ray triangle intersections
+RayIntersectTriangleResult RayIntersectCollisionMesh(
+    CollisionMesh mesh, vec3 rayOrigin, vec3 rayDirection)
+{
+    RayIntersectTriangleResult result = {};
+    result.t = -1.0f;
+
+    // Compute number of triangles to test for this mesh
+    Assert(mesh.indexCount % 3 == 0);
+    u32 triangleCount = mesh.indexCount / 3;
+
+    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+    {
+        // Compute vertex indices
+        u32 indices[3];
+        indices[0] = mesh.indices[triangleIndex * 3 + 0];
+        indices[1] = mesh.indices[triangleIndex * 3 + 1];
+        indices[2] = mesh.indices[triangleIndex * 3 + 2];
+
+        // Fetch vertices using the computed indices
+        vec3 vertices[3];
+        vertices[0] = mesh.vertices[indices[0]];
+        vertices[1] = mesh.vertices[indices[1]];
+        vertices[2] = mesh.vertices[indices[2]];
+
+        // Perform ray intersect triangle test
+        RayIntersectTriangleResult triangleIntersect = RayIntersectTriangle(
+            rayOrigin, rayDirection, vertices[0], vertices[1], vertices[2]);
+
+        // Process triangle intersection result if intersection found
+        if (triangleIntersect.t > 0.0f)
+        {
+            // Take the closest result (smallest t value)
+            if (triangleIntersect.t < result.t || result.t < 0.0f)
+            {
+                result = triangleIntersect;
+            }
+        }
+    }
+
+    return result;
+}
+
+RayIntersectCollisionWorldResult RayIntersectCollisionWorld(
+        CollisionWorld *collisionWorld, vec3 rayOrigin, vec3 rayDirection)
+{
+    RayIntersectCollisionWorldResult result = {};
+    result.t = -1.0f;
+
+    // TODO: What should be the upper limit on the number of broadphase
+    // intersections? Should there even be a fixed limit?
+    bvh_Node *intersectedNodes[4] = {};
+
+    // Intersect the ray against our broadphase tree first to quickly get a
+    // list of potential mesh intersections
+    bvh_IntersectRayResult broadphaseResult =
+        bvh_IntersectRay(&collisionWorld->broadphaseTree, rayOrigin,
+            rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
+
+    // TODO: What do we do if the errorOccurred flag is set?
+
+    // Process each broadphase intersection
+    for (u32 i = 0; i < broadphaseResult.count; ++i)
+    {
+        u32 objectIndex = intersectedNodes[i]->leafIndex;
+        mat4 invModelMatrix = collisionWorld->invModelMatrices[objectIndex];
+        mat4 modelMatrix = collisionWorld->modelMatrices[objectIndex];
+        CollisionMesh collisionMesh =
+            collisionWorld->collisionMeshes[objectIndex];
+
+        // Transform ray into mesh local space by multiplying it by the inverse
+        // model matrix to test it for intersection
+        vec3 localRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
+        vec3 localRayDirection =
+            Normalize(TransformVector(rayDirection, invModelMatrix));
+
+        // Find closest triangle intersection for this collision mesh
+        RayIntersectTriangleResult meshIntersectionResult =
+            RayIntersectCollisionMesh(
+                collisionMesh, localRayOrigin, localRayDirection);
+
+        // Process result if intersection found
+        if (meshIntersectionResult.t >= 0.0f)
+        {
+            // Transform mesh intersection result into world space by
+            // transforming the local hit point into world space and then using
+            // it to compute the t value in world space
+            vec3 localHitPoint =
+                localRayOrigin + localRayDirection * meshIntersectionResult.t;
+            vec3 worldHitPoint = TransformPoint(localHitPoint, modelMatrix);
+
+            // Project world hit point onto the world space ray to compute t
+            // value in world space
+            f32 t = Dot(worldHitPoint - rayOrigin, rayDirection);
+
+            // Take closest intersection
+            if (t < result.t || result.t < 0.0f)
+            {
+                result.t = t;
+                // TODO: Store other properties for the intersection
+            }
+        }
+    }
+
+    return result;
+}
+

@@ -5,6 +5,7 @@
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "collision_world.h"
 #include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
@@ -16,6 +17,8 @@
 #include "simd_path_tracer.cpp"
 
 #include "bvh.cpp"
+
+#include "collision_world.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(1)
 
@@ -232,46 +235,71 @@ void TestBvh()
     TEST_ASSERT_TRUE(result2.errorOccurred);
 }
 
-void TestPathTraceBroadphaseBvh()
+void TestTransformAabb()
 {
-    // Given a context with a broadphase bvh
-    vec4 pixels[16] = {};
-    ImagePlane imagePlane = {};
-    imagePlane.pixels = pixels;
-    imagePlane.width = 4;
-    imagePlane.height = 4;
+    // Given an Aabb
+    vec3 boxMin = Vec3(-0.5);
+    vec3 boxMax = Vec3(0.5);
 
-    vec3 position = Vec3(0, 2, 0);
-    quat rotation = Quat();
-    f32 filmDistance = 0.1f;
+    // When it is transformed by a model matrix?
+    Aabb result = TransformAabb(boxMin, boxMax, Vec3(5, 0, 0), Quat(), Vec3(1));
 
-    sp_Camera camera = {};
-    sp_ConfigureCamera(&camera, &imagePlane, position, rotation, filmDistance);
+    // Then the min and max are updated
+    AssertWithinVec3(EPSILON, Vec3(4.5, -0.5, -0.5), result.min);
+    AssertWithinVec3(EPSILON, Vec3(5.5, 0.5, 0.5), result.max);
+}
 
-    sp_Context ctx = {};
-    ctx.camera = &camera;
+void TestRayIntersectCollisionWorld()
+{
+    // Given a collision world with multiple meshes
+    CollisionWorld collisionWorld = {};
+    InitializeCollisionWorld(&collisionWorld, &memoryArena);
 
-    // When we path trace a tile
-    Tile tile = {};
-    tile.minX = 0;
-    tile.minY = 0;
-    tile.maxX = 3;
-    tile.maxY = 3;
-    sp_PathTraceTile(&ctx, tile);
-
-    // Then only the pixels within that tile are updated
-    // clang-format off
-    vec4 expectedPixels[16] = {
-        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0),
-        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 0),
-        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 0),
-        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0),
+    CollisionMesh meshes[2];
+    vec3 positions[2] = {
+        Vec3(0, 2, -5),
+        Vec3(0, 2, -15),
     };
-    // clang-format on
-    for (u32 i = 0; i < 16; i++)
-    {
-        AssertWithinVec4(EPSILON, expectedPixels[i], pixels[i]);
-    }
+
+    quat orientations[2] = {
+        Quat(),
+        Quat(Vec3(0, 1, 0), PI * 0.25f),
+    };
+
+    vec3 scale[2] = {
+        Vec3(1),
+        Vec3(2),
+    };
+
+    vec3 vertices[] = {
+        Vec3(-0.5, -0.5, 0),
+        Vec3(0.5, -0.5, 0),
+        Vec3(0.0, 0.5, 0),
+    };
+
+    u32 indices[] = { 0, 1, 2 };
+
+    // TODO: Do we copy the vertex data and store it in the collision world?
+    meshes[0] = CreateCollisionMesh(&collisionWorld, vertices,
+        ArrayCount(vertices), indices, ArrayCount(indices));
+    meshes[1] = CreateCollisionMesh(&collisionWorld, vertices,
+        ArrayCount(vertices), indices, ArrayCount(indices));
+
+    AddObject(
+        &collisionWorld, meshes[0], positions[0], orientations[0], scale[0]);
+    AddObject(
+        &collisionWorld, meshes[1], positions[1], orientations[1], scale[1]);
+    BuildBroadphaseTree(&collisionWorld);
+
+    // When we test if a ray intersects with the collision world
+    vec3 rayOrigin = Vec3(0, 2, 0);
+    vec3 rayDirection = Vec3(0, 0, -1);
+    RayIntersectCollisionWorldResult result =
+        RayIntersectCollisionWorld(&collisionWorld, rayOrigin, rayDirection);
+
+    // Then we find an intersection
+    TEST_ASSERT_TRUE(result.t >= 0.0f);
+    // TODO: Check other properties of the intersection
 }
 
 int main()
@@ -287,6 +315,8 @@ int main()
     RUN_TEST(TestCreateBvh);
     RUN_TEST(TestCreateBvhMultipleNodes);
     RUN_TEST(TestBvh);
+    RUN_TEST(TestTransformAabb);
+    RUN_TEST(TestRayIntersectCollisionWorld);
 
     free(memoryArena.base);
 

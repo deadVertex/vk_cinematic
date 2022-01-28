@@ -905,3 +905,9 @@ inline f32 Distance(vec3 a, vec3 b)
 {
     return Length(a - b);
 }
+
+inline vec3 Inverse(vec3 a)
+{
+    vec3 result = { 1.0f / a.x, 1.0f / a.y, 1.0f / a.z };
+    return result;
+}
