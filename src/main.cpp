@@ -115,6 +115,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "sp_scene.h"
 #include "simd_path_tracer.h"
 #include "cpu_ray_tracer.h"
 
@@ -130,6 +131,9 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "mesh_generation.cpp"
 
 #include "image.cpp"
+#include "memory_pool.cpp"
+#include "bvh.cpp"
+#include "sp_scene.cpp"
 #include "simd_path_tracer.cpp"
 
 struct sp_Task
@@ -1147,6 +1151,26 @@ int main(int argc, char **argv)
     sp_Camera camera = {};
     sp_ConfigureCamera(&camera, &imagePlane, Vec3(0, 0, 1), Quat(), 0.3f);
     context.camera = &camera;
+
+    sp_Scene pathTracerScene = {};
+    sp_InitializeScene(&pathTracerScene, &applicationMemoryArena);
+    context.scene = &pathTracerScene;
+
+    // NOTE: Testing code
+    {
+        MeshData meshData = sceneMeshData.meshes[Mesh_Bunny];
+        vec3 *vertices =
+            AllocateArray(&meshDataArena, vec3, meshData.vertexCount);
+        for (u32 i = 0; i < meshData.vertexCount; i++)
+        {
+            vertices[i] = meshData.vertices[i].position;
+        }
+
+        sp_Mesh mesh = sp_CreateMesh(vertices, meshData.vertexCount,
+            meshData.indices, meshData.indexCount);
+        sp_AddObjectToScene(&pathTracerScene, mesh, Vec3(0,1,-10), Quat(), Vec3(50));
+    }
+    sp_BuildSceneBroadphase(&pathTracerScene);
 
     WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);
     ThreadPool threadPool = CreateThreadPool(&workQueue);

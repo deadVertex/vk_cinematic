@@ -1,13 +1,13 @@
-void InitializeCollisionWorld(CollisionWorld *collisionWorld, MemoryArena *arena)
+void sp_InitializeScene(sp_Scene *scene, MemoryArena *arena)
 {
-    collisionWorld->memoryArena = SubAllocateArena(arena, Kilobytes(4));
+    scene->memoryArena = SubAllocateArena(arena, Kilobytes(4));
 }
 
 // FIXME: What do we do with the memory!?!??!
-CollisionMesh CreateCollisionMesh(CollisionWorld *collisionWorld,
+sp_Mesh sp_CreateMesh(
     vec3 *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
 {
-    CollisionMesh result = {};
+    sp_Mesh result = {};
     result.vertices = vertices;
     result.vertexCount = vertexCount;
     result.indices = indices;
@@ -73,8 +73,8 @@ Aabb TransformAabb(
     return result;
 }
 
-void AddObject(CollisionWorld *collisionWorld, CollisionMesh mesh,
-        vec3 position, quat orientation, vec3 scale)
+void sp_AddObjectToScene(
+    sp_Scene *scene, sp_Mesh mesh, vec3 position, quat orientation, vec3 scale)
 {
     // TODO: Do we want to add padding to AABBs to handle 0 length vector
     // components
@@ -94,34 +94,34 @@ void AddObject(CollisionWorld *collisionWorld, CollisionMesh mesh,
                           Translate(-position);
 
     // Compute object index
-    Assert(collisionWorld->objectCount < COLLISION_WORLD_MAX_OBJECTS);
-    u32 index = collisionWorld->objectCount++;
+    Assert(scene->objectCount < SP_SCENE_MAX_OBJECTS);
+    u32 index = scene->objectCount++;
 
     // Store AABB
-    collisionWorld->aabbMin[index] = transformedAabb.min;
-    collisionWorld->aabbMax[index] = transformedAabb.max;
+    scene->aabbMin[index] = transformedAabb.min;
+    scene->aabbMax[index] = transformedAabb.max;
 
     // Store inverse model matrix
-    collisionWorld->invModelMatrices[index] = invModelMatrix;
+    scene->invModelMatrices[index] = invModelMatrix;
 
     // Store model matrix
-    collisionWorld->modelMatrices[index] = modelMatrix;
+    scene->modelMatrices[index] = modelMatrix;
 
-    // Store collision mesh
-    collisionWorld->collisionMeshes[index] = mesh;
+    // Store mesh
+    scene->meshes[index] = mesh;
 }
 
-void BuildBroadphaseTree(CollisionWorld *collisionWorld)
+void sp_BuildSceneBroadphase(sp_Scene *scene)
 {
     // TODO: Not very memory efficient
-    collisionWorld->broadphaseTree =
-        bvh_CreateTree(&collisionWorld->memoryArena, collisionWorld->aabbMin,
-            collisionWorld->aabbMax, collisionWorld->objectCount);
+    scene->broadphaseTree =
+        bvh_CreateTree(&scene->memoryArena, scene->aabbMin,
+            scene->aabbMax, scene->objectCount);
 }
 
 // TODO: Use BVH to reduce number of ray triangle intersections
-RayIntersectTriangleResult RayIntersectCollisionMesh(
-    CollisionMesh mesh, vec3 rayOrigin, vec3 rayDirection)
+RayIntersectTriangleResult sp_RayIntersectMesh(
+    sp_Mesh mesh, vec3 rayOrigin, vec3 rayDirection)
 {
     RayIntersectTriangleResult result = {};
     result.t = -1.0f;
@@ -162,10 +162,10 @@ RayIntersectTriangleResult RayIntersectCollisionMesh(
     return result;
 }
 
-RayIntersectCollisionWorldResult RayIntersectCollisionWorld(
-        CollisionWorld *collisionWorld, vec3 rayOrigin, vec3 rayDirection)
+sp_RayIntersectSceneResult sp_RayIntersectScene(
+    sp_Scene *scene, vec3 rayOrigin, vec3 rayDirection)
 {
-    RayIntersectCollisionWorldResult result = {};
+    sp_RayIntersectSceneResult result = {};
     result.t = -1.0f;
 
     // TODO: What should be the upper limit on the number of broadphase
@@ -175,7 +175,7 @@ RayIntersectCollisionWorldResult RayIntersectCollisionWorld(
     // Intersect the ray against our broadphase tree first to quickly get a
     // list of potential mesh intersections
     bvh_IntersectRayResult broadphaseResult =
-        bvh_IntersectRay(&collisionWorld->broadphaseTree, rayOrigin,
+        bvh_IntersectRay(&scene->broadphaseTree, rayOrigin,
             rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
 
     // TODO: What do we do if the errorOccurred flag is set?
@@ -183,11 +183,11 @@ RayIntersectCollisionWorldResult RayIntersectCollisionWorld(
     // Process each broadphase intersection
     for (u32 i = 0; i < broadphaseResult.count; ++i)
     {
+        // Fetch data for scene object
         u32 objectIndex = intersectedNodes[i]->leafIndex;
-        mat4 invModelMatrix = collisionWorld->invModelMatrices[objectIndex];
-        mat4 modelMatrix = collisionWorld->modelMatrices[objectIndex];
-        CollisionMesh collisionMesh =
-            collisionWorld->collisionMeshes[objectIndex];
+        mat4 invModelMatrix = scene->invModelMatrices[objectIndex];
+        mat4 modelMatrix = scene->modelMatrices[objectIndex];
+        sp_Mesh mesh = scene->meshes[objectIndex];
 
         // Transform ray into mesh local space by multiplying it by the inverse
         // model matrix to test it for intersection
@@ -196,9 +196,8 @@ RayIntersectCollisionWorldResult RayIntersectCollisionWorld(
             Normalize(TransformVector(rayDirection, invModelMatrix));
 
         // Find closest triangle intersection for this collision mesh
-        RayIntersectTriangleResult meshIntersectionResult =
-            RayIntersectCollisionMesh(
-                collisionMesh, localRayOrigin, localRayDirection);
+        RayIntersectTriangleResult meshIntersectionResult = sp_RayIntersectMesh(
+            mesh, localRayOrigin, localRayDirection);
 
         // Process result if intersection found
         if (meshIntersectionResult.t >= 0.0f)

@@ -5,7 +5,7 @@
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
-#include "collision_world.h"
+#include "sp_scene.h"
 #include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
@@ -15,7 +15,7 @@
 
 // Include cpp file for faster unity build
 #include "bvh.cpp"
-#include "collision_world.cpp"
+#include "sp_scene.cpp"
 #include "simd_path_tracer.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(1)
@@ -46,11 +46,11 @@ void TestPathTraceSingleColor()
     sp_Camera camera = {};
     camera.imagePlane = &imagePlane;
 
-    CollisionWorld collisionWorld = {};
+    sp_Scene scene = {};
 
     sp_Context ctx = {};
     ctx.camera = &camera;
-    ctx.collisionWorld = &collisionWorld;
+    ctx.scene = &scene;
 
     // When we path trace a tile
     Tile tile = {};
@@ -79,11 +79,11 @@ void TestPathTraceTile()
     sp_Camera camera = {};
     camera.imagePlane = &imagePlane;
 
-    CollisionWorld collisionWorld = {};
+    sp_Scene scene = {};
 
     sp_Context ctx = {};
     ctx.camera = &camera;
-    ctx.collisionWorld = &collisionWorld;
+    ctx.scene = &scene;
 
     // When we path trace a tile
     Tile tile = {};
@@ -271,13 +271,13 @@ void TestTransformAabb()
     AssertWithinVec3(EPSILON, Vec3(5.5, 0.5, 0.5), result.max);
 }
 
-void TestRayIntersectCollisionWorld()
+void TestRayIntersectScene()
 {
-    // Given a collision world with multiple meshes
-    CollisionWorld collisionWorld = {};
-    InitializeCollisionWorld(&collisionWorld, &memoryArena);
+    // Given a scene with multiple objects
+    sp_Scene scene = {};
+    sp_InitializeScene(&scene, &memoryArena);
 
-    CollisionMesh meshes[2];
+    sp_Mesh meshes[2];
     vec3 positions[2] = {
         Vec3(0, 2, -5),
         Vec3(0, 2, -15),
@@ -302,22 +302,22 @@ void TestRayIntersectCollisionWorld()
     u32 indices[] = { 0, 1, 2 };
 
     // TODO: Do we copy the vertex data and store it in the collision world?
-    meshes[0] = CreateCollisionMesh(&collisionWorld, vertices,
-        ArrayCount(vertices), indices, ArrayCount(indices));
-    meshes[1] = CreateCollisionMesh(&collisionWorld, vertices,
-        ArrayCount(vertices), indices, ArrayCount(indices));
+    meshes[0] = sp_CreateMesh(
+        vertices, ArrayCount(vertices), indices, ArrayCount(indices));
+    meshes[1] = sp_CreateMesh(
+        vertices, ArrayCount(vertices), indices, ArrayCount(indices));
 
-    AddObject(
-        &collisionWorld, meshes[0], positions[0], orientations[0], scale[0]);
-    AddObject(
-        &collisionWorld, meshes[1], positions[1], orientations[1], scale[1]);
-    BuildBroadphaseTree(&collisionWorld);
+    sp_AddObjectToScene(
+        &scene, meshes[0], positions[0], orientations[0], scale[0]);
+    sp_AddObjectToScene(
+        &scene, meshes[1], positions[1], orientations[1], scale[1]);
+    sp_BuildSceneBroadphase(&scene);
 
     // When we test if a ray intersects with the collision world
     vec3 rayOrigin = Vec3(0, 2, 0);
     vec3 rayDirection = Vec3(0, 0, -1);
-    RayIntersectCollisionWorldResult result =
-        RayIntersectCollisionWorld(&collisionWorld, rayOrigin, rayDirection);
+    sp_RayIntersectSceneResult result =
+        sp_RayIntersectScene(&scene, rayOrigin, rayDirection);
 
     // Then we find an intersection
     TEST_ASSERT_TRUE(result.t >= 0.0f);
@@ -339,7 +339,7 @@ int main()
     RUN_TEST(TestIntersectEmptyBvh);
     RUN_TEST(TestBvh);
     RUN_TEST(TestTransformAabb);
-    RUN_TEST(TestRayIntersectCollisionWorld);
+    RUN_TEST(TestRayIntersectScene);
 
     free(memoryArena.base);
 

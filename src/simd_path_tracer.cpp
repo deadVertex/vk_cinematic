@@ -90,9 +90,8 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
             // TODO: Multiple bounces
 
             // Trace ray through scene
-            RayIntersectCollisionWorldResult result =
-                RayIntersectCollisionWorld(
-                    ctx->collisionWorld, rayOrigin, rayDirection);
+            sp_RayIntersectSceneResult result =
+                sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
 
             // If ray intersection set output color to magenta otherwise leave black
 

@@ -43,7 +43,7 @@ struct sp_Context
     sp_Camera *camera;
 
     // Scene
-    CollisionWorld *collisionWorld;
+    sp_Scene *scene;
 
     // Mesh data
     // Material data

@@ -12,7 +12,7 @@
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
-#include "collision_world.h"
+#include "sp_scene.h"
 #include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
@@ -26,7 +26,7 @@
 #include "ray_intersection.cpp"
 #include "memory_pool.cpp"
 #include "bvh.cpp"
-#include "collision_world.cpp"
+#include "sp_scene.cpp"
 #include "simd_path_tracer.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(1)
@@ -70,8 +70,8 @@ void TestSimdPathTracer()
     sp_ConfigureCamera(
         &camera, &imagePlane, cameraPosition, cameraRotation, filmDistance);
 
-    CollisionWorld collisionWorld = {};
-    InitializeCollisionWorld(&collisionWorld, &memoryArena);
+    sp_Scene scene = {};
+    sp_InitializeScene(&scene, &memoryArena);
 
     const char *meshName = "bunny.obj";
     MeshData meshData = LoadMesh(meshName, &memoryArena, g_AssetDir);
@@ -82,15 +82,15 @@ void TestSimdPathTracer()
         vertices[i] = meshData.vertices[i].position;
     }
 
-    CollisionMesh collisionMesh = CreateCollisionMesh(&collisionWorld, vertices,
-        meshData.vertexCount, meshData.indices, meshData.indexCount);
-    AddObject(&collisionWorld, collisionMesh, Vec3(0, -5, 0), Quat(), Vec3(100));
-    BuildBroadphaseTree(&collisionWorld);
+    sp_Mesh mesh = sp_CreateMesh(
+        vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+    sp_AddObjectToScene(&scene, mesh, Vec3(0, -5, 0), Quat(), Vec3(100));
+    sp_BuildSceneBroadphase(&scene);
 
     // Create SIMD Path tracer
     sp_Context context = {};
     context.camera = &camera;
-    context.collisionWorld = &collisionWorld;
+    context.scene = &scene;
 
     Tile tile = {};
     tile.minX = 0;
