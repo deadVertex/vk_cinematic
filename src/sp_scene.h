@@ -28,5 +28,5 @@ struct sp_Scene
 struct sp_RayIntersectSceneResult
 {
     f32 t;
-    u32 material;
+    u32 materialId;
 };

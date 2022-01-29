@@ -45,8 +45,9 @@ struct sp_Context
     // Scene
     sp_Scene *scene;
 
-    // Mesh data
     // Material data
+    sp_MaterialSystem *materialSystem;
+
     // Texture data
 };
 

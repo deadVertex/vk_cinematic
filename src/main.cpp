@@ -116,6 +116,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "memory_pool.h"
 #include "bvh.h"
 #include "sp_scene.h"
+#include "sp_material_system.h"
 #include "simd_path_tracer.h"
 #include "cpu_ray_tracer.h"
 
@@ -134,6 +135,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "memory_pool.cpp"
 #include "bvh.cpp"
 #include "sp_scene.cpp"
+#include "sp_material_system.cpp"
 #include "simd_path_tracer.cpp"
 
 struct sp_Task
@@ -956,8 +958,10 @@ internal void UnloadLibraryCode(LibraryCode *lib)
 #endif
 
 internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
-    SceneMeshData *sceneMeshData, MemoryArena *meshDataArena)
+    SceneMeshData *sceneMeshData, MemoryArena *meshDataArena,
+    sp_MaterialSystem *materialSystem, Material *materialData)
 {
+    // Upload meshes
     MeshData meshData = sceneMeshData->meshes[Mesh_Sphere];
     vec3 *vertices =
         AllocateArray(meshDataArena, vec3, meshData.vertexCount);
@@ -969,6 +973,15 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     sp_Mesh sphereMesh = sp_CreateMesh(vertices, meshData.vertexCount,
             meshData.indices, meshData.indexCount);
 
+    // Upload materials
+    for (u32 i = 0; i < MAX_MATERIALS; ++i)
+    {
+        sp_Material material = {};
+        material.albedo = materialData[i].baseColor;
+        // TODO: Don't ignore return value
+        sp_RegisterMaterial(materialSystem, material, i);
+    }
+
     for (u32 i = 0; i < entityScene->count; i++)
     {
         Entity *entity = entityScene->entities + i;
@@ -976,9 +989,8 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
         // FIXME: Only support sphere mesh for now
         if (entity->mesh == Mesh_Sphere)
         {
-            u32 material = 53;
-            sp_AddObjectToScene(scene, sphereMesh, material, entity->position,
-                entity->rotation, entity->scale);
+            sp_AddObjectToScene(scene, sphereMesh, entity->material,
+                entity->position, entity->rotation, entity->scale);
         }
     }
 }
@@ -1184,9 +1196,12 @@ int main(int argc, char **argv)
     sp_InitializeScene(&pathTracerScene, &applicationMemoryArena);
     context.scene = &pathTracerScene;
 
+    sp_MaterialSystem materialSystem = {};
+    context.materialSystem = &materialSystem;
+
     // NOTE: Testing code
-    BuildPathTracerScene(
-        &pathTracerScene, &scene, &sceneMeshData, &meshDataArena);
+    BuildPathTracerScene(&pathTracerScene, &scene, &sceneMeshData,
+        &meshDataArena, &materialSystem, materialData);
     sp_BuildSceneBroadphase(&pathTracerScene);
 
     WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);

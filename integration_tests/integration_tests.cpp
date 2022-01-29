@@ -13,6 +13,7 @@
 #include "memory_pool.h"
 #include "bvh.h"
 #include "sp_scene.h"
+#include "sp_material_system.h"
 #include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
@@ -27,9 +28,10 @@
 #include "memory_pool.cpp"
 #include "bvh.cpp"
 #include "sp_scene.cpp"
+#include "sp_material_system.cpp"
 #include "simd_path_tracer.cpp"
 
-#define MEMORY_ARENA_SIZE Megabytes(1)
+#define MEMORY_ARENA_SIZE Megabytes(2)
 
 MemoryArena memoryArena;
 
@@ -84,15 +86,23 @@ void TestSimdPathTracer()
 
     sp_Mesh mesh = sp_CreateMesh(
         vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
-    u32 material = 123;
+
+    sp_MaterialSystem materialSystem = {};
+    sp_Material material = {};
+    material.albedo = Vec3(0.18);
+
+    u32 materialId = 123;
+    sp_RegisterMaterial(&materialSystem, material, materialId);
+
     sp_AddObjectToScene(
-        &scene, mesh, material, Vec3(0, -5, 0), Quat(), Vec3(100));
+        &scene, mesh, materialId, Vec3(0, -5, 0), Quat(), Vec3(100));
     sp_BuildSceneBroadphase(&scene);
 
     // Create SIMD Path tracer
     sp_Context context = {};
     context.camera = &camera;
     context.scene = &scene;
+    context.materialSystem = &materialSystem;
 
     Tile tile = {};
     tile.minX = 0;
@@ -101,7 +111,7 @@ void TestSimdPathTracer()
     tile.maxY = 1;
     sp_PathTraceTile(&context, tile);
 
-    vec4 expectedColor = Vec4(1, 0, 1, 1);
+    vec4 expectedColor = Vec4(0.18, 0.18, 0.18, 1);
     AssertWithinVec4(EPSILON, expectedColor, pixels[0]);
 }
 

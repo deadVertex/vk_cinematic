@@ -6,6 +6,7 @@
 #include "memory_pool.h"
 #include "bvh.h"
 #include "sp_scene.h"
+#include "sp_material_system.h"
 #include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
@@ -16,6 +17,7 @@
 // Include cpp file for faster unity build
 #include "bvh.cpp"
 #include "sp_scene.cpp"
+#include "sp_material_system.cpp"
 #include "simd_path_tracer.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(1)
@@ -323,7 +325,7 @@ void TestRayIntersectScene()
 
     // Then we find an intersection
     TEST_ASSERT_TRUE(result.t >= 0.0f);
-    TEST_ASSERT_EQUAL_UINT32(material, result.material);
+    TEST_ASSERT_EQUAL_UINT32(material, result.materialId);
     // TODO: Check other properties of the intersection
 }
 

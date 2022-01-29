@@ -68,6 +68,7 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
     sp_Camera *camera = ctx->camera;
     ImagePlane *imagePlane = camera->imagePlane;
     vec4 *pixels = imagePlane->pixels;
+    sp_MaterialSystem *materialSystem = ctx->materialSystem;
 
     u32 minX = tile.minX;
     u32 minY = tile.minY;
@@ -97,12 +98,21 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
                 sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
 
             // If ray intersection set output color to magenta otherwise leave black
-            // TODO: Set color from material
 
             vec4 color = Vec4(0, 0, 0, 1);
             if (result.t > 0.0f)
             {
-                color = Vec4(1, 0, 1, 1);
+                // Set color from material
+                sp_Material *material =
+                    sp_FindMaterialById(materialSystem, result.materialId);
+                if (material != NULL)
+                {
+                    color = Vec4(material->albedo, 1);
+                }
+                else
+                {
+                    color = Vec4(1, 0, 1, 1);
+                }
             }
 
             // Write final pixel value

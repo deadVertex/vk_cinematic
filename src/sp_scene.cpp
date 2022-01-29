@@ -222,7 +222,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
             if (t < result.t || result.t < 0.0f)
             {
                 result.t = t;
-                result.material = material;
+                result.materialId = material;
                 // TODO: Store other properties for the intersection
             }
         }
