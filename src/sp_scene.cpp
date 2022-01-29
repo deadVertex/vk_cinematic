@@ -1,6 +1,7 @@
 void sp_InitializeScene(sp_Scene *scene, MemoryArena *arena)
 {
-    scene->memoryArena = SubAllocateArena(arena, Kilobytes(4));
+    // FIXME: What do we set this to?
+    scene->memoryArena = SubAllocateArena(arena, Kilobytes(512));
 }
 
 // FIXME: What do we do with the memory!?!??!

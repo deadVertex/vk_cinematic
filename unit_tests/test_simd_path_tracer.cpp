@@ -169,8 +169,8 @@ void TestCalculateFilmP()
     u32 count =
         sp_CalculateFilmPositions(&camera, filmPositions, pixelPositions, 4);
     TEST_ASSERT_EQUAL_UINT32(4, count);
-    AssertWithinVec3(EPSILON, Vec3(-0.375, 1.625, -0.1), filmPositions[0]);
-    AssertWithinVec3(EPSILON, Vec3(0.375, 2.375, -0.1), filmPositions[3]);
+    AssertWithinVec3(EPSILON, Vec3(-0.375, 2.375, -0.1), filmPositions[0]);
+    AssertWithinVec3(EPSILON, Vec3(0.375, 1.625, -0.1), filmPositions[3]);
 }
 
 void TestCreateBvh()

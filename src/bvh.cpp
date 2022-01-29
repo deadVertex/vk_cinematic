@@ -13,7 +13,7 @@ bvh_Tree bvh_CreateTree(
     bvh_Tree result = {};
 
     // TODO: Calculate number of nodes to allocate
-    u32 nodeCapacity = count * 2;
+    u32 nodeCapacity = count * count;
     bvh_Node *nodeStorage = AllocateArray(arena, bvh_Node, nodeCapacity);
 
     result.memoryPool =

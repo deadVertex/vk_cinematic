@@ -46,6 +46,9 @@ u32 sp_CalculateFilmPositions(
         f32 fx = pixelPositions[i].x / (f32)imagePlane->width;
         f32 fy = pixelPositions[i].y / (f32)imagePlane->height;
 
+        // Flip y axis so we move down the image plane as y increases
+        fy = 1.0f - fy;
+
         // Map to -1 to 1 range
         fx = fx * 2.0f - 1.0f;
         fy = fy * 2.0f - 1.0f;

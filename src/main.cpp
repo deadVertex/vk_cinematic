@@ -955,6 +955,33 @@ internal void UnloadLibraryCode(LibraryCode *lib)
 
 #endif
 
+internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
+    SceneMeshData *sceneMeshData, MemoryArena *meshDataArena)
+{
+    MeshData meshData = sceneMeshData->meshes[Mesh_Sphere];
+    vec3 *vertices =
+        AllocateArray(meshDataArena, vec3, meshData.vertexCount);
+    for (u32 i = 0; i < meshData.vertexCount; i++)
+    {
+        vertices[i] = meshData.vertices[i].position;
+    }
+
+    sp_Mesh sphereMesh = sp_CreateMesh(vertices, meshData.vertexCount,
+            meshData.indices, meshData.indexCount);
+
+    for (u32 i = 0; i < entityScene->count; i++)
+    {
+        Entity *entity = entityScene->entities + i;
+
+        // FIXME: Only support sphere mesh for now
+        if (entity->mesh == Mesh_Sphere)
+        {
+            sp_AddObjectToScene(scene, sphereMesh, entity->position,
+                entity->rotation, entity->scale);
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1157,19 +1184,8 @@ int main(int argc, char **argv)
     context.scene = &pathTracerScene;
 
     // NOTE: Testing code
-    {
-        MeshData meshData = sceneMeshData.meshes[Mesh_Bunny];
-        vec3 *vertices =
-            AllocateArray(&meshDataArena, vec3, meshData.vertexCount);
-        for (u32 i = 0; i < meshData.vertexCount; i++)
-        {
-            vertices[i] = meshData.vertices[i].position;
-        }
-
-        sp_Mesh mesh = sp_CreateMesh(vertices, meshData.vertexCount,
-            meshData.indices, meshData.indexCount);
-        sp_AddObjectToScene(&pathTracerScene, mesh, Vec3(0,1,-10), Quat(), Vec3(50));
-    }
+    BuildPathTracerScene(
+        &pathTracerScene, &scene, &sceneMeshData, &meshDataArena);
     sp_BuildSceneBroadphase(&pathTracerScene);
 
     WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);
@@ -1234,6 +1250,14 @@ int main(int argc, char **argv)
         {
             if (!isRayTracing)
             {
+                // TODO: Build path tracer scene
+                vec3 position = g_camera.position;
+                quat rotation = Quat(Vec3(0, 1, 0), g_camera.rotation.y) *
+                                Quat(Vec3(1, 0, 0), g_camera.rotation.x);
+
+                sp_ConfigureCamera(
+                    &camera, &imagePlane, position, rotation, 0.8f);
+
                 // Only allow submitting new work to the queue if it is empty
                 if (workQueue.head == workQueue.tail)
                 {
