@@ -7,17 +7,39 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#include "platform.h"
+#include "math_lib.h"
+#include "tile.h"
+#include "memory_pool.h"
+#include "bvh.h"
+#include "collision_world.h"
+#include "simd_path_tracer.h"
+
+#include "custom_assertions.h"
+
 #include "cpu_ray_tracer.h"
 
 #include "mesh.cpp"
 
 #include "cmdline.cpp"
 
+#include "ray_intersection.cpp"
+#include "memory_pool.cpp"
+#include "bvh.cpp"
+#include "collision_world.cpp"
+#include "simd_path_tracer.cpp"
+
+#define MEMORY_ARENA_SIZE Megabytes(1)
+
+MemoryArena memoryArena;
+
 global const char *g_AssetDir = "../assets";
 
 void setUp(void)
 {
     // set stuff up here
+    ClearToZero(memoryArena.base, (u32)memoryArena.size);
+    ResetMemoryArena(&memoryArena);
 }
 
 void tearDown(void)
@@ -28,16 +50,57 @@ void tearDown(void)
 // Integration tests
 void TestLoadMesh()
 {
-    MemoryArena memoryArena = {};
-    u64 memoryCapacity = Megabytes(1);
-    void *memory = malloc(memoryCapacity);
-    InitializeMemoryArena(&memoryArena, memory, memoryCapacity);
-
     const char *meshName = "bunny.obj";
     MeshData meshData = LoadMesh(meshName, &memoryArena, g_AssetDir);
     TEST_ASSERT_GREATER_THAN_UINT(0, meshData.vertexCount);
+}
 
-    free(memory);
+void TestSimdPathTracer()
+{
+    vec4 pixels[1] = {};
+    ImagePlane imagePlane = {};
+    imagePlane.width = 1;
+    imagePlane.height = 1;
+    imagePlane.pixels = pixels;
+
+    sp_Camera camera = {};
+    vec3 cameraPosition = Vec3(0, 0, 10);
+    quat cameraRotation = Quat();
+    f32 filmDistance = 0.1f;
+    sp_ConfigureCamera(
+        &camera, &imagePlane, cameraPosition, cameraRotation, filmDistance);
+
+    CollisionWorld collisionWorld = {};
+    InitializeCollisionWorld(&collisionWorld, &memoryArena);
+
+    const char *meshName = "bunny.obj";
+    MeshData meshData = LoadMesh(meshName, &memoryArena, g_AssetDir);
+
+    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
+    for (u32 i = 0; i < meshData.vertexCount; i++)
+    {
+        vertices[i] = meshData.vertices[i].position;
+    }
+
+    CollisionMesh collisionMesh = CreateCollisionMesh(&collisionWorld, vertices,
+        meshData.vertexCount, meshData.indices, meshData.indexCount);
+    AddObject(&collisionWorld, collisionMesh, Vec3(0, -5, 0), Quat(), Vec3(100));
+    BuildBroadphaseTree(&collisionWorld);
+
+    // Create SIMD Path tracer
+    sp_Context context = {};
+    context.camera = &camera;
+    context.collisionWorld = &collisionWorld;
+
+    Tile tile = {};
+    tile.minX = 0;
+    tile.minY = 0;
+    tile.maxX = 1;
+    tile.maxY = 1;
+    sp_PathTraceTile(&context, tile);
+
+    vec4 expectedColor = Vec4(1, 0, 1, 1);
+    AssertWithinVec4(EPSILON, expectedColor, pixels[0]);
 }
 
 // FIXME: Copied from main.cpp
@@ -53,10 +116,18 @@ internal DebugLogMessage(LogMessage_)
 
 int main(int argc, char **argv)
 {
+    InitializeMemoryArena(
+        &memoryArena, calloc(1, MEMORY_ARENA_SIZE), MEMORY_ARENA_SIZE);
+
     LogMessage = LogMessage_;
     ParseCommandLineArgs(argc, (const char **)argv, &g_AssetDir);
     LogMessage("Asset directory set to \"%s\".", g_AssetDir);
 
+    UNITY_BEGIN();
     RUN_TEST(TestLoadMesh);
+    RUN_TEST(TestSimdPathTracer);
+
+    free(memoryArena.base);
+
     return UNITY_END();
 }

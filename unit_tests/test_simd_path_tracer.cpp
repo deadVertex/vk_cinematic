@@ -14,11 +14,9 @@
 #include "ray_intersection.cpp"
 
 // Include cpp file for faster unity build
-#include "simd_path_tracer.cpp"
-
 #include "bvh.cpp"
-
 #include "collision_world.cpp"
+#include "simd_path_tracer.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(1)
 
@@ -48,8 +46,11 @@ void TestPathTraceSingleColor()
     sp_Camera camera = {};
     camera.imagePlane = &imagePlane;
 
+    CollisionWorld collisionWorld = {};
+
     sp_Context ctx = {};
     ctx.camera = &camera;
+    ctx.collisionWorld = &collisionWorld;
 
     // When we path trace a tile
     Tile tile = {};
@@ -78,8 +79,11 @@ void TestPathTraceTile()
     sp_Camera camera = {};
     camera.imagePlane = &imagePlane;
 
+    CollisionWorld collisionWorld = {};
+
     sp_Context ctx = {};
     ctx.camera = &camera;
+    ctx.collisionWorld = &collisionWorld;
 
     // When we path trace a tile
     Tile tile = {};
@@ -206,6 +210,24 @@ void TestCreateBvhMultipleNodes()
     AssertWithinVec3(EPSILON, Vec3(2), worldBvh.root->max);
 }
 
+void TestIntersectEmptyBvh()
+{
+    // Given an empty bvh
+    bvh_Tree tree = {};
+
+    bvh_Node *intersectedNodes[4] = {};
+
+    vec3 rayOrigin = Vec3(0, 0, 10);
+    vec3 rayDirection = Vec3(0, 0, -1);
+
+    // When we test ray intersection against it
+    bvh_IntersectRayResult result = bvh_IntersectRay(&tree, rayOrigin,
+        rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
+
+    // Check that it returns no intersections (and doesn't crash)
+    TEST_ASSERT_EQUAL_UINT32(0, result.count);
+}
+
 void TestBvh()
 {
     vec3 aabbMin[] = {Vec3(-0.5f, -0.5f, -0.5f), Vec3(-0.5f, -0.5f, -1.5f)};
@@ -314,6 +336,7 @@ int main()
     RUN_TEST(TestCalculateFilmP);
     RUN_TEST(TestCreateBvh);
     RUN_TEST(TestCreateBvhMultipleNodes);
+    RUN_TEST(TestIntersectEmptyBvh);
     RUN_TEST(TestBvh);
     RUN_TEST(TestTransformAabb);
     RUN_TEST(TestRayIntersectCollisionWorld);

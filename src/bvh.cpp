@@ -142,7 +142,7 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
 
     u32 stackSizes[2];
     stack[0][0] = tree->root;
-    stackSizes[0] = 1;
+    stackSizes[0] = tree->root != NULL ? 1 : 0;
     stackSizes[1] = 0;
 
     u32 readIndex = 0;
