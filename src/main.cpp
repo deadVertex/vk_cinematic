@@ -957,21 +957,31 @@ internal void UnloadLibraryCode(LibraryCode *lib)
 
 #endif
 
-internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
-    SceneMeshData *sceneMeshData, MemoryArena *meshDataArena,
-    sp_MaterialSystem *materialSystem, Material *materialData)
+internal sp_Mesh sp_CreateMeshFromMeshData(
+    MeshData meshData, MemoryArena *arena)
 {
-    // Upload meshes
-    MeshData meshData = sceneMeshData->meshes[Mesh_Sphere];
-    vec3 *vertices =
-        AllocateArray(meshDataArena, vec3, meshData.vertexCount);
+    vec3 *vertices = AllocateArray(arena, vec3, meshData.vertexCount);
     for (u32 i = 0; i < meshData.vertexCount; i++)
     {
         vertices[i] = meshData.vertices[i].position;
     }
 
-    sp_Mesh sphereMesh = sp_CreateMesh(vertices, meshData.vertexCount,
+    sp_Mesh mesh = sp_CreateMesh(vertices, meshData.vertexCount,
             meshData.indices, meshData.indexCount);
+
+    return mesh;
+}
+
+internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
+    SceneMeshData *sceneMeshData, MemoryArena *meshDataArena,
+    sp_MaterialSystem *materialSystem, Material *materialData)
+{
+    // Upload meshes
+    sp_Mesh meshes[MAX_MESHES];
+    meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
+        sceneMeshData->meshes[Mesh_Sphere], meshDataArena);
+    meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
+        sceneMeshData->meshes[Mesh_Plane], meshDataArena);
 
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
@@ -986,12 +996,11 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     {
         Entity *entity = entityScene->entities + i;
 
-        // FIXME: Only support sphere mesh for now
-        if (entity->mesh == Mesh_Sphere)
-        {
-            sp_AddObjectToScene(scene, sphereMesh, entity->material,
-                entity->position, entity->rotation, entity->scale);
-        }
+        Assert(entity->mesh == Mesh_Sphere ||
+               entity->mesh == Mesh_Plane);
+
+        sp_AddObjectToScene(scene, meshes[entity->mesh], entity->material,
+            entity->position, entity->rotation, entity->scale);
     }
 }
 
