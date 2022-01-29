@@ -301,6 +301,8 @@ void TestRayIntersectScene()
 
     u32 indices[] = { 0, 1, 2 };
 
+    u32 material = 53;
+
     // TODO: Do we copy the vertex data and store it in the collision world?
     meshes[0] = sp_CreateMesh(
         vertices, ArrayCount(vertices), indices, ArrayCount(indices));
@@ -308,9 +310,9 @@ void TestRayIntersectScene()
         vertices, ArrayCount(vertices), indices, ArrayCount(indices));
 
     sp_AddObjectToScene(
-        &scene, meshes[0], positions[0], orientations[0], scale[0]);
+        &scene, meshes[0], material, positions[0], orientations[0], scale[0]);
     sp_AddObjectToScene(
-        &scene, meshes[1], positions[1], orientations[1], scale[1]);
+        &scene, meshes[1], material, positions[1], orientations[1], scale[1]);
     sp_BuildSceneBroadphase(&scene);
 
     // When we test if a ray intersects with the collision world
@@ -321,6 +323,7 @@ void TestRayIntersectScene()
 
     // Then we find an intersection
     TEST_ASSERT_TRUE(result.t >= 0.0f);
+    TEST_ASSERT_EQUAL_UINT32(material, result.material);
     // TODO: Check other properties of the intersection
 }
 

@@ -16,6 +16,7 @@ struct sp_Scene
     vec3 aabbMin[SP_SCENE_MAX_OBJECTS];
     vec3 aabbMax[SP_SCENE_MAX_OBJECTS];
     sp_Mesh meshes[SP_SCENE_MAX_OBJECTS];
+    u32 materials[SP_SCENE_MAX_OBJECTS];
     mat4 invModelMatrices[SP_SCENE_MAX_OBJECTS];
     mat4 modelMatrices[SP_SCENE_MAX_OBJECTS];
     u32 objectCount;
@@ -27,4 +28,5 @@ struct sp_Scene
 struct sp_RayIntersectSceneResult
 {
     f32 t;
+    u32 material;
 };

@@ -74,8 +74,8 @@ Aabb TransformAabb(
     return result;
 }
 
-void sp_AddObjectToScene(
-    sp_Scene *scene, sp_Mesh mesh, vec3 position, quat orientation, vec3 scale)
+void sp_AddObjectToScene(sp_Scene *scene, sp_Mesh mesh, u32 material,
+    vec3 position, quat orientation, vec3 scale)
 {
     // TODO: Do we want to add padding to AABBs to handle 0 length vector
     // components
@@ -110,6 +110,9 @@ void sp_AddObjectToScene(
 
     // Store mesh
     scene->meshes[index] = mesh;
+
+    // Store material
+    scene->materials[index] = material;
 }
 
 void sp_BuildSceneBroadphase(sp_Scene *scene)
@@ -189,6 +192,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
         mat4 invModelMatrix = scene->invModelMatrices[objectIndex];
         mat4 modelMatrix = scene->modelMatrices[objectIndex];
         sp_Mesh mesh = scene->meshes[objectIndex];
+        u32 material = scene->materials[objectIndex];
 
         // Transform ray into mesh local space by multiplying it by the inverse
         // model matrix to test it for intersection
@@ -218,6 +222,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
             if (t < result.t || result.t < 0.0f)
             {
                 result.t = t;
+                result.material = material;
                 // TODO: Store other properties for the intersection
             }
         }

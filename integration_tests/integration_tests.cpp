@@ -84,7 +84,9 @@ void TestSimdPathTracer()
 
     sp_Mesh mesh = sp_CreateMesh(
         vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
-    sp_AddObjectToScene(&scene, mesh, Vec3(0, -5, 0), Quat(), Vec3(100));
+    u32 material = 123;
+    sp_AddObjectToScene(
+        &scene, mesh, material, Vec3(0, -5, 0), Quat(), Vec3(100));
     sp_BuildSceneBroadphase(&scene);
 
     // Create SIMD Path tracer

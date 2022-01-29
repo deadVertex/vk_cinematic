@@ -976,7 +976,8 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
         // FIXME: Only support sphere mesh for now
         if (entity->mesh == Mesh_Sphere)
         {
-            sp_AddObjectToScene(scene, sphereMesh, entity->position,
+            u32 material = 53;
+            sp_AddObjectToScene(scene, sphereMesh, material, entity->position,
                 entity->rotation, entity->scale);
         }
     }
