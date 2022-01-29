@@ -7,6 +7,47 @@ inline bvh_Node *bvh_AllocateNode(MemoryPool *pool)
     return node;
 }
 
+struct bvh_FindClosestPartnerNodeResult
+{
+    bvh_Node *node;
+    u32 index;
+};
+
+bvh_FindClosestPartnerNodeResult bvh_FindClosestPartnerNode(
+    bvh_Node *node, bvh_Node **allNodes, u32 count)
+{
+    vec3 centroid = (node->max + node->min) * 0.5f;
+
+    f32 closestDistance = F32_MAX;
+    bvh_FindClosestPartnerNodeResult result = {};
+
+    // TODO: Spatial hashing
+    // Find a node who's centroid is closest to ours
+    for (u32 index = 0; index < count; ++index)
+    {
+        bvh_Node *partnerNode = allNodes[index];
+
+        // Skip ourselves
+        if (partnerNode == node)
+        {
+            continue;
+        }
+
+        vec3 partnerCentroid = (partnerNode->max + partnerNode->min) * 0.5f;
+
+        // Find minimal distance via length squared to avoid sqrt
+        f32 dist = LengthSq(partnerCentroid - centroid);
+        if (dist < closestDistance)
+        {
+            closestDistance = dist;
+            result.node = partnerNode;
+            result.index = index;
+        }
+    }
+
+    return result;
+}
+
 bvh_Tree bvh_CreateTree(
     MemoryArena *arena, vec3 *aabbMin, vec3 *aabbMax, u32 count)
 {
@@ -54,58 +95,20 @@ bvh_Tree bvh_CreateTree(
             bvh_Node *node = unmergedNodes[index];
             vec3 centroid = (node->max + node->min) * 0.5f;
 
-            f32 closestDistance = F32_MAX;
-            f32 minVolume = F32_MAX;
-            bvh_Node *closestPartnerNode = NULL;
-            u32 closestPartnerIndex = 0;
+            bvh_FindClosestPartnerNodeResult closest =
+                bvh_FindClosestPartnerNode(
+                    node, unmergedNodes, unmergedNodeCount);
 
-            // TODO: Spatial hashing
-            // Find a node who's centroid is closest to ours
-            for (u32 partnerIndex = 0; partnerIndex < unmergedNodeCount;
-                 ++partnerIndex)
-            {
-                if (partnerIndex == index)
-                {
-                    continue;
-                }
-
-                bvh_Node *partnerNode = unmergedNodes[partnerIndex];
-
-#ifdef MIN_VOLUME
-                vec3 min = Min(node->min, partnerNode->min);
-                vec3 max = Max(node->max, partnerNode->max);
-                f32 volume = (max.x - min.x) * (max.y - min.y) * (max.z - min.z);
-                if (volume < minVolume)
-                {
-                    minVolume = volume;
-                    closestPartnerNode = partnerNode;
-                    closestPartnerIndex = partnerIndex;
-                }
-#else
-                vec3 partnerCentroid =
-                    (partnerNode->max + partnerNode->min) * 0.5f;
-
-                // Find minimal distance via length squared to avoid sqrt
-                f32 dist = LengthSq(partnerCentroid - centroid);
-                if (dist < closestDistance)
-                {
-                    closestDistance = dist;
-                    closestPartnerNode = partnerNode;
-                    closestPartnerIndex = partnerIndex;
-                }
-#endif
-            }
-
-            if (closestPartnerNode != NULL)
+            if (closest.node != NULL)
             {
                 // Create combined node
                 bvh_Node *newNode = bvh_AllocateNode(pool);
                 Assert(newNode != NULL);
-                newNode->min = Min(node->min, closestPartnerNode->min);
-                newNode->max = Max(node->max, closestPartnerNode->max);
+                newNode->min = Min(node->min, closest.node->min);
+                newNode->max = Max(node->max, closest.node->max);
                 newNode->children[0] = node;
-                newNode->children[1] = closestPartnerNode;
-                newNode->leafIndex = 0;
+                newNode->children[1] = closest.node;
+                newNode->leafIndex = U32_MAX;
 
                 lastAllocatedNode = newNode;
 
@@ -116,7 +119,7 @@ bvh_Tree bvh_CreateTree(
 
                 // Remove partner from unmerged node indices array
                 u32 last = unmergedNodeCount - 1;
-                unmergedNodes[closestPartnerIndex] = unmergedNodes[last];
+                unmergedNodes[closest.index] = unmergedNodes[last];
                 unmergedNodeCount--;
             }
         }

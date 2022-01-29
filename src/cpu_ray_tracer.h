@@ -5,7 +5,6 @@
 #include "math_lib.h"
 #include "mesh.h"
 #include "debug.h"
-#include "config.h"
 #include "scene.h"
 #include "tile.h"
 

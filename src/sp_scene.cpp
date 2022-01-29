@@ -174,7 +174,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
 
     // TODO: What should be the upper limit on the number of broadphase
     // intersections? Should there even be a fixed limit?
-    bvh_Node *intersectedNodes[4] = {};
+    bvh_Node *intersectedNodes[8] = {};
 
     // Intersect the ray against our broadphase tree first to quickly get a
     // list of potential mesh intersections
@@ -183,6 +183,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
             rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
 
     // TODO: What do we do if the errorOccurred flag is set?
+    //Assert(!broadphaseResult.errorOccurred);
 
     // Process each broadphase intersection
     for (u32 i = 0; i < broadphaseResult.count; ++i)
@@ -227,6 +228,10 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
             }
         }
     }
+
+#if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
+    result.broadphaseIntersectionCount = broadphaseResult.count;
+#endif
 
     return result;
 }

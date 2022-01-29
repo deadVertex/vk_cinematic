@@ -29,8 +29,6 @@
 // Use Moller-Trumbore algorithm (needed for proper UVs but also seems much faster)
 #define USE_MT_RAY_TRIANGLE_INTERSECT 1
 
-//#define MIN_VOLUME
-
 #define RAY_TRACER_WIDTH (1024 / 1)
 #define RAY_TRACER_HEIGHT (768 / 1)
 
@@ -47,3 +45,5 @@
 #define IRRADIANCE_CUBEMAP_USE_UNIFORM_SAMPLING 1
 
 #define USE_SIMD_PATH_TRACER 1
+
+#define SP_DEBUG_BROADPHASE_INTERSECTION_COUNT 0

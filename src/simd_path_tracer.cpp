@@ -115,6 +115,14 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
                 }
             }
 
+#if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
+            {
+                // TODO: Constant for max broadphase intersections?
+                f32 t = (f32)result.broadphaseIntersectionCount / 8.0f;
+                color = Lerp(Vec4(0, 1, 0, 1), Vec4(1, 0, 0, 1), t);
+            }
+#endif
+
             // Write final pixel value
             pixels[x + y * imagePlane->width] = color;
         }

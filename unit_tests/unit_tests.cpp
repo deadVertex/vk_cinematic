@@ -1,5 +1,6 @@
 #include "unity.h"
 
+#include "config.h"
 #include "cpu_ray_tracer.h"
 #include "profiler.h"
 #include "work_queue.h"
