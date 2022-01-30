@@ -641,7 +641,7 @@ internal void WorkerThread(WorkQueue *queue)
             // Work to do
 #if USE_SIMD_PATH_TRACER
             sp_Task *task = (sp_Task *)WorkQueuePop(queue, sizeof(sp_Task));
-            sp_PathTraceTile(task->context, task->tile);
+            sp_PathTraceTile(task->context, task->tile, &rng);
 #else
             Task task = *(Task *)WorkQueuePop(queue, sizeof(Task));
             ThreadData *threadData = task.threadData;
@@ -1206,6 +1206,7 @@ int main(int argc, char **argv)
     context.scene = &pathTracerScene;
 
     sp_MaterialSystem materialSystem = {};
+    materialSystem.backgroundEmission = Vec3(0.4, 0.58, 0.93); // cornflower blue
     context.materialSystem = &materialSystem;
 
     // NOTE: Testing code

@@ -50,9 +50,14 @@ void TestPathTraceSingleColor()
 
     sp_Scene scene = {};
 
+    sp_MaterialSystem materialSystem = {};
+
     sp_Context ctx = {};
     ctx.camera = &camera;
     ctx.scene = &scene;
+    ctx.materialSystem = &materialSystem;
+
+    RandomNumberGenerator rng = {};
 
     // When we path trace a tile
     Tile tile = {};
@@ -60,7 +65,7 @@ void TestPathTraceSingleColor()
     tile.minY = 0;
     tile.maxX = 4;
     tile.maxY = 4;
-    sp_PathTraceTile(&ctx, tile);
+    sp_PathTraceTile(&ctx, tile, &rng);
 
     // Then all of the pixels are set to black
     for (u32 i = 0; i < 16; i++)
@@ -83,9 +88,14 @@ void TestPathTraceTile()
 
     sp_Scene scene = {};
 
+    sp_MaterialSystem materialSystem = {};
+
     sp_Context ctx = {};
     ctx.camera = &camera;
     ctx.scene = &scene;
+    ctx.materialSystem = &materialSystem;
+
+    RandomNumberGenerator rng = {};
 
     // When we path trace a tile
     Tile tile = {};
@@ -93,7 +103,7 @@ void TestPathTraceTile()
     tile.minY = 1;
     tile.maxX = 3;
     tile.maxY = 3;
-    sp_PathTraceTile(&ctx, tile);
+    sp_PathTraceTile(&ctx, tile, &rng);
 
     // Then only the pixels within that tile are updated
     // clang-format off
@@ -403,6 +413,25 @@ void TestBvhDuplicateIntersectionsBug()
         intersectedNodes[0]->leafIndex != intersectedNodes[2]->leafIndex);
 }
 
+void TestEvaluateLightPath()
+{
+    sp_MaterialSystem materialSystem = {};
+    materialSystem.backgroundEmission = Vec3(1);
+    sp_Material material = {};
+    material.albedo = Vec3(0.18, 0.18, 0.18);
+
+    u32 materialId = 1;
+    sp_RegisterMaterial(&materialSystem, material, materialId);
+
+    sp_PathVertex path[2];
+    path[0].materialId = materialId;
+    path[0].normal = Vec3(0, 1, 0);
+    path[0].incomingDir = Vec3(0, 1, 0);
+    vec3 radiance = ComputeRadianceForPath(
+        path, ArrayCount(path), &materialSystem);
+    AssertWithinVec3(EPSILON, Vec3(0.18, 0.18, 0.18), radiance);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -421,6 +450,8 @@ int main()
     RUN_TEST(TestRayIntersectScene);
     RUN_TEST(TestBvhFindClosestPartnerNode);
     RUN_TEST(TestBvhDuplicateIntersectionsBug);
+
+    RUN_TEST(TestEvaluateLightPath);
 
     free(memoryArena.base);
 

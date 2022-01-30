@@ -50,5 +50,3 @@ struct sp_Context
 
     // Texture data
 };
-
-void sp_PathTraceTile(sp_Context *ctx, Tile tile);

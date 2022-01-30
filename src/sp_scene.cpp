@@ -219,11 +219,16 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
             // value in world space
             f32 t = Dot(worldHitPoint - rayOrigin, rayDirection);
 
+            // Transform mesh space normal into world space
+            vec3 localNormal = meshIntersectionResult.normal;
+            vec3 worldNormal = Normalize(TransformVector(localNormal, modelMatrix));
+
             // Take closest intersection
             if (t < result.t || result.t < 0.0f)
             {
                 result.t = t;
                 result.materialId = material;
+                result.normal = worldNormal;
                 // TODO: Store other properties for the intersection
             }
         }

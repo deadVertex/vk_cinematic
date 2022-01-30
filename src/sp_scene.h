@@ -29,6 +29,7 @@ struct sp_RayIntersectSceneResult
 {
     f32 t;
     u32 materialId;
+    vec3 normal;
 
 #if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
     u32 broadphaseIntersectionCount;

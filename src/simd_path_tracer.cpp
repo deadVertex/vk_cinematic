@@ -62,8 +62,53 @@ u32 sp_CalculateFilmPositions(
     return count;
 }
 
+struct sp_PathVertex
+{
+    u32 materialId;
+    vec3 worldPosition;
+    vec3 outgoingDir;
+    vec3 incomingDir;
+    vec3 normal;
+};
+
+vec3 ComputeRadianceForPath(
+    sp_PathVertex *path, u32 pathLength, sp_MaterialSystem *materialSystem)
+{
+    vec3 radiance = {};
+    for (i32 i = pathLength - 1; i >= 0; i--)
+    {
+        sp_PathVertex *vertex = path + i;
+
+        // Fetch values out of path vertex
+        vec3 incomingDir = vertex->incomingDir;
+        vec3 normal = vertex->normal;
+        u32 materialId = vertex->materialId;
+
+        // Set surface albedo and emission from material
+        vec3 albedo = {};
+        vec3 emission = {};
+        sp_Material *material = sp_FindMaterialById(materialSystem, materialId);
+        if (material != NULL)
+        {
+            albedo = material->albedo;
+        }
+        else
+        {
+            // Assume this is the background material
+            emission = materialSystem->backgroundEmission;
+        }
+
+        f32 cosine = Max(0.0, Dot(normal, incomingDir));
+        vec3 incomingRadiance = radiance;
+
+        radiance = emission + Hadamard(albedo, incomingRadiance) * cosine;
+    }
+
+    return radiance;
+}
+
 // TODO: Actual SIMD!
-void sp_PathTraceTile(sp_Context *ctx, Tile tile)
+void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
 {
     sp_Camera *camera = ctx->camera;
     ImagePlane *imagePlane = camera->imagePlane;
@@ -91,36 +136,82 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile)
             vec3 rayOrigin = camera->position;
             vec3 rayDirection = Normalize(filmP - camera->position);
 
-            // TODO: Multiple bounces
+            sp_PathVertex path[4] = {};
+            u32 pathLength = 0;
 
-            // Trace ray through scene
-            sp_RayIntersectSceneResult result =
-                sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
-
-            // If ray intersection set output color to magenta otherwise leave black
-
+            u32 bounceCount = 4; // TODO: Use MAX_BOUNCES constant
+#if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
+            bounceCount = 1;
+#endif
             vec4 color = Vec4(0, 0, 0, 1);
-            if (result.t > 0.0f)
+            for (u32 bounce = 0; bounce < bounceCount; bounce++)
             {
-                // Set color from material
-                sp_Material *material =
-                    sp_FindMaterialById(materialSystem, result.materialId);
-                if (material != NULL)
+                // Trace ray through scene
+                sp_RayIntersectSceneResult result =
+                    sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
+
+                // If ray intersection set output color to magenta otherwise leave black
+
+                // Allocate path vertex
+                sp_PathVertex *pathVertex = path + pathLength++;
+
+                if (result.t > 0.0f)
                 {
-                    color = Vec4(material->albedo, 1);
+                    pathVertex->materialId = result.materialId;
+                    pathVertex->worldPosition = rayOrigin + rayDirection * result.t;
+                    pathVertex->outgoingDir = -rayDirection;
+                    pathVertex->normal = result.normal;
+
+                    // Compute random direction on hemi-sphere around
+                    // result.normal
+                    vec3 offset = Vec3(RandomBilateral(rng),
+                            RandomBilateral(rng), RandomBilateral(rng));
+                    vec3 dir = Normalize(result.normal + offset);
+                    if (Dot(dir, result.normal) < 0.0f)
+                    {
+                        dir = -dir;
+                    }
+
+                    pathVertex->incomingDir = dir;
+
+                    // Move new ray origin out of hit surface with a small
+                    // offset in the direction of the surface normal to prevent
+                    // self intersection
+                    // TODO: Make this a configurable constant
+                    f32 bias = 0.0001f;
+                    rayOrigin = pathVertex->worldPosition + result.normal * bias;
+                    rayDirection = dir;
+
+#if SP_DEBUG_SURFACE_NORMAL
+                    color = Vec4(result.normal * 0.5f + Vec3(0.5f), 1);
+#endif
                 }
                 else
                 {
-                    color = Vec4(1, 0, 1, 1);
+                    // TODO: Constant for background material
+                    pathVertex->materialId = U32_MAX;
+                    pathVertex->outgoingDir = -rayDirection;
+
+                    // FIXME: Don't want to have a break in this loop, going to
+                    // make it much harder to convert to SIMD
+                    break;
                 }
-            }
 
 #if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
-            {
-                // TODO: Constant for max broadphase intersections?
-                f32 t = (f32)result.broadphaseIntersectionCount / 8.0f;
-                color = Lerp(Vec4(0, 1, 0, 1), Vec4(1, 0, 0, 1), t);
+                {
+                    // TODO: Constant for max broadphase intersections?
+                    f32 t = (f32)result.broadphaseIntersectionCount / 8.0f;
+                    color = Lerp(Vec4(0, 1, 0, 1), Vec4(1, 0, 0, 1), t);
+                }
+#endif
             }
+
+#if !(SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
+            // Compute lighting for single path by calculating incoming
+            // radiance using the rendering equation
+            vec3 radiance = ComputeRadianceForPath(
+                path, pathLength, materialSystem);
+            color = Vec4(radiance, 1);
 #endif
 
             // Write final pixel value

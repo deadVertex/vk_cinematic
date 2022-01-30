@@ -88,6 +88,8 @@ void TestSimdPathTracer()
         vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
 
     sp_MaterialSystem materialSystem = {};
+    materialSystem.backgroundEmission = Vec3(1);
+
     sp_Material material = {};
     material.albedo = Vec3(0.18);
 
@@ -104,14 +106,16 @@ void TestSimdPathTracer()
     context.scene = &scene;
     context.materialSystem = &materialSystem;
 
+    RandomNumberGenerator rng = {};
+
     Tile tile = {};
     tile.minX = 0;
     tile.minY = 0;
     tile.maxX = 1;
     tile.maxY = 1;
-    sp_PathTraceTile(&context, tile);
+    sp_PathTraceTile(&context, tile, &rng);
 
-    vec4 expectedColor = Vec4(0.18, 0.18, 0.18, 1);
+    vec4 expectedColor = Vec4(0.0940403, 0.0940403, 0.0940403, 1);
     AssertWithinVec4(EPSILON, expectedColor, pixels[0]);
 }
 
