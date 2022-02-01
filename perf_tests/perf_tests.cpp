@@ -6,10 +6,20 @@
 #include "math_lib.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "sp_scene.h"
+#include "sp_material_system.h"
+#include "tile.h"
+#include "simd_path_tracer.h"
 
 #include "memory_pool.cpp"
 #include "ray_intersection.cpp"
 #include "bvh.cpp"
+#include "sp_scene.cpp"
+#include "sp_material_system.cpp"
+#include "simd_path_tracer.cpp"
+
+#include "mesh.h"
+#include "mesh_generation.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(256)
 
@@ -50,8 +60,10 @@ void TestBvh()
     }
 
     // Build BVH tree with lots of leaves say 1024?
+    u64 start = __rdtsc();
     bvh_Tree tree =
         bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+    LogMessage("bvh_CreateTree cyles elapsed: %llu", __rdtsc() - start);
 
     vec3 min = tree.root->min;
     vec3 max = tree.root->max;
@@ -79,7 +91,7 @@ void TestBvh()
     }
 
     // Perform ray intersection tests
-    u64 start = __rdtsc();
+    start = __rdtsc();
     for (u32 i = 0; i < RAY_COUNT; i++)
     {
         bvh_Node *intersectedNodes[64] = {};
@@ -93,6 +105,73 @@ void TestBvh()
     LogMessage("Total cycles elapsed: %llu", cyclesElapsed);
     u64 cyclesPerRay = cyclesElapsed / (u64)RAY_COUNT;
     LogMessage("Cycles per ray: %llu", cyclesPerRay);
+}
+
+void TestPathTraceTile()
+{
+#define IMAGE_WIDTH 4
+#define IMAGE_HEIGHT 4
+    vec4 pixels[IMAGE_WIDTH*IMAGE_HEIGHT] = {};
+    ImagePlane imagePlane = {};
+    imagePlane.width = IMAGE_WIDTH;
+    imagePlane.height = IMAGE_HEIGHT;
+    imagePlane.pixels = pixels;
+
+    sp_Camera camera = {};
+    vec3 cameraPosition = Vec3(0, 0, 10);
+    quat cameraRotation = Quat();
+    f32 filmDistance = 0.1f;
+    sp_ConfigureCamera(
+        &camera, &imagePlane, cameraPosition, cameraRotation, filmDistance);
+
+    sp_Scene scene = {};
+    sp_InitializeScene(&scene, &memoryArena);
+
+    MeshData meshData = CreateIcosahedronMesh(3, &memoryArena);
+
+    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
+    for (u32 i = 0; i < meshData.vertexCount; i++)
+    {
+        vertices[i] = meshData.vertices[i].position;
+    }
+
+    sp_Mesh mesh = sp_CreateMesh(
+        vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+
+    sp_MaterialSystem materialSystem = {};
+    materialSystem.backgroundEmission = Vec3(1);
+
+    sp_Material material = {};
+    material.albedo = Vec3(0.18);
+
+    u32 materialId = 123;
+    sp_RegisterMaterial(&materialSystem, material, materialId);
+
+    sp_AddObjectToScene(
+        &scene, mesh, materialId, Vec3(0, -5, 0), Quat(), Vec3(1000));
+    sp_BuildSceneBroadphase(&scene);
+
+    // Create SIMD Path tracer
+    sp_Context context = {};
+    context.camera = &camera;
+    context.scene = &scene;
+    context.materialSystem = &materialSystem;
+
+    RandomNumberGenerator rng = {};
+
+    Tile tile = {};
+    tile.minX = 0;
+    tile.minY = 0;
+    tile.maxX = IMAGE_WIDTH;
+    tile.maxY = IMAGE_HEIGHT;
+
+    u64 start = __rdtsc();
+    sp_PathTraceTile(&context, tile, &rng);
+    u64 cyclesElapsed =  __rdtsc() - start;
+    LogMessage("sp_PathTraceTile: Cycles elapsed: %llu", cyclesElapsed);
+    u64 cyclesPerPixel =
+        cyclesElapsed / (u64)(imagePlane.width * imagePlane.height);
+    LogMessage("Cycles per pixel : %llu", cyclesPerPixel);
 }
 
 // FIXME: Copied from main.cpp
@@ -115,6 +194,7 @@ int main(int argc, char **argv)
 
     UNITY_BEGIN();
     RUN_TEST(TestBvh);
+    RUN_TEST(TestPathTraceTile);
 
     free(memoryArena.base);
 
