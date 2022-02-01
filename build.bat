@@ -1,8 +1,9 @@
 @echo off
 
 set BUILD_SHADERS=0
-set BUILD_UNIT_TESTS=1
-set BUILD_INTEGRATION_TESTS=1
+set BUILD_UNIT_TESTS=0
+set BUILD_INTEGRATION_TESTS=0
+set BUILD_PERF_TESTS=1
 set BUILD_LIB=1
 set BUILD_EXECUTABLE=1
 set BUILD_ASSET_LOADER=0
@@ -79,6 +80,25 @@ if %BUILD_INTEGRATION_TESTS%==1 (
 
     REM Run integration tests
     integration_tests.exe
+)
+
+if %BUILD_PERF_TESTS%==1 (
+    REM Build performance tests
+    cl ../perf_tests/perf_tests.cpp ^
+        %CompilerFlags% ^
+        -O2 ^
+        -I %unity_include_dir% ^
+        -I %vulkan_include_dir% ^
+        -I %glfw_include_dir% ^
+        -I %assimp_include_dir% ^
+        -link %LinkerFlags% ^
+        %glfw_lib% ^
+        %assimp_lib% ^
+        %vulkan_lib% ^
+        %unity_lib%
+
+    REM Run perf tests
+    REM perf_tests.exe
 )
 
 if %BUILD_ASSET_LOADER%==1 (
