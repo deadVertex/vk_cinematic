@@ -326,6 +326,11 @@ void TestRayIntersectScene()
     meshes[1] = sp_CreateMesh(
         vertices, ArrayCount(vertices), indices, ArrayCount(indices));
 
+    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Kilobytes(4));
+    MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(8));
+    sp_BuildMeshMidphase(&meshes[0], &bvhNodeArena, &tempArena);
+    sp_BuildMeshMidphase(&meshes[1], &bvhNodeArena, &tempArena);
+
     sp_AddObjectToScene(
         &scene, meshes[0], material, positions[0], orientations[0], scale[0]);
     sp_AddObjectToScene(
@@ -488,6 +493,10 @@ void TestRayIntersectMesh()
     sp_Mesh mesh = sp_CreateMesh(
         vertices, ArrayCount(vertices), indices, ArrayCount(indices));
 
+    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Kilobytes(1));
+    MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(4));
+    sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
+
     // When we intersect a ray against it
     vec3 rayOrigin = Vec3(0, 0, 10);
     vec3 rayDirection = Vec3(0, 0, -1);
@@ -496,6 +505,33 @@ void TestRayIntersectMesh()
 
     // Then we get the intersection t value
     TEST_ASSERT_TRUE(result.t >= 0.0f);
+}
+
+void TestCreateMeshBuildsBvhTreeSingleTriangle()
+{
+    // Given vertices and indices for a single triangle
+    vec3 vertices[] = {
+        Vec3(-0.5, -0.5, 0),
+        Vec3(0.5, -0.5, 0),
+        Vec3(0.0, 0.5, 0),
+    };
+
+    u32 indices[] = { 0, 1, 2 };
+
+    // When we create a mesh
+    sp_Mesh mesh = sp_CreateMesh(
+        vertices, ArrayCount(vertices), indices, ArrayCount(indices));
+
+    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Kilobytes(1));
+    MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(4));
+    sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
+
+    // Then it generates a BVH tree with a single node
+    bvh_Node *root = mesh.midphaseTree.root;
+    TEST_ASSERT_NOT_NULL(root);
+    TEST_ASSERT_EQUAL_UINT32(0, root->leafIndex);
+    AssertWithinVec3(EPSILON, Vec3(-0.5f, -0.5f, 0.0f), root->min);
+    AssertWithinVec3(EPSILON, Vec3(0.5f, 0.5f, 0.0f), root->max);
 }
 
 int main()
@@ -522,6 +558,7 @@ int main()
     RUN_TEST(TestMetrics);
 
     RUN_TEST(TestRayIntersectMesh);
+    RUN_TEST(TestCreateMeshBuildsBvhTreeSingleTriangle);
 
     free(memoryArena.base);
 

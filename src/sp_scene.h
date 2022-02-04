@@ -6,6 +6,8 @@ struct sp_Mesh
     u32 *indices;
     u32 vertexCount;
     u32 indexCount;
+
+    bvh_Tree midphaseTree;
 };
 
 // TODO: Switch to dynamic arrays in the future

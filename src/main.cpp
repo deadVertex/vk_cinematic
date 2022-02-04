@@ -983,14 +983,21 @@ internal sp_Mesh sp_CreateMeshFromMeshData(
 
 internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     SceneMeshData *sceneMeshData, MemoryArena *meshDataArena,
-    sp_MaterialSystem *materialSystem, Material *materialData)
+    sp_MaterialSystem *materialSystem, Material *materialData,
+    MemoryArena *tempArena)
 {
     // Upload meshes
     sp_Mesh meshes[MAX_MESHES];
     meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
         sceneMeshData->meshes[Mesh_Sphere], meshDataArena);
+    // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
+    sp_BuildMeshMidphase(&meshes[Mesh_Sphere], meshDataArena,
+            tempArena);
+
     meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
         sceneMeshData->meshes[Mesh_Plane], meshDataArena);
+    sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena,
+            tempArena);
 
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
@@ -1220,7 +1227,7 @@ int main(int argc, char **argv)
 
     // NOTE: Testing code
     BuildPathTracerScene(&pathTracerScene, &scene, &sceneMeshData,
-        &meshDataArena, &materialSystem, materialData);
+        &meshDataArena, &materialSystem, materialData, &tempArena);
     sp_BuildSceneBroadphase(&pathTracerScene);
 
     WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);

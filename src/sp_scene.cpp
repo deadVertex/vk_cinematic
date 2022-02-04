@@ -1,22 +1,3 @@
-void sp_InitializeScene(sp_Scene *scene, MemoryArena *arena)
-{
-    // FIXME: What do we set this to?
-    scene->memoryArena = SubAllocateArena(arena, Kilobytes(512));
-}
-
-// FIXME: What do we do with the memory!?!??!
-sp_Mesh sp_CreateMesh(
-    vec3 *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
-{
-    sp_Mesh result = {};
-    result.vertices = vertices;
-    result.vertexCount = vertexCount;
-    result.indices = indices;
-    result.indexCount = indexCount;
-
-    return result;
-}
-
 struct Aabb
 {
     vec3 min;
@@ -74,6 +55,60 @@ Aabb TransformAabb(
     return result;
 }
 
+void sp_InitializeScene(sp_Scene *scene, MemoryArena *arena)
+{
+    // FIXME: What do we set this to?
+    scene->memoryArena = SubAllocateArena(arena, Kilobytes(512));
+}
+
+// FIXME: What do we do with the memory!?!??!
+sp_Mesh sp_CreateMesh(
+    vec3 *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
+{
+    sp_Mesh result = {};
+    result.vertices = vertices;
+    result.vertexCount = vertexCount;
+    result.indices = indices;
+    result.indexCount = indexCount;
+
+    return result;
+}
+
+void sp_BuildMeshMidphase(
+    sp_Mesh *mesh, MemoryArena *arena, MemoryArena *tempArena)
+{
+    // Compute number of triangles in the mesh
+    Assert(mesh->indexCount % 3 == 0);
+    u32 triangleCount = mesh->indexCount / 3;
+
+    // Allocate temp buffers for aabbMin and aabbMax
+    vec3 *aabbMin = AllocateArray(tempArena, vec3, triangleCount);
+    vec3 *aabbMax = AllocateArray(tempArena, vec3, triangleCount);
+
+    // Compute AABBs for each triangle
+    u32 indices[3] = {};
+    vec3 vertices[3] = {};
+    for (u32 i = 0; i < triangleCount; ++i)
+    {
+        // Fetch triangle indices
+        indices[0] = mesh->indices[i * 3 + 0];
+        indices[1] = mesh->indices[i * 3 + 1];
+        indices[2] = mesh->indices[i * 3 + 2];
+
+        // Fetch triangle vertices
+        vertices[0] = mesh->vertices[indices[0]];
+        vertices[1] = mesh->vertices[indices[1]];
+        vertices[2] = mesh->vertices[indices[2]];
+
+        // Take min and max value of each vertex in the triangle
+        aabbMin[i] = Min(vertices[0], Min(vertices[1], vertices[2]));
+        aabbMax[i] = Max(vertices[0], Max(vertices[1], vertices[2]));
+    }
+
+    // Build BVH tree
+    mesh->midphaseTree = bvh_CreateTree(arena, aabbMin, aabbMax, triangleCount);
+}
+
 void sp_AddObjectToScene(sp_Scene *scene, sp_Mesh mesh, u32 material,
     vec3 position, quat orientation, vec3 scale)
 {
@@ -123,19 +158,33 @@ void sp_BuildSceneBroadphase(sp_Scene *scene)
             scene->aabbMax, scene->objectCount);
 }
 
-// TODO: Use BVH to reduce number of ray triangle intersections
 RayIntersectTriangleResult sp_RayIntersectMesh(
     sp_Mesh mesh, vec3 rayOrigin, vec3 rayDirection)
 {
     RayIntersectTriangleResult result = {};
     result.t = -1.0f;
 
-    // Compute number of triangles to test for this mesh
-    Assert(mesh.indexCount % 3 == 0);
-    u32 triangleCount = mesh.indexCount / 3;
+    // TODO: What should be the upper limit on the number of midphase
+    // intersections? Should there even be a fixed limit?
+    // TODO: If we getting back up to 64 leaf node intersections from our
+    // midphase test then what is our BVH even doing?
+    bvh_Node *intersectedNodes[64] = {};
 
-    for (u32 triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+    // Intersect the ray against our midphase tree first to quickly get a
+    // list of triangles to perform intersection tests against
+    bvh_IntersectRayResult midphaseResult =
+        bvh_IntersectRay(&mesh.midphaseTree, rayOrigin,
+            rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
+
+    // TODO: What do we do if the errorOccurred flag is set?
+    Assert(!midphaseResult.errorOccurred);
+
+    // Process each midphase intersection
+    for (u32 i = 0; i < midphaseResult.count; ++i)
     {
+        // Fetch triangle index
+        u32 triangleIndex = intersectedNodes[i]->leafIndex;
+
         // Compute vertex indices
         u32 indices[3];
         indices[0] = mesh.indices[triangleIndex * 3 + 0];

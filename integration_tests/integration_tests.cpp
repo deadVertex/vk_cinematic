@@ -32,7 +32,7 @@
 #include "sp_material_system.cpp"
 #include "simd_path_tracer.cpp"
 
-#define MEMORY_ARENA_SIZE Megabytes(2)
+#define MEMORY_ARENA_SIZE Megabytes(16)
 
 MemoryArena memoryArena;
 
@@ -87,6 +87,9 @@ void TestSimdPathTracer()
 
     sp_Mesh mesh = sp_CreateMesh(
         vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Megabytes(3));
+    MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(128));
+    sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
 
     sp_MaterialSystem materialSystem = {};
     materialSystem.backgroundEmission = Vec3(1);
