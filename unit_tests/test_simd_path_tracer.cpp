@@ -475,6 +475,29 @@ void TestMetrics()
     TEST_ASSERT_GREATER_THAN_UINT32(0, metrics.values[sp_Metric_CyclesElapsed]);
 }
 
+void TestRayIntersectMesh()
+{
+    // Given a mesh
+    vec3 vertices[] = {
+        Vec3(-0.5, -0.5, 0),
+        Vec3(0.5, -0.5, 0),
+        Vec3(0.0, 0.5, 0),
+    };
+
+    u32 indices[] = { 0, 1, 2 };
+    sp_Mesh mesh = sp_CreateMesh(
+        vertices, ArrayCount(vertices), indices, ArrayCount(indices));
+
+    // When we intersect a ray against it
+    vec3 rayOrigin = Vec3(0, 0, 10);
+    vec3 rayDirection = Vec3(0, 0, -1);
+    RayIntersectTriangleResult result =
+        sp_RayIntersectMesh(mesh, rayOrigin, rayDirection);
+
+    // Then we get the intersection t value
+    TEST_ASSERT_TRUE(result.t >= 0.0f);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -497,6 +520,8 @@ int main()
     RUN_TEST(TestEvaluateLightPath);
 
     RUN_TEST(TestMetrics);
+
+    RUN_TEST(TestRayIntersectMesh);
 
     free(memoryArena.base);
 
