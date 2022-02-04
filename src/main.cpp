@@ -117,6 +117,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "bvh.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
+#include "sp_metrics.h"
 #include "simd_path_tracer.h"
 #include "cpu_ray_tracer.h"
 
@@ -628,6 +629,9 @@ internal void CopyMeshDataToUploadBuffer(
     renderer->meshes[mesh].indexCount = meshData.indexCount;
 }
 
+global sp_Metrics g_metricsBuffer[MAX_TILES];
+global volatile i32 g_metricsBufferLength;
+
 internal void WorkerThread(WorkQueue *queue)
 {
     while (1)
@@ -640,8 +644,12 @@ internal void WorkerThread(WorkQueue *queue)
 
             // Work to do
 #if USE_SIMD_PATH_TRACER
+            sp_Metrics metrics = {};
             sp_Task *task = (sp_Task *)WorkQueuePop(queue, sizeof(sp_Task));
-            sp_PathTraceTile(task->context, task->tile, &rng);
+            sp_PathTraceTile(task->context, task->tile, &rng, &metrics);
+
+            u32 index = AtomicExchangeAdd(&g_metricsBufferLength, 1);
+            g_metricsBuffer[index] = metrics;
 #else
             Task task = *(Task *)WorkQueuePop(queue, sizeof(Task));
             ThreadData *threadData = task.threadData;
@@ -740,6 +748,7 @@ internal void AddRayTracingWorkQueue(
         sp_Task task = {};
         task.context = ctx;
         task.tile = tiles[i];
+        g_metricsBufferLength = 0;
 #else
         Task task = {};
         task.threadData = threadData;
@@ -1228,6 +1237,7 @@ int main(int argc, char **argv)
     b32 showComparision = false;
     b32 showDebugDrawing = true;
     f32 t = 0.0f;
+    u32 metricsBatchCount = 0;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -1270,6 +1280,32 @@ int main(int argc, char **argv)
         }
 
         libraryCode.doThing();
+#endif
+
+#if USE_SIMD_PATH_TRACER
+        if (isRayTracing)
+        {
+            metricsBatchCount++;
+            if (metricsBatchCount == 1000)
+            {
+                sp_Metrics total = {};
+                for (i32 i = 0; i < g_metricsBufferLength; i++)
+                {
+                    total.cyclesElapsed += g_metricsBuffer[i].cyclesElapsed;
+                    total.pathsTraced+= g_metricsBuffer[i].pathsTraced;
+                    total.raysTraced+= g_metricsBuffer[i].raysTraced;
+                    total.rayHitCount+= g_metricsBuffer[i].rayHitCount;
+                    total.rayMissCount+= g_metricsBuffer[i].rayMissCount;
+                }
+
+                LogMessage("Cycles elapsed: %llu", total.cyclesElapsed);
+                LogMessage("Paths traced: %llu", total.pathsTraced);
+                LogMessage("Rays traced: %llu", total.raysTraced);
+                LogMessage("Ray hits: %llu", total.rayHitCount);
+                LogMessage("Ray misses: %llu", total.rayMissCount);
+                metricsBatchCount = 0;
+            }
+        }
 #endif
 
         if (WasPressed(input.buttonStates[KEY_SPACE]))

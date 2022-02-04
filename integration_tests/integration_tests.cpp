@@ -14,6 +14,7 @@
 #include "bvh.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
+#include "sp_metrics.h"
 #include "simd_path_tracer.h"
 
 #include "custom_assertions.h"
@@ -108,12 +109,14 @@ void TestSimdPathTracer()
 
     RandomNumberGenerator rng = {};
 
+    sp_Metrics metrics = {};
+
     Tile tile = {};
     tile.minX = 0;
     tile.minY = 0;
     tile.maxX = 1;
     tile.maxY = 1;
-    sp_PathTraceTile(&context, tile, &rng);
+    sp_PathTraceTile(&context, tile, &rng, &metrics);
 
     // TODO: Not sure what to assert since we don't know what the resulting
     // pixel color will be for an abitrary normal

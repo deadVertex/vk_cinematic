@@ -108,8 +108,11 @@ vec3 ComputeRadianceForPath(
 }
 
 // TODO: Actual SIMD!
-void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
+void sp_PathTraceTile(
+    sp_Context *ctx, Tile tile, RandomNumberGenerator *rng, sp_Metrics *metrics)
 {
+    u64 start = __rdtsc();
+
     sp_Camera *camera = ctx->camera;
     ImagePlane *imagePlane = camera->imagePlane;
     vec4 *pixels = imagePlane->pixels;
@@ -120,6 +123,7 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
     u32 maxX = MinU32(tile.maxX, imagePlane->width);
     u32 maxY = MinU32(tile.maxY, imagePlane->height);
 
+    // TODO: Expose these via parameter!
     u32 sampleCount = 64;
     u32 bounceCount = 4; // TODO: Use MAX_BOUNCES constant
 #if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
@@ -161,7 +165,7 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
                     sp_RayIntersectSceneResult result =
                         sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
 
-                    // If ray intersection set output color to magenta otherwise leave black
+                    metrics->raysTraced++;
 
                     // Allocate path vertex
                     sp_PathVertex *pathVertex = path + pathLength++;
@@ -193,6 +197,9 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
                         rayOrigin = pathVertex->worldPosition + result.normal * bias;
                         rayDirection = dir;
 
+                        // Count ray hit for metrics
+                        metrics->rayHitCount++;
+
 #if SP_DEBUG_SURFACE_NORMAL
                         color = Vec4(result.normal * 0.5f + Vec3(0.5f), 1);
 #endif
@@ -202,6 +209,9 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
                         // TODO: Constant for background material
                         pathVertex->materialId = U32_MAX;
                         pathVertex->outgoingDir = -rayDirection;
+
+                        // Count ray miss for metrics
+                        metrics->rayMissCount++;
 
                         // FIXME: Don't want to have a break in this loop, going to
                         // make it much harder to convert to SIMD
@@ -222,6 +232,9 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
                 vec3 radiance = ComputeRadianceForPath(
                         path, pathLength, materialSystem);
                 totalRadiance += radiance * (1.0f / (f32)sampleCount);
+
+                // Record number of paths traced for tile
+                metrics->pathsTraced++;
             }
 #if !(SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
             color = Vec4(totalRadiance, 1);
@@ -231,5 +244,8 @@ void sp_PathTraceTile(sp_Context *ctx, Tile tile, RandomNumberGenerator *rng)
             pixels[x + y * imagePlane->width] = color;
         }
     }
+
+    // Record the total number of cycles spent in this function
+    metrics->cyclesElapsed = __rdtsc() - start;
 }
 

@@ -8,6 +8,7 @@
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "simd_path_tracer.h"
+#include "sp_metrics.h"
 
 #include "custom_assertions.h"
 
@@ -59,13 +60,15 @@ void TestPathTraceSingleColor()
 
     RandomNumberGenerator rng = {};
 
+    sp_Metrics metrics = {};
+
     // When we path trace a tile
     Tile tile = {};
     tile.minX = 0;
     tile.minY = 0;
     tile.maxX = 4;
     tile.maxY = 4;
-    sp_PathTraceTile(&ctx, tile, &rng);
+    sp_PathTraceTile(&ctx, tile, &rng, &metrics);
 
     // Then all of the pixels are set to black
     for (u32 i = 0; i < 16; i++)
@@ -97,13 +100,15 @@ void TestPathTraceTile()
 
     RandomNumberGenerator rng = {};
 
+    sp_Metrics metrics = {};
+
     // When we path trace a tile
     Tile tile = {};
     tile.minX = 1;
     tile.minY = 1;
     tile.maxX = 3;
     tile.maxY = 3;
-    sp_PathTraceTile(&ctx, tile, &rng);
+    sp_PathTraceTile(&ctx, tile, &rng, &metrics);
 
     // Then only the pixels within that tile are updated
     // clang-format off
@@ -432,6 +437,43 @@ void TestEvaluateLightPath()
     AssertWithinVec3(EPSILON, Vec3(0.18, 0.18, 0.18), radiance);
 }
 
+void TestMetrics()
+{
+    // Given a context
+    vec4 pixels[16] = {};
+    ImagePlane imagePlane = {};
+    imagePlane.pixels = pixels;
+    imagePlane.width = 4;
+    imagePlane.height = 4;
+
+    sp_Camera camera = {};
+    camera.imagePlane = &imagePlane;
+
+    sp_Scene scene = {};
+
+    sp_MaterialSystem materialSystem = {};
+
+    sp_Context ctx = {};
+    ctx.camera = &camera;
+    ctx.scene = &scene;
+    ctx.materialSystem = &materialSystem;
+
+    RandomNumberGenerator rng = {};
+
+    sp_Metrics metrics = {};
+
+    // When we path trace a tile
+    Tile tile = {};
+    tile.minX = 1;
+    tile.minY = 1;
+    tile.maxX = 3;
+    tile.maxY = 3;
+    sp_PathTraceTile(&ctx, tile, &rng, &metrics);
+
+    // Then per-thread performance metrics are computed
+    TEST_ASSERT_GREATER_THAN_UINT32(0, metrics.cyclesElapsed);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -452,6 +494,8 @@ int main()
     RUN_TEST(TestBvhDuplicateIntersectionsBug);
 
     RUN_TEST(TestEvaluateLightPath);
+
+    RUN_TEST(TestMetrics);
 
     free(memoryArena.base);
 
