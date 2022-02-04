@@ -471,7 +471,7 @@ void TestMetrics()
     sp_PathTraceTile(&ctx, tile, &rng, &metrics);
 
     // Then per-thread performance metrics are computed
-    TEST_ASSERT_GREATER_THAN_UINT32(0, metrics.cyclesElapsed);
+    TEST_ASSERT_GREATER_THAN_UINT32(0, metrics.values[sp_Metric_CyclesElapsed]);
 }
 
 int main()

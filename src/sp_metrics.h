@@ -1,11 +1,27 @@
 #pragma once
 
+enum
+{
+    // Cycles spent in sp_PathTraceTile call
+    sp_Metric_CyclesElapsed,
+
+    // Number of light paths traced
+    sp_Metric_PathsTraced,
+
+    // Number of rays traced through the scene
+    sp_Metric_RaysTraced,
+
+    // Number of rays which hit something in the scene
+    sp_Metric_RayHitCount,
+
+    // Number of rays which hit nothing
+    sp_Metric_RayMissCount,
+
+    SP_MAX_METRICS,
+};
+
 // Per thread performance metrics
 struct sp_Metrics
 {
-    u64 cyclesElapsed; // Cycles spent in sp_PathTraceTile call
-    u64 pathsTraced; // Number of light paths traced
-    u64 raysTraced; // Number of rays traced through the scene
-    u64 rayHitCount; // Number of rays which hit something in the scene
-    u64 rayMissCount; // Number of rays which hit nothing
+    u64 values[SP_MAX_METRICS];
 };

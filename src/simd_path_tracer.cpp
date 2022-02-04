@@ -165,7 +165,7 @@ void sp_PathTraceTile(
                     sp_RayIntersectSceneResult result =
                         sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
 
-                    metrics->raysTraced++;
+                    metrics->values[sp_Metric_RaysTraced]++;
 
                     // Allocate path vertex
                     sp_PathVertex *pathVertex = path + pathLength++;
@@ -198,7 +198,7 @@ void sp_PathTraceTile(
                         rayDirection = dir;
 
                         // Count ray hit for metrics
-                        metrics->rayHitCount++;
+                        metrics->values[sp_Metric_RayHitCount]++;
 
 #if SP_DEBUG_SURFACE_NORMAL
                         color = Vec4(result.normal * 0.5f + Vec3(0.5f), 1);
@@ -211,7 +211,7 @@ void sp_PathTraceTile(
                         pathVertex->outgoingDir = -rayDirection;
 
                         // Count ray miss for metrics
-                        metrics->rayMissCount++;
+                        metrics->values[sp_Metric_RayMissCount]++;
 
                         // FIXME: Don't want to have a break in this loop, going to
                         // make it much harder to convert to SIMD
@@ -234,7 +234,7 @@ void sp_PathTraceTile(
                 totalRadiance += radiance * (1.0f / (f32)sampleCount);
 
                 // Record number of paths traced for tile
-                metrics->pathsTraced++;
+                metrics->values[sp_Metric_PathsTraced]++;
             }
 #if !(SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
             color = Vec4(totalRadiance, 1);
@@ -246,6 +246,6 @@ void sp_PathTraceTile(
     }
 
     // Record the total number of cycles spent in this function
-    metrics->cyclesElapsed = __rdtsc() - start;
+    metrics->values[sp_Metric_CyclesElapsed] = __rdtsc() - start;
 }
 
