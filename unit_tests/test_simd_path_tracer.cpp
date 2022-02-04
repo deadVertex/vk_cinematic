@@ -335,8 +335,9 @@ void TestRayIntersectScene()
     // When we test if a ray intersects with the collision world
     vec3 rayOrigin = Vec3(0, 2, 0);
     vec3 rayDirection = Vec3(0, 0, -1);
+    sp_Metrics metrics = {};
     sp_RayIntersectSceneResult result =
-        sp_RayIntersectScene(&scene, rayOrigin, rayDirection);
+        sp_RayIntersectScene(&scene, rayOrigin, rayDirection, &metrics);
 
     // Then we find an intersection
     TEST_ASSERT_TRUE(result.t >= 0.0f);

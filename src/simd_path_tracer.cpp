@@ -162,8 +162,8 @@ void sp_PathTraceTile(
                 for (u32 bounce = 0; bounce < bounceCount; bounce++)
                 {
                     // Trace ray through scene
-                    sp_RayIntersectSceneResult result =
-                        sp_RayIntersectScene(ctx->scene, rayOrigin, rayDirection);
+                    sp_RayIntersectSceneResult result = sp_RayIntersectScene(
+                        ctx->scene, rayOrigin, rayDirection, metrics);
 
                     metrics->values[sp_Metric_RaysTraced]++;
 

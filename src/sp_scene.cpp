@@ -167,8 +167,11 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
 }
 
 sp_RayIntersectSceneResult sp_RayIntersectScene(
-    sp_Scene *scene, vec3 rayOrigin, vec3 rayDirection)
+    sp_Scene *scene, vec3 rayOrigin, vec3 rayDirection, sp_Metrics *metrics)
 {
+    // Record the CPU timestamp at the start of the function
+    u64 cycleCountStart = __rdtsc();
+
     sp_RayIntersectSceneResult result = {};
     result.t = -1.0f;
 
@@ -176,11 +179,18 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
     // intersections? Should there even be a fixed limit?
     bvh_Node *intersectedNodes[8] = {};
 
+    // Record CPU timestamp before we perform broadphase intersection test
+    u64 broadphaseStart = __rdtsc();
+
     // Intersect the ray against our broadphase tree first to quickly get a
     // list of potential mesh intersections
     bvh_IntersectRayResult broadphaseResult =
         bvh_IntersectRay(&scene->broadphaseTree, rayOrigin,
             rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
+
+    // Compute number of cycles spent in broadphase BVH test and add to total
+    metrics->values[sp_Metric_CyclesElapsed_RayIntersectBroadphase] +=
+        __rdtsc() - broadphaseStart;
 
     // TODO: What do we do if the errorOccurred flag is set?
     //Assert(!broadphaseResult.errorOccurred);
@@ -201,9 +211,14 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
         vec3 localRayDirection =
             Normalize(TransformVector(rayDirection, invModelMatrix));
 
+        u64 rayIntersectMeshStart = __rdtsc();
+
         // Find closest triangle intersection for this collision mesh
         RayIntersectTriangleResult meshIntersectionResult = sp_RayIntersectMesh(
             mesh, localRayOrigin, localRayDirection);
+
+        metrics->values[sp_Metric_CyclesElapsed_RayIntersectMesh] +=
+            __rdtsc() - rayIntersectMeshStart;
 
         // Process result if intersection found
         if (meshIntersectionResult.t >= 0.0f)
@@ -237,6 +252,10 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
 #if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
     result.broadphaseIntersectionCount = broadphaseResult.count;
 #endif
+
+    // Calculate the number of cycles spent in this function and add to total
+    metrics->values[sp_Metric_CyclesElapsed_RayIntersectScene] +=
+        __rdtsc() - cycleCountStart;
 
     return result;
 }

@@ -17,6 +17,15 @@ enum
     // Number of rays which hit nothing
     sp_Metric_RayMissCount,
 
+    // Total number of cycles spent in sp_RayIntersectScene
+    sp_Metric_CyclesElapsed_RayIntersectScene,
+
+    // Total number of cycles spent in broadphase ray intersection tests
+    sp_Metric_CyclesElapsed_RayIntersectBroadphase,
+
+    // Total number of cycles spent in sp_RayIntersectMesh
+    sp_Metric_CyclesElapsed_RayIntersectMesh,
+
     SP_MAX_METRICS,
 };
 

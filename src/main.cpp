@@ -1308,6 +1308,12 @@ int main(int argc, char **argv)
                 LogMessage("Rays traced: %llu", total.values[sp_Metric_RaysTraced]);
                 LogMessage("Ray hits: %llu", total.values[sp_Metric_RayHitCount]);
                 LogMessage("Ray misses: %llu", total.values[sp_Metric_RayMissCount]);
+                LogMessage("RayIntersectScene cycles elapsed: %llu",
+                    total.values[sp_Metric_CyclesElapsed_RayIntersectScene]);
+                LogMessage("RayIntersectBroadphase cycles elapsed: %llu",
+                    total.values[sp_Metric_CyclesElapsed_RayIntersectBroadphase]);
+                LogMessage("RayIntersectMesh cycles elapsed: %llu",
+                    total.values[sp_Metric_CyclesElapsed_RayIntersectMesh]);
 
                 f64 secondsElapsed = glfwGetTime() - rayTracingStartTime;
                 LogMessage("Seconds elapsed: %g", secondsElapsed);
