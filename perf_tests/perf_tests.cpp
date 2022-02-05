@@ -6,6 +6,7 @@
 #include "math_lib.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "sp_metrics.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "tile.h"
@@ -25,8 +26,6 @@
 
 MemoryArena memoryArena;
 
-global const char *g_AssetDir = "../assets";
-
 void setUp(void)
 {
     // set stuff up here
@@ -40,6 +39,7 @@ void tearDown(void)
 }
 
 // Performance tests
+// The test is intended to simulate broadphase testing?
 void TestBvh()
 {
 #define AABB_COUNT 2048
@@ -137,6 +137,7 @@ void TestPathTraceTile()
 
     sp_Mesh mesh = sp_CreateMesh(
         vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+    // FIXME: Need to build mesh midphase bvh tree!
 
     sp_MaterialSystem materialSystem = {};
     materialSystem.backgroundEmission = Vec3(1);
@@ -165,13 +166,86 @@ void TestPathTraceTile()
     tile.maxX = IMAGE_WIDTH;
     tile.maxY = IMAGE_HEIGHT;
 
+    sp_Metrics metrics = {};
+
     u64 start = __rdtsc();
-    sp_PathTraceTile(&context, tile, &rng);
+    sp_PathTraceTile(&context, tile, &rng, &metrics);
     u64 cyclesElapsed =  __rdtsc() - start;
     LogMessage("sp_PathTraceTile: Cycles elapsed: %llu", cyclesElapsed);
     u64 cyclesPerPixel =
         cyclesElapsed / (u64)(imagePlane.width * imagePlane.height);
     LogMessage("Cycles per pixel : %llu", cyclesPerPixel);
+}
+
+void TestMeshMidphase()
+{
+    RandomNumberGenerator rng = { 0x1A34C249 };
+
+    MeshData meshData = CreateIcosahedronMesh(3, &memoryArena);
+
+    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
+    for (u32 i = 0; i < meshData.vertexCount; i++)
+    {
+        vertices[i] = meshData.vertices[i].position;
+    }
+
+    sp_Mesh mesh = sp_CreateMesh(
+        vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Megabytes(1));
+    MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(64));
+
+    // TODO: Measure how long this takes
+    sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
+
+    vec3 min = mesh.midphaseTree.root->min;
+    vec3 max = mesh.midphaseTree.root->max;
+
+    sp_Metrics metrics = {};
+
+    u32 rayCount = 1024*1024;
+    u64 cyclesElapsed = 0;
+    u32 hitCount = 0;
+    u32 missCount = 0;
+    for (u32 ray = 0; ray < rayCount; ++ray)
+    {
+        f32 x0 = Lerp(min.x, max.x, RandomBilateral(&rng));
+        f32 y0 = Lerp(min.y, max.y, RandomBilateral(&rng));
+        f32 z0 = Lerp(min.z, max.z, RandomBilateral(&rng));
+
+        vec3 p = Vec3(x0, y0, z0);
+
+        f32 x1 = Lerp(min.x, max.x, RandomBilateral(&rng));
+        f32 y1 = Lerp(min.y, max.y, RandomBilateral(&rng));
+        f32 z1 = Lerp(min.z, max.z, RandomBilateral(&rng));
+
+        vec3 q = Vec3(x1, y1, z1);
+
+        vec3 rayOrigin = p;
+        vec3 rayDirection = Normalize(q - p);
+
+        u64 start = __rdtsc();
+
+        RayIntersectTriangleResult result =
+            sp_RayIntersectMesh(mesh, rayOrigin, rayDirection, &metrics);
+
+        cyclesElapsed += __rdtsc() - start;
+
+        hitCount = (result.t >= 0.0f) ? hitCount + 1 : hitCount;
+        missCount = (result.t < 0.0f) ? missCount + 1 : missCount;
+    }
+
+    LogMessage("Cycles elapsed %llu (%.8g per ray)",
+            cyclesElapsed, (f64)cyclesElapsed / (f64)rayCount);
+    LogMessage("Midphase cycles elapsed: %llu (%.8g per ray)",
+        metrics.values[sp_Metric_CyclesElapsed_RayIntersectMeshMidphase],
+        (f64)metrics.values[sp_Metric_CyclesElapsed_RayIntersectMeshMidphase] /
+            (f64)rayCount);
+    LogMessage("RayIntersectTriangle cycles elapsed: %llu (%.8g per ray)",
+        metrics.values[sp_Metric_CyclesElapsed_RayIntersectTriangle],
+        (f64)metrics.values[sp_Metric_CyclesElapsed_RayIntersectTriangle] /
+            (f64)rayCount);
+    LogMessage("Ray hit count: %u", hitCount);
+    LogMessage("Ray miss count: %u", missCount);
 }
 
 // FIXME: Copied from main.cpp
@@ -195,6 +269,7 @@ int main(int argc, char **argv)
     UNITY_BEGIN();
     RUN_TEST(TestBvh);
     RUN_TEST(TestPathTraceTile);
+    RUN_TEST(TestMeshMidphase);
 
     free(memoryArena.base);
 
