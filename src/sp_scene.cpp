@@ -159,7 +159,7 @@ void sp_BuildSceneBroadphase(sp_Scene *scene)
 }
 
 RayIntersectTriangleResult sp_RayIntersectMesh(
-    sp_Mesh mesh, vec3 rayOrigin, vec3 rayDirection)
+    sp_Mesh mesh, vec3 rayOrigin, vec3 rayDirection, sp_Metrics *metrics)
 {
     RayIntersectTriangleResult result = {};
     result.t = -1.0f;
@@ -170,11 +170,19 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
     // midphase test then what is our BVH even doing?
     bvh_Node *intersectedNodes[64] = {};
 
+    // NOTE: Midphase intersection testing is currently our performance
+    // bottleneck with about ~80% of our cycles being spent in it for testing
+    // Ray Mesh intersection.
+    u64 midphaseStart = __rdtsc();
+
     // Intersect the ray against our midphase tree first to quickly get a
     // list of triangles to perform intersection tests against
     bvh_IntersectRayResult midphaseResult =
         bvh_IntersectRay(&mesh.midphaseTree, rayOrigin,
             rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
+
+    metrics->values[sp_Metric_CyclesElapsed_RayIntersectMeshMidphase] +=
+        __rdtsc() - midphaseStart;
 
     // TODO: What do we do if the errorOccurred flag is set?
     Assert(!midphaseResult.errorOccurred);
@@ -197,9 +205,14 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
         vertices[1] = mesh.vertices[indices[1]];
         vertices[2] = mesh.vertices[indices[2]];
 
+        u64 triangleIntersectStart = __rdtsc();
+
         // Perform ray intersect triangle test
         RayIntersectTriangleResult triangleIntersect = RayIntersectTriangle(
             rayOrigin, rayDirection, vertices[0], vertices[1], vertices[2]);
+
+        metrics->values[sp_Metric_CyclesElapsed_RayIntersectTriangle] +=
+            __rdtsc() - triangleIntersectStart;
 
         // Process triangle intersection result if intersection found
         if (triangleIntersect.t > 0.0f)
@@ -264,7 +277,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
 
         // Find closest triangle intersection for this collision mesh
         RayIntersectTriangleResult meshIntersectionResult = sp_RayIntersectMesh(
-            mesh, localRayOrigin, localRayDirection);
+            mesh, localRayOrigin, localRayDirection, metrics);
 
         metrics->values[sp_Metric_CyclesElapsed_RayIntersectMesh] +=
             __rdtsc() - rayIntersectMeshStart;

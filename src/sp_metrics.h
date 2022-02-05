@@ -26,6 +26,12 @@ enum
     // Total number of cycles spent in sp_RayIntersectMesh
     sp_Metric_CyclesElapsed_RayIntersectMesh,
 
+    // Total number of cycles spent in bvh_IntersectRay for mesh midphase
+    sp_Metric_CyclesElapsed_RayIntersectMeshMidphase,
+
+    // Total number of cycles spent in RayIntersectTriangle
+    sp_Metric_CyclesElapsed_RayIntersectTriangle,
+
     SP_MAX_METRICS,
 };
 

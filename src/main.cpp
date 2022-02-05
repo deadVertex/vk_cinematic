@@ -1293,47 +1293,74 @@ int main(int argc, char **argv)
 #if USE_SIMD_PATH_TRACER
         if (isRayTracing)
         {
-            if (glfwGetTime() > nextStatPrintTime)
+            // Only print metrics while we have path tracing work remaining
+            if (workQueue.head != workQueue.tail)
             {
-                sp_Metrics total = {};
-                for (i32 i = 0; i < g_metricsBufferLength; i++)
+                if (glfwGetTime() > nextStatPrintTime)
                 {
-                    for (u32 j = 0; j < SP_MAX_METRICS; ++j)
+                    // Not sure how scalable this approach is of adding metrics
+                    // for each tile to a queue. Decided to go with this
+                    // approach rather than create a new global metric
+                    // structure that stored atomic counters for each metric
+                    // value which then each thread accumulates its local
+                    // metric values onto.
+                    sp_Metrics total = {};
+                    for (i32 i = 0; i < g_metricsBufferLength; i++)
                     {
-                        total.values[j] += g_metricsBuffer[i].values[j];
+                        for (u32 j = 0; j < SP_MAX_METRICS; ++j)
+                        {
+                            total.values[j] += g_metricsBuffer[i].values[j];
+                        }
                     }
+
+                    u32 tilesProcessed = g_metricsBufferLength;
+                    u32 totalNumberOfFiles = workQueue.tail;
+
+                    LogMessage("Processed %u/%u tiles - %g%% complete",
+                        tilesProcessed, totalNumberOfFiles,
+                        ((f32)tilesProcessed / (f32)totalNumberOfFiles) *
+                            100.0f);
+                    LogMessage("Cycles elapsed: %llu",
+                        total.values[sp_Metric_CyclesElapsed]);
+                    LogMessage("Paths traced: %llu",
+                        total.values[sp_Metric_PathsTraced]);
+                    LogMessage("Rays traced: %llu",
+                        total.values[sp_Metric_RaysTraced]);
+                    LogMessage(
+                        "Ray hits: %llu", total.values[sp_Metric_RayHitCount]);
+                    LogMessage("Ray misses: %llu",
+                        total.values[sp_Metric_RayMissCount]);
+                    LogMessage("RayIntersectScene cycles elapsed: %llu",
+                        total
+                            .values[sp_Metric_CyclesElapsed_RayIntersectScene]);
+                    LogMessage("RayIntersectBroadphase cycles elapsed: %llu",
+                        total.values
+                            [sp_Metric_CyclesElapsed_RayIntersectBroadphase]);
+                    LogMessage("RayIntersectMesh cycles elapsed: %llu",
+                        total.values[sp_Metric_CyclesElapsed_RayIntersectMesh]);
+                    LogMessage("RayIntersectMesh Midphase cycles elapsed: %llu",
+                        total.values
+                            [sp_Metric_CyclesElapsed_RayIntersectMeshMidphase]);
+                    LogMessage("RayIntersectTriangle cycles elapsed: %llu",
+                        total.values
+                            [sp_Metric_CyclesElapsed_RayIntersectTriangle]);
+
+                    f64 secondsElapsed = glfwGetTime() - rayTracingStartTime;
+                    LogMessage("Seconds elapsed: %g", secondsElapsed);
+                    LogMessage("Paths traced per second: %g",
+                        (f64)total.values[sp_Metric_PathsTraced] /
+                            secondsElapsed);
+                    LogMessage("Rays per second: %g",
+                        (f64)total.values[sp_Metric_RaysTraced] /
+                            secondsElapsed);
+                    LogMessage("Average cycles per ray: %g",
+                        (f64)total.values[sp_Metric_CyclesElapsed] /
+                            (f64)total.values[sp_Metric_RaysTraced]);
+
+                    // TODO: Expose constant, currently prints stats 1 per
+                    // second
+                    nextStatPrintTime = glfwGetTime() + 1.0;
                 }
-
-                u32 tilesProcessed = g_metricsBufferLength;
-                u32 totalNumberOfFiles = workQueue.tail;
-
-                LogMessage("Processed %u/%u tiles - %g%% complete",
-                    tilesProcessed, totalNumberOfFiles,
-                    ((f32)tilesProcessed / (f32)totalNumberOfFiles) * 100.0f);
-                LogMessage("Cycles elapsed: %llu", total.values[sp_Metric_CyclesElapsed]);
-                LogMessage("Paths traced: %llu", total.values[sp_Metric_PathsTraced]);
-                LogMessage("Rays traced: %llu", total.values[sp_Metric_RaysTraced]);
-                LogMessage("Ray hits: %llu", total.values[sp_Metric_RayHitCount]);
-                LogMessage("Ray misses: %llu", total.values[sp_Metric_RayMissCount]);
-                LogMessage("RayIntersectScene cycles elapsed: %llu",
-                    total.values[sp_Metric_CyclesElapsed_RayIntersectScene]);
-                LogMessage("RayIntersectBroadphase cycles elapsed: %llu",
-                    total.values[sp_Metric_CyclesElapsed_RayIntersectBroadphase]);
-                LogMessage("RayIntersectMesh cycles elapsed: %llu",
-                    total.values[sp_Metric_CyclesElapsed_RayIntersectMesh]);
-
-                f64 secondsElapsed = glfwGetTime() - rayTracingStartTime;
-                LogMessage("Seconds elapsed: %g", secondsElapsed);
-                LogMessage("Paths traced per second: %g",
-                    (f64)total.values[sp_Metric_PathsTraced] / secondsElapsed);
-                LogMessage("Rays per second: %g",
-                    (f64)total.values[sp_Metric_RaysTraced] / secondsElapsed);
-                LogMessage("Average cycles per ray: %g",
-                    (f64)total.values[sp_Metric_CyclesElapsed] /
-                        (f64)total.values[sp_Metric_RaysTraced]);
-
-                // TODO: Expose constant, currently prints stats 1 per second
-                nextStatPrintTime = glfwGetTime() + 1.0;
             }
         }
 #endif

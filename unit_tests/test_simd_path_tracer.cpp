@@ -500,8 +500,9 @@ void TestRayIntersectMesh()
     // When we intersect a ray against it
     vec3 rayOrigin = Vec3(0, 0, 10);
     vec3 rayDirection = Vec3(0, 0, -1);
+    sp_Metrics metrics = {};
     RayIntersectTriangleResult result =
-        sp_RayIntersectMesh(mesh, rayOrigin, rayDirection);
+        sp_RayIntersectMesh(mesh, rayOrigin, rayDirection, &metrics);
 
     // Then we get the intersection t value
     TEST_ASSERT_TRUE(result.t >= 0.0f);
