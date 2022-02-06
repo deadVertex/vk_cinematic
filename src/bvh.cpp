@@ -156,6 +156,7 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
         u32 topIndex = --stackSizes[readIndex];
         bvh_Node *node = stack[readIndex][topIndex];
 
+        result.aabbTestCount++;
         f32 t = RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
         if (t >= 0.0f)
         {

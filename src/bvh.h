@@ -21,5 +21,6 @@ struct bvh_IntersectRayResult
 {
     b32 errorOccurred;
     u32 count;
+    u32 aabbTestCount;
 };
 

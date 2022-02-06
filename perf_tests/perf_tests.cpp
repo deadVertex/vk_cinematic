@@ -177,6 +177,36 @@ void TestPathTraceTile()
     LogMessage("Cycles per pixel : %llu", cyclesPerPixel);
 }
 
+struct EvaluateTreeResult
+{
+    u32 minDepth;
+    u32 maxDepth;
+};
+
+internal EvaluateTreeResult EvaluateTree(bvh_Node *node, u32 currentDepth)
+{
+    EvaluateTreeResult result = {};
+    if (node->children[0] != NULL)
+    {
+        // Assuming that this is always true?
+        Assert(node->children[1] != NULL);
+        EvaluateTreeResult a =
+            EvaluateTree(node->children[0], currentDepth + 1);
+        EvaluateTreeResult b =
+            EvaluateTree(node->children[1], currentDepth + 1);
+        result.minDepth = MinU32(a.minDepth, b.minDepth);
+        result.maxDepth = MaxU32(a.maxDepth, b.maxDepth);
+    }
+    else
+    {
+        // Leaf node
+        result.minDepth = currentDepth + 1;
+        result.maxDepth = currentDepth + 1;
+    }
+
+    return result;
+}
+
 void TestMeshMidphase()
 {
     RandomNumberGenerator rng = { 0x1A34C249 };
@@ -197,12 +227,23 @@ void TestMeshMidphase()
     // TODO: Measure how long this takes
     sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
 
+    EvaluateTreeResult treeResult = EvaluateTree(mesh.midphaseTree.root, 0);
+    LogMessage("Midphase tree maxDepth: %u minDepth: %u",
+            treeResult.maxDepth, treeResult.minDepth);
+    u32 triangleCount = mesh.indexCount / 3;
+    LogMessage("Midphase tree leaf node count: %u", triangleCount);
+
     vec3 min = mesh.midphaseTree.root->min;
     vec3 max = mesh.midphaseTree.root->max;
 
     sp_Metrics metrics = {};
 
-    u32 rayCount = 1024*1024;
+    u32 bucketMax = 250;
+    u32 bucketCount = 10;
+    u32 bucketWidth = bucketMax / bucketCount;
+    u32 buckets[10] = {};
+
+    u32 rayCount = 1024*8192;
     u64 cyclesElapsed = 0;
     u32 hitCount = 0;
     u32 missCount = 0;
@@ -223,6 +264,9 @@ void TestMeshMidphase()
         vec3 rayOrigin = p;
         vec3 rayDirection = Normalize(q - p);
 
+        u64 prev =
+            metrics.values[sp_Metric_RayIntersectMesh_MidphaseAabbTestCount];
+
         u64 start = __rdtsc();
 
         RayIntersectTriangleResult result =
@@ -232,6 +276,12 @@ void TestMeshMidphase()
 
         hitCount = (result.t >= 0.0f) ? hitCount + 1 : hitCount;
         missCount = (result.t < 0.0f) ? missCount + 1 : missCount;
+
+        u32 aabbCount = (u32)(
+            metrics.values[sp_Metric_RayIntersectMesh_MidphaseAabbTestCount] -
+            prev);
+        u32 bucketIndex = MinU32(aabbCount / bucketWidth, bucketCount - 1);
+        buckets[bucketIndex]++;
     }
 
     LogMessage("Cycles elapsed %llu (%.8g per ray)",
@@ -244,8 +294,19 @@ void TestMeshMidphase()
         metrics.values[sp_Metric_CyclesElapsed_RayIntersectTriangle],
         (f64)metrics.values[sp_Metric_CyclesElapsed_RayIntersectTriangle] /
             (f64)rayCount);
+    LogMessage("Midphase AABB test count: %llu (%.8g per ray)",
+        metrics.values[sp_Metric_RayIntersectMesh_MidphaseAabbTestCount],
+        (f64)metrics.values[sp_Metric_RayIntersectMesh_MidphaseAabbTestCount] /
+            (f64)rayCount);
     LogMessage("Ray hit count: %u", hitCount);
     LogMessage("Ray miss count: %u", missCount);
+    LogMessage("Histogram of midphase AABB test counts");
+    for (u32 i = 0; i < bucketCount; ++i)
+    {
+        u32 start = bucketWidth * i;
+        u32 end = start + bucketWidth;
+        LogMessage("%u - %u : %u", start, end, buckets[i]);
+    }
 }
 
 // FIXME: Copied from main.cpp

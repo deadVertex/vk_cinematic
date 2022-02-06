@@ -32,6 +32,12 @@ enum
     // Total number of cycles spent in RayIntersectTriangle
     sp_Metric_CyclesElapsed_RayIntersectTriangle,
 
+    // Number of Ray vs AABB intersection tests performed for mesh midphase test
+    sp_Metric_RayIntersectMesh_MidphaseAabbTestCount,
+
+    // Number of Ray vs Mesh tests performed
+    sp_Metric_RayIntersectMesh_TestsPerformed,
+
     SP_MAX_METRICS,
 };
 

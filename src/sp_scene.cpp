@@ -183,6 +183,8 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
 
     metrics->values[sp_Metric_CyclesElapsed_RayIntersectMeshMidphase] +=
         __rdtsc() - midphaseStart;
+    metrics->values[sp_Metric_RayIntersectMesh_MidphaseAabbTestCount] +=
+        midphaseResult.aabbTestCount;
 
     // TODO: What do we do if the errorOccurred flag is set?
     Assert(!midphaseResult.errorOccurred);
@@ -281,6 +283,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
 
         metrics->values[sp_Metric_CyclesElapsed_RayIntersectMesh] +=
             __rdtsc() - rayIntersectMeshStart;
+        metrics->values[sp_Metric_RayIntersectMesh_TestsPerformed]++;
 
         // Process result if intersection found
         if (meshIntersectionResult.t >= 0.0f)

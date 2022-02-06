@@ -1344,6 +1344,13 @@ int main(int argc, char **argv)
                     LogMessage("RayIntersectTriangle cycles elapsed: %llu",
                         total.values
                             [sp_Metric_CyclesElapsed_RayIntersectTriangle]);
+                    LogMessage(
+                        "RayIntersectMesh Midphase AABB tests performed: %llu",
+                        total.values
+                            [sp_Metric_RayIntersectMesh_MidphaseAabbTestCount]);
+                    LogMessage("RayIntersectMesh tests performed: %llu",
+                        total
+                            .values[sp_Metric_RayIntersectMesh_TestsPerformed]);
 
                     f64 secondsElapsed = glfwGetTime() - rayTracingStartTime;
                     LogMessage("Seconds elapsed: %g", secondsElapsed);
