@@ -241,7 +241,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
 
     // TODO: What should be the upper limit on the number of broadphase
     // intersections? Should there even be a fixed limit?
-    bvh_Node *intersectedNodes[8] = {};
+    bvh_Node *intersectedNodes[32] = {};
 
     // Record CPU timestamp before we perform broadphase intersection test
     u64 broadphaseStart = __rdtsc();
@@ -257,7 +257,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
         __rdtsc() - broadphaseStart;
 
     // TODO: What do we do if the errorOccurred flag is set?
-    //Assert(!broadphaseResult.errorOccurred);
+    Assert(!broadphaseResult.errorOccurred);
 
     // Process each broadphase intersection
     for (u32 i = 0; i < broadphaseResult.count; ++i)

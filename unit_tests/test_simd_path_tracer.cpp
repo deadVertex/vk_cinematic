@@ -10,6 +10,8 @@
 #include "simd_path_tracer.h"
 #include "sp_metrics.h"
 
+#include "simd.h"
+
 #include "custom_assertions.h"
 
 #include "memory_pool.cpp"
@@ -535,6 +537,21 @@ void TestCreateMeshBuildsBvhTreeSingleTriangle()
     AssertWithinVec3(EPSILON, Vec3(0.5f, 0.5f, 0.0f), root->max);
 }
 
+void TestRayIntersectAabb()
+{
+    // Given an AABB
+    vec3 min = Vec3(-0.5);
+    vec3 max = Vec3(0.5);
+
+    // When we intersect a ray against it
+    vec3 rayOrigin = Vec3(0, 0, 10);
+    vec3 rayDirection = Vec3(0, 0, -1);
+    f32 t = simd_RayIntersectAabb(min, max, rayOrigin, rayDirection);
+
+    // We get a t value for the intersection
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, 9.5f, t);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -560,6 +577,8 @@ int main()
 
     RUN_TEST(TestRayIntersectMesh);
     RUN_TEST(TestCreateMeshBuildsBvhTreeSingleTriangle);
+
+    RUN_TEST(TestRayIntersectAabb);
 
     free(memoryArena.base);
 

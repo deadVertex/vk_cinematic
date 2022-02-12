@@ -17,6 +17,8 @@
 #include "sp_metrics.h"
 #include "simd_path_tracer.h"
 
+#include "simd.h"
+
 #include "custom_assertions.h"
 
 #include "cpu_ray_tracer.h"
