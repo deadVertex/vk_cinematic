@@ -18,6 +18,7 @@
 #include "simd_path_tracer.h"
 
 #include "simd.h"
+#include "aabb.h"
 
 #include "custom_assertions.h"
 

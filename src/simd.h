@@ -1,6 +1,8 @@
 #pragma once
 
 #define SIMD_LANE_WIDTH 1
+
+// TODO: Software/reference implementation of SIMD for testing
 #if SIMD_LANE_WIDTH == 1
 typedef f32 simd_f32;
 typedef u32 simd_u32;

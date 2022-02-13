@@ -48,6 +48,70 @@ bvh_FindClosestPartnerNodeResult bvh_FindClosestPartnerNode(
     return result;
 }
 
+struct bvh_NodeIndexDistSqPair
+{
+    f32 distSq;
+    u32 nodeIndex;
+};
+
+inline i32 CompareNodeIndexDistSqPair(const void *p1, const void *p2)
+{
+    bvh_NodeIndexDistSqPair a = *(bvh_NodeIndexDistSqPair*)p1;
+    bvh_NodeIndexDistSqPair b = *(bvh_NodeIndexDistSqPair*)p2;
+
+    if (a.distSq < b.distSq)
+    {
+        return -1;
+    }
+    else if (a.distSq > b.distSq)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+// TODO: Spatial hashing
+u32 bvh_FindNeighbours(u32 nodeIndex, bvh_Node **allNodes,
+    bvh_NodeIndexDistSqPair *pairs, u32 count, u32 *neighbourIndices, u32 maxNeighbors)
+{
+    bvh_Node *node = allNodes[nodeIndex];
+    vec3 centroid = (node->max + node->min) * 0.5f;
+
+    // Compute dist^2 to node for all nodes
+    for (u32 i = 0; i < count; i++)
+    {
+        bvh_Node *neighbor = allNodes[i];
+        vec3 neighborCentroid = (neighbor->max + neighbor->min) * 0.5f;
+
+        vec3 d = neighborCentroid - centroid;
+        pairs[i].distSq = LengthSq(d);
+        pairs[i].nodeIndex = i;
+    }
+
+    // Sort by dist^2
+    qsort(pairs, count, sizeof(pairs[0]), CompareNodeIndexDistSqPair);
+
+    // Take the top N
+    u32 result = 0;
+    for (u32 i = 0; i < maxNeighbors + 1; ++i)
+    {
+        bvh_NodeIndexDistSqPair pair = pairs[i];
+        if (pair.nodeIndex == nodeIndex)
+        {
+            continue;
+        }
+
+        Assert(result < maxNeighbors);
+        neighbourIndices[result++] = pair.nodeIndex;
+    }
+
+    return result;
+}
+
+#if BVH_CHILDREN_PER_NODE == 2
 bvh_Tree bvh_CreateTree(
     MemoryArena *arena, vec3 *aabbMin, vec3 *aabbMax, u32 count)
 {
@@ -197,3 +261,4 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
 
     return result;
 }
+#endif

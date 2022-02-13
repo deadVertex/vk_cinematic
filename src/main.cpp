@@ -121,6 +121,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "simd_path_tracer.h"
 #include "cpu_ray_tracer.h"
 #include "simd.h"
+#include "aabb.h"
 
 #include "debug.cpp"
 #include "ray_intersection.cpp"
