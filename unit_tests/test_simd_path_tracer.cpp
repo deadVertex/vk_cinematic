@@ -395,6 +395,32 @@ void TestRayIntersectAabb()
     TEST_ASSERT_FLOAT_WITHIN(EPSILON, 9.5f, t);
 }
 
+void TestRayIntersectAabb4()
+{
+    vec3 boxMins[] = {
+        Vec3(-0.5, -0.5, -0.5f),
+        Vec3(-0.5, -0.5, 1.0f),
+        Vec3(-0.5, -0.5, 2.5f),
+        Vec3(-0.5, -0.5, 4.0f),
+    };
+
+    vec3 boxMaxes[] = {
+        Vec3(0.5f, 0.5f, 0.5f),
+        Vec3(0.5f, 0.5f, 2.0f),
+        Vec3(0.5f, 0.5f, 3.5f),
+        Vec3(0.5f, 0.5f, 5.0f),
+    };
+
+    vec3 rayOrigin = Vec3(0, 0, 10);
+    vec3 invRayDirection = Inverse(Vec3(0, 0, -1));
+
+    u32 mask =
+        simd_RayIntersectAabb4(boxMins, boxMaxes, rayOrigin, invRayDirection);
+
+    // Bits 0, 1, 2, 3 should be set
+    TEST_ASSERT_EQUAL_UINT32(0xF, mask);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -416,6 +442,7 @@ int main()
     RUN_TEST(TestCreateMeshBuildsBvhTreeSingleTriangle);
 
     RUN_TEST(TestRayIntersectAabb);
+    RUN_TEST(TestRayIntersectAabb4);
 
     free(memoryArena.base);
 

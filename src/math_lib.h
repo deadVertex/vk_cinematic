@@ -911,3 +911,15 @@ inline vec3 Inverse(vec3 a)
     vec3 result = { 1.0f / a.x, 1.0f / a.y, 1.0f / a.z };
     return result;
 }
+
+inline f32 MaxComponent(vec3 a)
+{
+    f32 result = Max(a.x, Max(a.y, a.z));
+    return result;
+}
+
+inline f32 MinComponent(vec3 a)
+{
+    f32 result = Min(a.x, Min(a.y, a.z));
+    return result;
+}

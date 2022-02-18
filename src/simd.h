@@ -193,3 +193,68 @@ inline simd_f32 simd_RayIntersectAabb(simd_vec3 boxMin, simd_vec3 boxMax,
     simd_f32 result = simd_Select(noCollisionMask, SIMD_F32(-1.0f), tmin);
     return result;
 }
+
+// TODO: Use SSE instructions to accelerate
+inline u32 simd_RayIntersectAabb4(
+    vec3 *boxMin, vec3 *boxMax, vec3 rayOrigin, vec3 invRayDirection)
+{
+    u32 resultMask = 0;
+
+    vec3 tmin[4];
+    vec3 tmax[4];
+
+    for (u32 axis = 0; axis < 3; ++axis)
+    {
+        f32 s = rayOrigin.data[axis];
+        f32 d = invRayDirection.data[axis];
+
+        f32 min[4];
+        min[0] = boxMin[0].data[axis];
+        min[1] = boxMin[1].data[axis];
+        min[2] = boxMin[2].data[axis];
+        min[3] = boxMin[3].data[axis];
+
+        f32 max[4];
+        max[0] = boxMax[0].data[axis];
+        max[1] = boxMax[1].data[axis];
+        max[2] = boxMax[2].data[axis];
+        max[3] = boxMax[3].data[axis];
+
+        f32 t0[4];
+        t0[0] = (min[0] - s) * d;
+        t0[1] = (min[1] - s) * d;
+        t0[2] = (min[2] - s) * d;
+        t0[3] = (min[3] - s) * d;
+
+        f32 t1[4];
+        t1[0] = (max[0] - s) * d;
+        t1[1] = (max[1] - s) * d;
+        t1[2] = (max[2] - s) * d;
+        t1[3] = (max[3] - s) * d;
+
+        tmin[0].data[axis] = Min(t0[0], t1[0]);
+        tmin[1].data[axis] = Min(t0[1], t1[1]);
+        tmin[2].data[axis] = Min(t0[2], t1[2]);
+        tmin[3].data[axis] = Min(t0[3], t1[3]);
+
+        tmax[0].data[axis] = Max(t0[0], t1[0]);
+        tmax[1].data[axis] = Max(t0[1], t1[1]);
+        tmax[2].data[axis] = Max(t0[2], t1[2]);
+        tmax[3].data[axis] = Max(t0[3], t1[3]);
+    }
+
+    resultMask = MaxComponent(tmin[0]) <= MinComponent(tmax[0])
+                     ? resultMask | (1<<0)
+                     : resultMask;
+    resultMask = MaxComponent(tmin[1]) <= MinComponent(tmax[1])
+                     ? resultMask | (1<<1)
+                     : resultMask;
+    resultMask = MaxComponent(tmin[2]) <= MinComponent(tmax[2])
+                     ? resultMask | (1<<2)
+                     : resultMask;
+    resultMask = MaxComponent(tmin[3]) <= MinComponent(tmax[3])
+                     ? resultMask | (1<<3)
+                     : resultMask;
+
+    return resultMask;
+}
