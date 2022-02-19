@@ -200,85 +200,72 @@ inline u32 simd_RayIntersectAabb4(
 {
     u32 resultMask = 0;
 
-    vec3 tmin[4];
-    vec3 tmax[4];
+    __m128 tmin[3];
+    __m128 tmax[3];
 
     for (u32 axis = 0; axis < 3; ++axis)
     {
-        f32 s = rayOrigin.data[axis];
-        f32 d = invRayDirection.data[axis];
+        // clang-format off
+        __m128 s = _mm_set1_ps(rayOrigin.data[axis]);
+        __m128 d = _mm_set1_ps(invRayDirection.data[axis]);
 
-        f32 min[4];
-        min[0] = boxMin[0].data[axis];
-        min[1] = boxMin[1].data[axis];
-        min[2] = boxMin[2].data[axis];
-        min[3] = boxMin[3].data[axis];
+        __m128 min = _mm_set_ps(boxMin[0].data[axis],
+                                boxMin[1].data[axis],
+                                boxMin[2].data[axis],
+                                boxMin[3].data[axis]);
 
-        f32 max[4];
-        max[0] = boxMax[0].data[axis];
-        max[1] = boxMax[1].data[axis];
-        max[2] = boxMax[2].data[axis];
-        max[3] = boxMax[3].data[axis];
+        __m128 max = _mm_set_ps(boxMax[0].data[axis],
+                                boxMax[1].data[axis],
+                                boxMax[2].data[axis],
+                                boxMax[3].data[axis]);
 
-        f32 t0[4];
-        t0[0] = (min[0] - s) * d;
-        t0[1] = (min[1] - s) * d;
-        t0[2] = (min[2] - s) * d;
-        t0[3] = (min[3] - s) * d;
+        __m128 t0 = _mm_mul_ps(_mm_sub_ps(min, s), d);
+        __m128 t1 = _mm_mul_ps(_mm_sub_ps(max, s), d);
 
-        f32 t1[4];
-        t1[0] = (max[0] - s) * d;
-        t1[1] = (max[1] - s) * d;
-        t1[2] = (max[2] - s) * d;
-        t1[3] = (max[3] - s) * d;
-
-#if 0
-        // Filter out infs
-        t0[0] = Min(t0[0], INFINITY);
-        t0[1] = Min(t0[1], INFINITY);
-        t0[2] = Min(t0[2], INFINITY);
-        t0[3] = Min(t0[3], INFINITY);
-
-        t1[0] = Min(t1[0], INFINITY);
-        t1[1] = Min(t1[1], INFINITY);
-        t1[2] = Min(t1[2], INFINITY);
-        t1[3] = Min(t1[3], INFINITY);
-
-        t0[0] = Max(t0[0], -INFINITY);
-        t0[1] = Max(t0[1], -INFINITY);
-        t0[2] = Max(t0[2], -INFINITY);
-        t0[3] = Max(t0[3], -INFINITY);
-
-        t1[0] = Max(t1[0], -INFINITY);
-        t1[1] = Max(t1[1], -INFINITY);
-        t1[2] = Max(t1[2], -INFINITY);
-        t1[3] = Max(t1[3], -INFINITY);
-#endif
-
-        tmin[0].data[axis] = Min(t0[0], t1[0]);
-        tmin[1].data[axis] = Min(t0[1], t1[1]);
-        tmin[2].data[axis] = Min(t0[2], t1[2]);
-        tmin[3].data[axis] = Min(t0[3], t1[3]);
-
-        tmax[0].data[axis] = Max(t0[0], t1[0]);
-        tmax[1].data[axis] = Max(t0[1], t1[1]);
-        tmax[2].data[axis] = Max(t0[2], t1[2]);
-        tmax[3].data[axis] = Max(t0[3], t1[3]);
+        tmin[axis] = _mm_min_ps(t0, t1);
+        tmax[axis] = _mm_max_ps(t0, t1);
     }
 
+    f32 tminBuf[3][4];
+    f32 tmaxBuf[3][4];
+
+    // TODO: Don't use unaligned store?
+    _mm_storeu_ps(tminBuf[0], tmin[0]);
+    _mm_storeu_ps(tmaxBuf[0], tmax[0]);
+    _mm_storeu_ps(tminBuf[1], tmin[1]);
+    _mm_storeu_ps(tmaxBuf[1], tmax[1]);
+    _mm_storeu_ps(tminBuf[2], tmin[2]);
+    _mm_storeu_ps(tmaxBuf[2], tmax[2]);
+
+    // TODO: Better swizzling
+    vec3 tminVec[4] = {
+        Vec3(tminBuf[0][3], tminBuf[1][3], tminBuf[2][3]),
+        Vec3(tminBuf[0][2], tminBuf[1][2], tminBuf[2][2]),
+        Vec3(tminBuf[0][1], tminBuf[1][1], tminBuf[2][1]),
+        Vec3(tminBuf[0][0], tminBuf[1][0], tminBuf[2][0]),
+    };
+
+    vec3 tmaxVec[4] = {
+        Vec3(tmaxBuf[0][3], tmaxBuf[1][3], tmaxBuf[2][3]),
+        Vec3(tmaxBuf[0][2], tmaxBuf[1][2], tmaxBuf[2][2]),
+        Vec3(tmaxBuf[0][1], tmaxBuf[1][1], tmaxBuf[2][1]),
+        Vec3(tmaxBuf[0][0], tmaxBuf[1][0], tmaxBuf[2][0]),
+    };
+
     // NOTE: tmin must be greater than zero to be valid
-    resultMask = Max(0.0f, MaxComponent(tmin[0])) <= MinComponent(tmax[0])
+    resultMask = Max(0.0f, MaxComponent(tminVec[0])) <= MinComponent(tmaxVec[0])
                      ? resultMask | (1<<0)
                      : resultMask;
-    resultMask = Max(0.0f, MaxComponent(tmin[1])) <= MinComponent(tmax[1])
+    resultMask = Max(0.0f, MaxComponent(tminVec[1])) <= MinComponent(tmaxVec[1])
                      ? resultMask | (1<<1)
                      : resultMask;
-    resultMask = Max(0.0f, MaxComponent(tmin[2])) <= MinComponent(tmax[2])
+    resultMask = Max(0.0f, MaxComponent(tminVec[2])) <= MinComponent(tmaxVec[2])
                      ? resultMask | (1<<2)
                      : resultMask;
-    resultMask = Max(0.0f, MaxComponent(tmin[3])) <= MinComponent(tmax[3])
+    resultMask = Max(0.0f, MaxComponent(tminVec[3])) <= MinComponent(tmaxVec[3])
                      ? resultMask | (1<<3)
                      : resultMask;
 
     return resultMask;
+    // clang-format on
 }

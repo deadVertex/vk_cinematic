@@ -106,9 +106,9 @@ void TestBvh()
     // Count avg number of cycles per intersection test, rays per second, etc
     u64 cyclesElapsed = __rdtsc() - start;
     LogMessage("Total cycles elapsed: %llu", cyclesElapsed);
-    TEST_ASSERT_LESS_THAN_UINT64(36000000, cyclesElapsed);
+    TEST_ASSERT_LESS_THAN_UINT64(26000000, cyclesElapsed);
     u64 cyclesPerRay = cyclesElapsed / (u64)RAY_COUNT;
-    TEST_ASSERT_LESS_THAN_UINT64(4000, cyclesPerRay);
+    TEST_ASSERT_LESS_THAN_UINT64(3100, cyclesPerRay);
     LogMessage("Cycles per ray: %llu", cyclesPerRay);
 }
 
