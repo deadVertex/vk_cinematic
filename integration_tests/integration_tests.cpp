@@ -90,7 +90,7 @@ void TestSimdPathTracer()
 
     sp_Mesh mesh = sp_CreateMesh(
         vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
-    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Megabytes(3));
+    MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Megabytes(6));
     MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(128));
     sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
 

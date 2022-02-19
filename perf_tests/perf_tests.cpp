@@ -12,6 +12,9 @@
 #include "tile.h"
 #include "simd_path_tracer.h"
 
+#include "simd.h"
+#include "aabb.h"
+
 #include "memory_pool.cpp"
 #include "ray_intersection.cpp"
 #include "bvh.cpp"
@@ -103,7 +106,9 @@ void TestBvh()
     // Count avg number of cycles per intersection test, rays per second, etc
     u64 cyclesElapsed = __rdtsc() - start;
     LogMessage("Total cycles elapsed: %llu", cyclesElapsed);
+    TEST_ASSERT_LESS_THAN_UINT64(36000000, cyclesElapsed);
     u64 cyclesPerRay = cyclesElapsed / (u64)RAY_COUNT;
+    TEST_ASSERT_LESS_THAN_UINT64(4000, cyclesPerRay);
     LogMessage("Cycles per ray: %llu", cyclesPerRay);
 }
 

@@ -1,7 +1,7 @@
 // Bounding Volume Hierarchy
 #pragma once
 
-#define BVH_CHILDREN_PER_NODE 2
+#define BVH_CHILDREN_PER_NODE 4
 struct bvh_Node
 {
     vec3 min;

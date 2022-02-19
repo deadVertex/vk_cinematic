@@ -111,7 +111,6 @@ u32 bvh_FindNeighbours(u32 nodeIndex, bvh_Node **allNodes,
     return result;
 }
 
-#if BVH_CHILDREN_PER_NODE == 2
 bvh_Tree bvh_CreateTree(
     MemoryArena *arena, vec3 *aabbMin, vec3 *aabbMax, u32 count)
 {
@@ -206,50 +205,74 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
 
     // TODO: This should be a parameter of the tree structure for iteration
     bvh_Node *stack[2][BVH_STACK_SIZE];
-
-    u32 stackSizes[2];
-    stack[0][0] = tree->root;
-    stackSizes[0] = tree->root != NULL ? 1 : 0;
-    stackSizes[1] = 0;
+    u32 stackSizes[2] = {};
 
     u32 readIndex = 0;
     u32 writeIndex = 1;
+
+    vec3 invRayDirection = Inverse(rayDirection);
+
+    bvh_Node *root = tree->root;
+    if (root != NULL)
+    {
+        u32 mask = simd_RayIntersectAabb4(
+            &root->min, &root->max, rayOrigin, invRayDirection);
+
+        // NOTE: We're only testing 1 box so its just checking if 0th bit is set
+        if ((mask & 0x1) == 0x1)
+        {
+            stack[0][0] = root;
+            stackSizes[0] = 1;
+        }
+    }
 
     while (stackSizes[readIndex] > 0)
     {
         u32 topIndex = --stackSizes[readIndex];
         bvh_Node *node = stack[readIndex][topIndex];
 
-        result.aabbTestCount++;
-        f32 t = simd_RayIntersectAabb(node->min, node->max, rayOrigin, rayDirection);
-        if (t >= 0.0f)
+        if (node->children[0] != NULL)
         {
-            if (node->children[0] != NULL)
+            // Assuming that this is always true?
+            Assert(node->children[1] != NULL);
+
+            result.aabbTestCount++;
+
+            vec3 boxMins[2] = {node->children[0]->min, node->children[1]->min};
+            vec3 boxMaxes[2] = {node->children[0]->max, node->children[1]->max};
+
+            // Test each child node
+            // Use simd_RayIntersectAabb4 to test multiple AABBs at once
+            u32 mask = simd_RayIntersectAabb4(
+                boxMins, boxMaxes, rayOrigin, invRayDirection);
+            if ((mask & 0x1) == 0x1)
             {
-                // Assuming that this is always true?
-                Assert(node->children[1] != NULL);
-
-                Assert(stackSizes[writeIndex] + 2 <= BVH_STACK_SIZE);
-
                 u32 entryIndex = stackSizes[writeIndex];
+                Assert(entryIndex <= BVH_STACK_SIZE);
                 stack[writeIndex][entryIndex] = node->children[0];
-                stack[writeIndex][entryIndex + 1] = node->children[1];
-                stackSizes[writeIndex] += 2;
+                stackSizes[writeIndex] += 1;
+            }
+            if ((mask & 0x2) == 0x2)
+            {
+                u32 entryIndex = stackSizes[writeIndex];
+                Assert(entryIndex <= BVH_STACK_SIZE);
+                stack[writeIndex][entryIndex] = node->children[1];
+                stackSizes[writeIndex] += 1;
+            }
+        }
+        else
+        {
+            Assert(node->children[1] == NULL);
+            if (result.count < maxIntersections)
+            {
+                u32 index = result.count++;
+                intersectedNodes[index] = node;
             }
             else
             {
-                Assert(node->children[1] == NULL);
-                if (result.count < maxIntersections)
-                {
-                    u32 index = result.count++;
-                    intersectedNodes[index] = node;
-                }
-                else
-                {
-                    // Insufficient space to store all results, set error bit
-                    result.errorOccurred = true;
-                    break;
-                }
+                // Insufficient space to store all results, set error bit
+                result.errorOccurred = true;
+                break;
             }
         }
 
@@ -261,4 +284,3 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
 
     return result;
 }
-#endif

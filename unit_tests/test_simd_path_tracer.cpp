@@ -414,11 +414,14 @@ void TestRayIntersectAabb4()
     vec3 rayOrigin = Vec3(0, 0, 10);
     vec3 invRayDirection = Inverse(Vec3(0, 0, -1));
 
-    u32 mask =
-        simd_RayIntersectAabb4(boxMins, boxMaxes, rayOrigin, invRayDirection);
-
     // Bits 0, 1, 2, 3 should be set
-    TEST_ASSERT_EQUAL_UINT32(0xF, mask);
+    TEST_ASSERT_EQUAL_UINT32(0xF,
+        simd_RayIntersectAabb4(boxMins, boxMaxes, rayOrigin, invRayDirection));
+
+    TEST_ASSERT_EQUAL_UINT32(0x0, simd_RayIntersectAabb4(boxMins, boxMaxes,
+                                      rayOrigin, Inverse(Vec3(1, 0, 0))));
+    TEST_ASSERT_EQUAL_UINT32(0x0, simd_RayIntersectAabb4(boxMins, boxMaxes,
+                                      rayOrigin, Inverse(Vec3(0, 0, 1))));
 }
 
 int main()

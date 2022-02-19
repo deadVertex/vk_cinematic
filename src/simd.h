@@ -232,6 +232,29 @@ inline u32 simd_RayIntersectAabb4(
         t1[2] = (max[2] - s) * d;
         t1[3] = (max[3] - s) * d;
 
+#if 0
+        // Filter out infs
+        t0[0] = Min(t0[0], INFINITY);
+        t0[1] = Min(t0[1], INFINITY);
+        t0[2] = Min(t0[2], INFINITY);
+        t0[3] = Min(t0[3], INFINITY);
+
+        t1[0] = Min(t1[0], INFINITY);
+        t1[1] = Min(t1[1], INFINITY);
+        t1[2] = Min(t1[2], INFINITY);
+        t1[3] = Min(t1[3], INFINITY);
+
+        t0[0] = Max(t0[0], -INFINITY);
+        t0[1] = Max(t0[1], -INFINITY);
+        t0[2] = Max(t0[2], -INFINITY);
+        t0[3] = Max(t0[3], -INFINITY);
+
+        t1[0] = Max(t1[0], -INFINITY);
+        t1[1] = Max(t1[1], -INFINITY);
+        t1[2] = Max(t1[2], -INFINITY);
+        t1[3] = Max(t1[3], -INFINITY);
+#endif
+
         tmin[0].data[axis] = Min(t0[0], t1[0]);
         tmin[1].data[axis] = Min(t0[1], t1[1]);
         tmin[2].data[axis] = Min(t0[2], t1[2]);
@@ -243,16 +266,17 @@ inline u32 simd_RayIntersectAabb4(
         tmax[3].data[axis] = Max(t0[3], t1[3]);
     }
 
-    resultMask = MaxComponent(tmin[0]) <= MinComponent(tmax[0])
+    // NOTE: tmin must be greater than zero to be valid
+    resultMask = Max(0.0f, MaxComponent(tmin[0])) <= MinComponent(tmax[0])
                      ? resultMask | (1<<0)
                      : resultMask;
-    resultMask = MaxComponent(tmin[1]) <= MinComponent(tmax[1])
+    resultMask = Max(0.0f, MaxComponent(tmin[1])) <= MinComponent(tmax[1])
                      ? resultMask | (1<<1)
                      : resultMask;
-    resultMask = MaxComponent(tmin[2]) <= MinComponent(tmax[2])
+    resultMask = Max(0.0f, MaxComponent(tmin[2])) <= MinComponent(tmax[2])
                      ? resultMask | (1<<2)
                      : resultMask;
-    resultMask = MaxComponent(tmin[3]) <= MinComponent(tmax[3])
+    resultMask = Max(0.0f, MaxComponent(tmin[3])) <= MinComponent(tmax[3])
                      ? resultMask | (1<<3)
                      : resultMask;
 
