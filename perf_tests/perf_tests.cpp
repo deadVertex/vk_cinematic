@@ -93,12 +93,12 @@ void TestBvh()
         rayDirection[i] = Normalize(q - p);
     }
 
+    bvh_Node *intersectedNodes[2048] = {};
+
     // Perform ray intersection tests
     start = __rdtsc();
     for (u32 i = 0; i < RAY_COUNT; i++)
     {
-        bvh_Node *intersectedNodes[64] = {};
-
         bvh_IntersectRayResult result = bvh_IntersectRay(&tree, rayOrigin[i],
                 rayDirection[i], intersectedNodes, ArrayCount(intersectedNodes));
     }

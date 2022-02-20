@@ -424,6 +424,25 @@ void TestRayIntersectAabb4()
                                       rayOrigin, Inverse(Vec3(0, 0, 1))));
 }
 
+void TestRayIntersectAabb4Bug()
+{
+    vec3 boxMin[4] = {Vec3(-0.375038534, 0.843911469, 0.264082730), Vec3(0),
+        Vec3(0), Vec3(0)};
+    vec3 boxMax[4] = {Vec3(-0.238676921, 0.916244209, 0.386187375), Vec3(0),
+        Vec3(0), Vec3(0)};
+    vec3 rayOrigin = Vec3(-2.68516445, -1.71131170, -1.71610022);
+    vec3 rayDirection = Vec3(0.576836348, 0.652352035, 0.491626590);
+
+    // Why does this pass?
+    // Looks like a floating point precision bug
+    u32 mask = simd_RayIntersectAabb4(
+        boxMin, boxMax, rayOrigin, Inverse(rayDirection));
+    TEST_ASSERT_EQUAL_UINT32(0x1, mask);
+
+    TEST_ASSERT_FLOAT_WITHIN(EPSILON, -1.0f,
+        RayIntersectAabb(boxMin[0], boxMax[0], rayOrigin, rayDirection));
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -446,6 +465,7 @@ int main()
 
     RUN_TEST(TestRayIntersectAabb);
     RUN_TEST(TestRayIntersectAabb4);
+    RUN_TEST(TestRayIntersectAabb4Bug);
 
     free(memoryArena.base);
 

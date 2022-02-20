@@ -111,7 +111,9 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
     // intersections? Should there even be a fixed limit?
     // TODO: If we getting back up to 64 leaf node intersections from our
     // midphase test then what is our BVH even doing?
-    bvh_Node *intersectedNodes[64] = {};
+    // FIXME: Changing to a 4-node BVH tee is causing us to have more than 64
+    // valid leaf node intersections, not sure whats going on!
+    bvh_Node *intersectedNodes[128] = {};
 
     // NOTE: Midphase intersection testing is currently our performance
     // bottleneck with about ~80% of our cycles being spent in it for testing

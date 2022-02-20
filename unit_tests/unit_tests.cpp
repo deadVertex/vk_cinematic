@@ -607,6 +607,20 @@ void TestSphereCoordsSample()
     AssertWithinVec3(EPSILON, Vec3(1, 0, 0), worldDir);
 }
 
+void TestMemoryArenaFreeBug()
+{
+    // Given a memory arena with 2 allocations
+    MemoryArena testArena = SubAllocateArena(&memoryArena, 64);
+    void *p = AllocateBytes(&testArena, 32);
+    void *q = AllocateBytes(&testArena, 16);
+
+    // When we free the second allocation
+    FreeFromMemoryArena(&testArena, q);
+
+    // Then the first allocation is still the same size
+    TEST_ASSERT_EQUAL_UINT32(32, testArena.size);
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -643,6 +657,8 @@ int main()
     RUN_TEST(TestMapCubeMapFaceToVector);
     RUN_TEST(TestMapCubeMapFaceToBasisVectors);
     RUN_TEST(TestSphereCoordsSample);
+
+    RUN_TEST(TestMemoryArenaFreeBug);
 
     free(memoryArena.base);
 

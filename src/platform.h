@@ -128,7 +128,7 @@ inline void FreeFromMemoryArena(MemoryArena *arena, void *p)
     Assert(p >= arena->base);
     Assert(p < (u8 *)arena->base + arena->capacity);
 
-    u64 bytesToFree = (u8 *)p - (u8 *)arena->base;
+    u64 bytesToFree = ((u8 *)arena->base + arena->size) - (u8 *)p;
     Assert(bytesToFree <= arena->size);
     arena->size -= bytesToFree;
 }
