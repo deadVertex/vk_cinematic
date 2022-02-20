@@ -69,13 +69,89 @@ void TestCreateBvhMultipleNodes()
     AssertWithinVec3(EPSILON, Vec3(2), worldBvh.root->max);
 }
 
-// TODO: Better name
-void TestCreateBvhMultipleNodes2()
+b32 FindLeafIndex(bvh_Node *node, u32 index)
 {
-    // Given a grid of 16 AABBs
-    vec3 aabbMin[16] = {};
-    vec3 aabbMax[16] = {};
+    b32 result = false;
 
+    if (node->leafIndex == index)
+    {
+        result = true;
+    }
+    else
+    {
+        for (u32 i = 0; i < 4; ++i)
+        {
+            if (node->children[i] != NULL)
+            {
+                if (FindLeafIndex(node->children[i], index))
+                {
+                    result = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+void TestBvhAllLeavesReachable()
+{
+    vec3 aabbMin[17];
+    vec3 aabbMax[17];
+    for (u32 i = 0; i < 17; i++)
+    {
+        vec3 center = Vec3((f32)i, 0, 0);
+        aabbMin[i] = center - Vec3(0.25f);
+        aabbMax[i] = center + Vec3(0.25f);
+    }
+
+    // Build Bvh
+    bvh_Tree worldBvh =
+        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    // Check that we can find each leaf index in the tree
+    for (u32 i = 0; i < 17; i++)
+    {
+        TEST_ASSERT_TRUE(FindLeafIndex(worldBvh.root, i));
+    }
+}
+
+b32 CheckNodeAabbContainsChildNodeAabbsRecursive(bvh_Node *node)
+{
+    b32 result = true;
+    for (u32 i = 0; i < 4; i++)
+    {
+        if (node->children[i] != NULL)
+        {
+            if (!AabbContainsAabb(node->min, node->max, node->children[i]->min,
+                    node->children[i]->max))
+            {
+                result = false;
+                break;
+            }
+        }
+    }
+
+    for (u32 i = 0; i < 4; i++)
+    {
+        if (node->children[i] != NULL)
+        {
+            if (!CheckNodeAabbContainsChildNodeAabbsRecursive(
+                    node->children[i]))
+            {
+                result = false;
+                break;
+            }
+        }
+    }
+
+
+    return result;
+}
+
+void GenerateAabbGrid4x4(vec3 *aabbMin, vec3 *aabbMax, u32 count)
+{
     f32 size = 0.5f;
     f32 gridMin = -10.0f;
     f32 gridMax = 10.0f;
@@ -96,6 +172,38 @@ void TestCreateBvhMultipleNodes2()
             aabbMax[index] = center + Vec3(size);
         }
     }
+}
+
+void TestBvhIntermediateNodesContainChildNodes()
+{
+    // Given a grid of 4x4 AABBs
+    vec3 aabbMin[16] = {};
+    vec3 aabbMax[16] = {};
+
+    GenerateAabbGrid4x4(aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    // Build BVH
+    bvh_Tree worldBvh =
+        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    // Check all child nodes are contained within root node
+    TEST_ASSERT_TRUE(
+        CheckNodeAabbContainsChildNodeAabbsRecursive(worldBvh.root));
+}
+
+// TODO: Better name
+void TestCreateBvhMultipleNodes2()
+{
+    // Given a grid of 4x4 AABBs
+    vec3 aabbMin[16] = {};
+    vec3 aabbMax[16] = {};
+
+    // FIXME: Don't duplicate these constants
+    f32 size = 0.5f;
+    f32 gridMin = -10.0f;
+    f32 gridMax = 10.0f;
+
+    GenerateAabbGrid4x4(aabbMin, aabbMax, ArrayCount(aabbMin));
 
     // When we build a BVH
     bvh_Tree worldBvh =
@@ -280,6 +388,8 @@ int main()
     RUN_TEST(TestCreateBvhMultipleNodes2);
     RUN_TEST(TestIntersectEmptyBvh);
     RUN_TEST(TestBvh);
+    RUN_TEST(TestBvhAllLeavesReachable);
+    RUN_TEST(TestBvhIntermediateNodesContainChildNodes);
     RUN_TEST(TestBvhFindClosestPartnerNode);
     //RUN_TEST(TestBvhDuplicateIntersectionsBug);
 

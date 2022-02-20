@@ -57,3 +57,26 @@ inline Aabb TransformAabb(
     return result;
 }
 
+inline b32 AabbContainsPoint(vec3 min, vec3 max, vec3 p)
+{
+    b32 result = true;
+    for (u32 axis = 0; axis < 3; axis++)
+    {
+        if (p.data[axis] < min.data[axis] &&
+            p.data[axis] > max.data[axis])
+        {
+            result = false;
+            break;
+        }
+    }
+
+    return result;
+}
+
+// Check that A contains B
+inline b32 AabbContainsAabb(vec3 minA, vec3 maxA, vec3 minB, vec3 maxB)
+{
+    b32 result = AabbContainsPoint(minA, maxA, minB) &&
+                 AabbContainsPoint(minA, maxA, maxB);
+    return result;
+}

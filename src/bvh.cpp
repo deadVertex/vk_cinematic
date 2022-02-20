@@ -337,7 +337,7 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
             {
                 // Insufficient space to store all results, set error bit
                 result.errorOccurred = true;
-                Assert(!"Set error flag");
+                //Assert(!"Set error flag");
                 break;
             }
         }
