@@ -113,7 +113,7 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
     // midphase test then what is our BVH even doing?
     // FIXME: Changing to a 4-node BVH tee is causing us to have more than 64
     // valid leaf node intersections, not sure whats going on!
-    bvh_Node *intersectedNodes[128] = {};
+    bvh_Node *intersectedNodes[64] = {};
 
     // NOTE: Midphase intersection testing is currently our performance
     // bottleneck with about ~80% of our cycles being spent in it for testing

@@ -443,6 +443,48 @@ void TestRayIntersectAabb4Bug()
         RayIntersectAabb(boxMin[0], boxMax[0], rayOrigin, rayDirection));
 }
 
+void TestRayIntersectAabbCompare()
+{
+    vec3 aabbMin[4] = {Vec3(-2.0f, -0.1f, -0.5f)};
+    vec3 aabbMax[4] = {Vec3(-0.5f, 0.4f, 3.0f)};
+
+    vec3 min = Vec3(-10.0f);
+    vec3 max = Vec3(10.0f);
+
+    RandomNumberGenerator rng = { 0x1A34C249 };
+
+    u32 rayCount = 32;
+    for (u32 i = 0; i < rayCount; ++i)
+    {
+        f32 x0 = Lerp(min.x, max.x, RandomBilateral(&rng));
+        f32 y0 = Lerp(min.y, max.y, RandomBilateral(&rng));
+        f32 z0 = Lerp(min.z, max.z, RandomBilateral(&rng));
+
+        vec3 p = Vec3(x0, y0, z0);
+
+        f32 x1 = Lerp(min.x, max.x, RandomBilateral(&rng));
+        f32 y1 = Lerp(min.y, max.y, RandomBilateral(&rng));
+        f32 z1 = Lerp(min.z, max.z, RandomBilateral(&rng));
+
+        vec3 q = Vec3(x1, y1, z1);
+
+        vec3 rayOrigin = p;
+        vec3 rayDirection = Normalize(q - p);
+        vec3 invRayDirection = Inverse(rayDirection);
+
+        f32 t =
+            RayIntersectAabb(aabbMin[0], aabbMax[0], rayOrigin, rayDirection);
+        u32 expected = t >= 0.0f ? 1 : 0;
+
+        u32 mask =
+            simd_RayIntersectAabb4(aabbMin, aabbMax, rayOrigin, invRayDirection);
+
+        Assert(mask == expected);
+
+        TEST_ASSERT_EQUAL_UINT32(expected, mask);
+    }
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -466,6 +508,7 @@ int main()
     RUN_TEST(TestRayIntersectAabb);
     RUN_TEST(TestRayIntersectAabb4);
     RUN_TEST(TestRayIntersectAabb4Bug);
+    RUN_TEST(TestRayIntersectAabbCompare);
 
     free(memoryArena.base);
 

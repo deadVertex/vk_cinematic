@@ -39,6 +39,7 @@ jobs:
       run: |
           ${{github.workspace}}/build/unit_tests/unit_tests
           ${{github.workspace}}/build/unit_tests/test_simd_path_tracer
+          ${{github.workspace}}/build/unit_tests/test_bvh
 
     - name: Integration Tests
       run: ${{github.workspace}}/build/integration_tests/integration_tests --asset-dir $PWD/assets

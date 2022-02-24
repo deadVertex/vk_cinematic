@@ -182,13 +182,35 @@ void TestBvhIntermediateNodesContainChildNodes()
 
     GenerateAabbGrid4x4(aabbMin, aabbMax, ArrayCount(aabbMin));
 
-    // Build BVH
+    // When I build a BVH
     bvh_Tree worldBvh =
         bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
 
-    // Check all child nodes are contained within root node
+    // Then all child nodes are contained within root node
     TEST_ASSERT_TRUE(
         CheckNodeAabbContainsChildNodeAabbsRecursive(worldBvh.root));
+}
+
+void TestBvhRayIntersectGrid()
+{
+    // Given a BVH of a grid of 4x4 AABBs
+    vec3 aabbMin[16] = {};
+    vec3 aabbMax[16] = {};
+
+    GenerateAabbGrid4x4(aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    bvh_Tree worldBvh =
+        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
+
+    bvh_Node *intersectedNodes[4];
+
+    // When I intersect a ray against one of the grid rows
+    bvh_IntersectRayResult result = bvh_IntersectRay(&worldBvh, 
+            Vec3(-20, 0, -10), Vec3(1, 0, 0), intersectedNodes, 4);
+
+    // Then I get 4 intersections and no error occurred
+    TEST_ASSERT_FALSE(result.errorOccurred);
+    TEST_ASSERT_EQUAL_UINT32(4, result.count);
 }
 
 // TODO: Better name
@@ -390,6 +412,7 @@ int main()
     RUN_TEST(TestBvh);
     RUN_TEST(TestBvhAllLeavesReachable);
     RUN_TEST(TestBvhIntermediateNodesContainChildNodes);
+    RUN_TEST(TestBvhRayIntersectGrid);
     RUN_TEST(TestBvhFindClosestPartnerNode);
     //RUN_TEST(TestBvhDuplicateIntersectionsBug);
 
