@@ -1,10 +1,3 @@
-struct RayIntersectTriangleResult
-{
-    f32 t;
-    vec2 uv;
-    vec3 normal;
-};
-
 inline f32 RayIntersectSphere(vec3 center, f32 radius, vec3 rayOrigin, vec3 rayDirection)
 {
     vec3 m = rayOrigin - center; // Use sphere center as origin

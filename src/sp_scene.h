@@ -27,6 +27,14 @@ struct sp_Scene
     bvh_Tree broadphaseTree;
 };
 
+struct sp_RayIntersectMeshResult
+{
+    RayIntersectTriangleResult triangleIntersection;
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+    u32 midphaseIntersectionCount;
+#endif
+};
+
 struct sp_RayIntersectSceneResult
 {
     f32 t;
@@ -35,5 +43,9 @@ struct sp_RayIntersectSceneResult
 
 #if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
     u32 broadphaseIntersectionCount;
+#endif
+
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+    u32 midphaseIntersectionCount;
 #endif
 };

@@ -126,7 +126,8 @@ void sp_PathTraceTile(
     // TODO: Expose these via parameter!
     u32 sampleCount = 64;
     u32 bounceCount = 4; // TODO: Use MAX_BOUNCES constant
-#if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
+#if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||      \
+     SP_DEBUG_MIDPHASE_INTERSECTION_COUNT)
     bounceCount = 1;
     sampleCount = 1;
 #endif
@@ -169,6 +170,27 @@ void sp_PathTraceTile(
 
                     // Allocate path vertex
                     sp_PathVertex *pathVertex = path + pathLength++;
+
+#if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
+                    {
+                        // TODO: Constant for max broadphase intersections?
+                        f32 t = (f32)result.broadphaseIntersectionCount / 8.0f;
+                        color = Lerp(Vec4(0, 1, 0, 1), Vec4(1, 0, 0, 1), t);
+                        //color = (result.broadphaseIntersectionCount != 0)
+                                    //? color
+                                    //: Vec4(0, 0, 0, 1);
+                    }
+#endif
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+                    {
+                        // TODO: Constant for max midphase intersections?
+                        f32 t = (f32)result.midphaseIntersectionCount / 128.0f;
+                        color = Lerp(Vec4(0, 1, 0, 1), Vec4(1, 0, 0, 1), t);
+                        color = (result.midphaseIntersectionCount != 0)
+                                    ? color
+                                    : Vec4(0, 0, 0, 1);
+                    }
+#endif
 
                     if (result.t > 0.0f)
                     {
@@ -217,14 +239,6 @@ void sp_PathTraceTile(
                         // make it much harder to convert to SIMD
                         break;
                     }
-
-#if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
-                    {
-                        // TODO: Constant for max broadphase intersections?
-                        f32 t = (f32)result.broadphaseIntersectionCount / 8.0f;
-                        color = Lerp(Vec4(0, 1, 0, 1), Vec4(1, 0, 0, 1), t);
-                    }
-#endif
                 }
 
                 // Compute lighting for single path by calculating incoming
@@ -236,7 +250,8 @@ void sp_PathTraceTile(
                 // Record number of paths traced for tile
                 metrics->values[sp_Metric_PathsTraced]++;
             }
-#if !(SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL)
+#if !(SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||     \
+      SP_DEBUG_MIDPHASE_INTERSECTION_COUNT)
             color = Vec4(totalRadiance, 1);
 #endif
 

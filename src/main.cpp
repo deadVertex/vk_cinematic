@@ -115,6 +115,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "ray_intersection.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "sp_metrics.h"
@@ -1022,6 +1023,21 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     }
 }
 
+internal void DebugDrawBvh(bvh_Node *node, DebugDrawingBuffer *debugDrawBuffer)
+{
+    for (u32 i = 0; i < 4; i++)
+    {
+        bvh_Node *child = node->children[i];
+        if (child != NULL)
+        {
+            DebugDrawBvh(child, debugDrawBuffer);
+            //DrawBox(debugDrawBuffer, child->min, child->max, Vec3(1, 1, 0));
+        }
+    }
+
+    DrawBox(debugDrawBuffer, node->min, node->max, Vec3(0, 1, 0));
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1162,7 +1178,7 @@ int main(int argc, char **argv)
     AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
         Mesh_Plane, Material_CheckerBoard);
 
-    for (u32 y = 0; y < 5; ++y)
+    for (u32 y = 0; y < 6; ++y)
     {
         for (u32 x = 0; x < 5; ++x)
         {
@@ -1439,6 +1455,9 @@ int main(int argc, char **argv)
 #if DRAW_ENTITY_AABBS
         DrawEntityAabbs(scene, &debugDrawBuffer);
 #endif
+
+        DebugDrawBvh(pathTracerScene.broadphaseTree.root, &debugDrawBuffer);
+
         // Move camera around
         Update(&renderer, &rayTracer, &input, dt);
 

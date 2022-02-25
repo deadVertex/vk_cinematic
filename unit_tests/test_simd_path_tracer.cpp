@@ -5,6 +5,7 @@
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "ray_intersection.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "simd_path_tracer.h"
@@ -346,11 +347,11 @@ void TestRayIntersectMesh()
     vec3 rayOrigin = Vec3(0, 0, 10);
     vec3 rayDirection = Vec3(0, 0, -1);
     sp_Metrics metrics = {};
-    RayIntersectTriangleResult result =
+    sp_RayIntersectMeshResult result =
         sp_RayIntersectMesh(mesh, rayOrigin, rayDirection, &metrics);
 
     // Then we get the intersection t value
-    TEST_ASSERT_TRUE(result.t >= 0.0f);
+    TEST_ASSERT_TRUE(result.triangleIntersection.t >= 0.0f);
 }
 
 void TestCreateMeshBuildsBvhTreeSingleTriangle()

@@ -101,11 +101,11 @@ void sp_BuildSceneBroadphase(sp_Scene *scene)
             scene->aabbMax, scene->objectCount);
 }
 
-RayIntersectTriangleResult sp_RayIntersectMesh(
+sp_RayIntersectMeshResult sp_RayIntersectMesh(
     sp_Mesh mesh, vec3 rayOrigin, vec3 rayDirection, sp_Metrics *metrics)
 {
-    RayIntersectTriangleResult result = {};
-    result.t = -1.0f;
+    RayIntersectTriangleResult nearestTriangleIntersection = {};
+    nearestTriangleIntersection.t = -1.0f;
 
     // TODO: What should be the upper limit on the number of midphase
     // intersections? Should there even be a fixed limit?
@@ -113,7 +113,7 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
     // midphase test then what is our BVH even doing?
     // FIXME: Changing to a 4-node BVH tee is causing us to have more than 64
     // valid leaf node intersections, not sure whats going on!
-    bvh_Node *intersectedNodes[64] = {};
+    bvh_Node *intersectedNodes[128] = {};
 
     // NOTE: Midphase intersection testing is currently our performance
     // bottleneck with about ~80% of our cycles being spent in it for testing
@@ -165,12 +165,20 @@ RayIntersectTriangleResult sp_RayIntersectMesh(
         if (triangleIntersect.t > 0.0f)
         {
             // Take the closest result (smallest t value)
-            if (triangleIntersect.t < result.t || result.t < 0.0f)
+            if (triangleIntersect.t < nearestTriangleIntersection.t ||
+                nearestTriangleIntersection.t < 0.0f)
             {
-                result = triangleIntersect;
+                nearestTriangleIntersection = triangleIntersect;
             }
         }
     }
+
+    sp_RayIntersectMeshResult result = {};
+    result.triangleIntersection = nearestTriangleIntersection;
+
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+    result.midphaseIntersectionCount = midphaseResult.count;
+#endif
 
     return result;
 }
@@ -204,6 +212,10 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
     // TODO: What do we do if the errorOccurred flag is set?
     Assert(!broadphaseResult.errorOccurred);
 
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+    u32 midphaseIntersectionCount = 0;
+#endif
+
     // Process each broadphase intersection
     for (u32 i = 0; i < broadphaseResult.count; ++i)
     {
@@ -223,21 +235,29 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
         u64 rayIntersectMeshStart = __rdtsc();
 
         // Find closest triangle intersection for this collision mesh
-        RayIntersectTriangleResult meshIntersectionResult = sp_RayIntersectMesh(
+        sp_RayIntersectMeshResult meshIntersectionResult = sp_RayIntersectMesh(
             mesh, localRayOrigin, localRayDirection, metrics);
 
         metrics->values[sp_Metric_CyclesElapsed_RayIntersectMesh] +=
             __rdtsc() - rayIntersectMeshStart;
         metrics->values[sp_Metric_RayIntersectMesh_TestsPerformed]++;
 
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+        midphaseIntersectionCount +=
+            meshIntersectionResult.midphaseIntersectionCount;
+#endif
+
         // Process result if intersection found
-        if (meshIntersectionResult.t >= 0.0f)
+        if (meshIntersectionResult.triangleIntersection.t >= 0.0f)
         {
-            // Transform mesh intersection result into world space by
-            // transforming the local hit point into world space and then using
-            // it to compute the t value in world space
+            RayIntersectTriangleResult triangleIntersection =
+                meshIntersectionResult.triangleIntersection;
+
+            // Transform triangle intersection result from mesh space into
+            // world space by transforming the local hit point into world space
+            // and then using it to compute the t value in world space
             vec3 localHitPoint =
-                localRayOrigin + localRayDirection * meshIntersectionResult.t;
+                localRayOrigin + localRayDirection * triangleIntersection.t;
             vec3 worldHitPoint = TransformPoint(localHitPoint, modelMatrix);
 
             // Project world hit point onto the world space ray to compute t
@@ -245,7 +265,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
             f32 t = Dot(worldHitPoint - rayOrigin, rayDirection);
 
             // Transform mesh space normal into world space
-            vec3 localNormal = meshIntersectionResult.normal;
+            vec3 localNormal = triangleIntersection.normal;
             vec3 worldNormal = Normalize(TransformVector(localNormal, modelMatrix));
 
             // Take closest intersection
@@ -261,6 +281,10 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
 
 #if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
     result.broadphaseIntersectionCount = broadphaseResult.count;
+#endif
+
+#if SP_DEBUG_MIDPHASE_INTERSECTION_COUNT
+    result.midphaseIntersectionCount = midphaseIntersectionCount;
 #endif
 
     // Calculate the number of cycles spent in this function and add to total

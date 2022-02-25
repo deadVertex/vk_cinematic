@@ -4,6 +4,7 @@
 #include "cpu_ray_tracer.h"
 #include "profiler.h"
 #include "work_queue.h"
+#include "ray_intersection.h"
 
 #include "custom_assertions.h"
 

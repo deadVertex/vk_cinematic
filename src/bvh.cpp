@@ -311,6 +311,22 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
                 }
             }
 
+#if 1
+            // FIXME: Remove this, we've confirmed that its the BVH
+            // construction that is broken!
+            for (u32 i = 0; i < childCount; i++)
+            {
+                f32 t = RayIntersectAabb(
+                    boxMins[i], boxMaxes[i], rayOrigin, rayDirection);
+                if (t >= 0.0f)
+                {
+                    u32 entryIndex = stackSizes[writeIndex];
+                    Assert(entryIndex <= BVH_STACK_SIZE);
+                    stack[writeIndex][entryIndex] = node->children[i];
+                    stackSizes[writeIndex] += 1;
+                }
+            }
+#else
             // Test each child node with single call simd_RayIntersectAabb4
             // which will test multiple AABBs at once
             u32 mask = simd_RayIntersectAabb4(
@@ -325,6 +341,7 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
                     stackSizes[writeIndex] += 1;
                 }
             }
+#endif
         }
         else
         {

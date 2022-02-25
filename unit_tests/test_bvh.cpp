@@ -7,6 +7,7 @@
 
 #include "simd.h"
 #include "aabb.h"
+#include "ray_intersection.h"
 
 #include "custom_assertions.h"
 

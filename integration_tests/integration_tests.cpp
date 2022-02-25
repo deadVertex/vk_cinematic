@@ -12,6 +12,7 @@
 #include "tile.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "ray_intersection.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "sp_metrics.h"
