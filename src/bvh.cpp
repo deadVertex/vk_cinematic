@@ -181,8 +181,9 @@ bvh_Tree bvh_CreateTree(
         unmergedNodeCount[writeIndex] = 0;
 
         // Join nodes with their nearest neighbors to build tree
-        for (u32 index = 0; index < unmergedNodeCount[readIndex]; index++)
+        while (unmergedNodeCount[readIndex] > 1)
         {
+            u32 index = 0; // unmergedNodes is a queue, always take from the front
             bvh_Node *node = unmergedNodes[readIndex][index];
             vec3 centroid = (node->max + node->min) * 0.5f;
 
@@ -218,11 +219,19 @@ bvh_Tree bvh_CreateTree(
                 lastAllocatedNode = newNode;
 
                 // Write new node into our write buffer
-                Assert(unmergedNodeCount[writeIndex] <= index);
+                Assert(unmergedNodeCount[writeIndex] < count);
                 u32 newNodeIndex = unmergedNodeCount[writeIndex]++;
                 unmergedNodes[writeIndex][newNodeIndex] = newNode;
 
-                // Remove neighbors from unmerged node indices array
+                // Remove node from unmerged nodes array
+                {
+                    u32 last = unmergedNodeCount[readIndex] - 1;
+                    unmergedNodes[readIndex][index] =
+                        unmergedNodes[readIndex][last];
+                    unmergedNodeCount[readIndex]--;
+                }
+
+                // Remove neighbors from unmerged node array
                 for (u32 i = 0; i < neighborCount; i++)
                 {
                     u32 last = unmergedNodeCount[readIndex] - 1;

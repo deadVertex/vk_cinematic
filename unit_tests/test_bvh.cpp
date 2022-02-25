@@ -98,9 +98,10 @@ b32 FindLeafIndex(bvh_Node *node, u32 index)
 
 void TestBvhAllLeavesReachable()
 {
-    vec3 aabbMin[17];
-    vec3 aabbMax[17];
-    for (u32 i = 0; i < 17; i++)
+#define TEST_LEAF_COUNT 31
+    vec3 aabbMin[TEST_LEAF_COUNT];
+    vec3 aabbMax[TEST_LEAF_COUNT];
+    for (u32 i = 0; i < TEST_LEAF_COUNT; i++)
     {
         vec3 center = Vec3((f32)i, 0, 0);
         aabbMin[i] = center - Vec3(0.25f);
@@ -112,9 +113,11 @@ void TestBvhAllLeavesReachable()
         bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
 
     // Check that we can find each leaf index in the tree
-    for (u32 i = 0; i < 17; i++)
+    for (u32 i = 0; i < TEST_LEAF_COUNT; i++)
     {
-        TEST_ASSERT_TRUE(FindLeafIndex(worldBvh.root, i));
+        char msg[80];
+        snprintf(msg, sizeof(msg), "Cound not find leaf index %u", i);
+        TEST_ASSERT_TRUE_MESSAGE(FindLeafIndex(worldBvh.root, i), msg);
     }
 }
 
