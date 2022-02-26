@@ -314,6 +314,7 @@ void TestBvhFindClosestPartnerNode()
     TEST_ASSERT_EQUAL_PTR(unmergedNodes[1], result.node);
 }
 
+#if 0
 void TestBvhFindNeighbours()
 {
     // Given a list of 5 nodes
@@ -347,6 +348,7 @@ void TestBvhFindNeighbours()
     TEST_ASSERT_EQUAL_UINT32(2, neighbourIndices[1]);
     TEST_ASSERT_EQUAL_UINT32(1, neighbourIndices[2]);
 }
+#endif
 
 // Don't think this test is valid anymore if we change to 4-node BVH tree
 #if 0
@@ -420,7 +422,7 @@ int main()
     RUN_TEST(TestBvhFindClosestPartnerNode);
     //RUN_TEST(TestBvhDuplicateIntersectionsBug);
 
-    RUN_TEST(TestBvhFindNeighbours);
+    //RUN_TEST(TestBvhFindNeighbours);
 
     free(memoryArena.base);
 

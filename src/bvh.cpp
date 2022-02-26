@@ -49,24 +49,24 @@ bvh_FindClosestPartnerNodeResult bvh_FindClosestPartnerNode(
     return result;
 }
 
-struct bvh_NodeIndexDistSqPair
+struct bvh_NodeDistSqPair
 {
     f32 distSq;
-    u32 nodeIndex;
+    bvh_Node *node;
 };
 
-inline i32 CompareNodeIndexDistSqPair(const void *p1, const void *p2)
+inline i32 CompareNodeDistSqPair(const void *p1, const void *p2)
 {
-    bvh_NodeIndexDistSqPair a = *(bvh_NodeIndexDistSqPair*)p1;
-    bvh_NodeIndexDistSqPair b = *(bvh_NodeIndexDistSqPair*)p2;
+    bvh_NodeDistSqPair a = *(bvh_NodeDistSqPair*)p1;
+    bvh_NodeDistSqPair b = *(bvh_NodeDistSqPair*)p2;
 
     if (a.distSq < b.distSq)
     {
-        return -1;
+        return 1;
     }
     else if (a.distSq > b.distSq)
     {
-        return 1;
+        return -1;
     }
     else
     {
@@ -74,6 +74,7 @@ inline i32 CompareNodeIndexDistSqPair(const void *p1, const void *p2)
     }
 }
 
+#if 0
 // TODO: Spatial hashing
 u32 bvh_FindNeighbours(u32 nodeIndex, bvh_Node **allNodes,
     bvh_NodeIndexDistSqPair *pairs, u32 count, u32 *neighbourIndices, u32 maxNeighbors)
@@ -112,6 +113,7 @@ u32 bvh_FindNeighbours(u32 nodeIndex, bvh_Node **allNodes,
 
     return result;
 }
+#endif
 
 inline u32 bvh_FindNodeIndex(bvh_Node **nodes, u32 count, bvh_Node *node)
 {
@@ -126,6 +128,21 @@ inline u32 bvh_FindNodeIndex(bvh_Node **nodes, u32 count, bvh_Node *node)
     }
 
     return index;
+}
+
+void bvh_SortNodesByDistanceSq(vec3 p, bvh_NodeDistSqPair *nodes, u32 count)
+{
+    for (u32 i = 0; i < count; i++)
+    {
+        bvh_Node *node = nodes[i].node;
+        vec3 nodeCenter = (node->max + node->min) * 0.5f;
+
+        vec3 d = nodeCenter - p;
+        nodes[i].distSq = LengthSq(d);
+    }
+
+    // Sort by dist^2
+    qsort(nodes, count, sizeof(nodes[0]), CompareNodeDistSqPair);
 }
 
 bvh_Tree bvh_CreateTree(
@@ -143,12 +160,9 @@ bvh_Tree bvh_CreateTree(
     MemoryPool *pool = &result.memoryPool;
 
     // TODO: Could do this from a single allocation and use manual indexing
-    bvh_Node **unmergedNodes[2];
-    unmergedNodes[0] = AllocateArray(arena, bvh_Node *, count);
-    unmergedNodes[1] = AllocateArray(arena, bvh_Node *, count);
-
-    bvh_NodeIndexDistSqPair *pairs =
-        AllocateArray(arena, bvh_NodeIndexDistSqPair, count);
+    bvh_NodeDistSqPair *unmergedNodes[2];
+    unmergedNodes[0] = AllocateArray(arena, bvh_NodeDistSqPair, count);
+    unmergedNodes[1] = AllocateArray(arena, bvh_NodeDistSqPair, count);
 
     u32 unmergedNodeCount[2] = {count, 0};
     u32 readIndex = 0;
@@ -168,40 +182,53 @@ bvh_Tree bvh_CreateTree(
         node->children[3] = NULL;
         node->leafIndex = leafIndex;
 
-        unmergedNodes[readIndex][leafIndex] = node;
+        unmergedNodes[readIndex][leafIndex].node = node;
     }
 
     // Assign to unmerged node to handle case when we only have a single leaf
     // node tree
-    bvh_Node *lastAllocatedNode = unmergedNodes[readIndex][0];
+    bvh_Node *lastAllocatedNode = unmergedNodes[readIndex][0].node;
 
     // TODO: This needs refactored and tested more thoroughly
-    while (unmergedNodeCount[readIndex] > 1)
+    u32 maxDepth = 256;
+    b32 workRemaining = true;
+    for (u32 depth = 0; depth < maxDepth; depth)
     {
         unmergedNodeCount[writeIndex] = 0;
 
+        // BUG if we have 1 node in the read buffer and more than one in the
+        // write buffer the one remaining node in the read buffer will be lost!
+
         // Join nodes with their nearest neighbors to build tree
-        while (unmergedNodeCount[readIndex] > 1)
+        while (unmergedNodeCount[readIndex] > 0)
         {
-            u32 index = 0; // unmergedNodes is a queue, always take from the front
-            bvh_Node *node = unmergedNodes[readIndex][index];
+            // unmergedNodes is a stack, always take from the end
+            u32 index = unmergedNodeCount[readIndex] - 1;
+            bvh_Node *node = unmergedNodes[readIndex][index].node;
             vec3 centroid = (node->max + node->min) * 0.5f;
 
-            u32 neighbourIndices[3];
-            u32 neighborCount =
-                bvh_FindNeighbours(index, unmergedNodes[readIndex], pairs,
-                    unmergedNodeCount[readIndex], neighbourIndices, 3);
-            Assert(neighborCount <= 3);
+            // Sort unmergedNodes buffer (not including the last entry which is
+            // the one we're currently processing) by distance to centroid in
+            // descending order so that the nodes closest to the source node
+            // are at the end of the buffer.
+            bvh_SortNodesByDistanceSq(centroid, unmergedNodes[readIndex],
+                    unmergedNodeCount[readIndex] - 1);
+
+            // Take the last 3 nodes from the buffer (skipping the last index
+            // which is the node we're processing)
+            bvh_Node *neighbors[3];
+            u32 neighborCount = MinU32(3, unmergedNodeCount[readIndex] - 1);
+            for (u32 i = 0; i < neighborCount; i++)
+            {
+                // i+1 to skip the first node in the buffer which is the one
+                // we're currently processing
+                i32 nodeIndex = index - (i + 1);
+                Assert(nodeIndex >= 0);
+                neighbors[i] = unmergedNodes[readIndex][nodeIndex].node;
+            }
 
             if (neighborCount > 0)
             {
-                bvh_Node *neighbors[3];
-                for (u32 i = 0; i < neighborCount; i++)
-                {
-                    neighbors[i] =
-                        unmergedNodes[readIndex][neighbourIndices[i]];
-                }
-
                 // Create combined node
                 bvh_Node *newNode = bvh_AllocateNode(pool);
                 Assert(newNode != NULL);
@@ -221,41 +248,45 @@ bvh_Tree bvh_CreateTree(
                 // Write new node into our write buffer
                 Assert(unmergedNodeCount[writeIndex] < count);
                 u32 newNodeIndex = unmergedNodeCount[writeIndex]++;
-                unmergedNodes[writeIndex][newNodeIndex] = newNode;
+                unmergedNodes[writeIndex][newNodeIndex].node = newNode;
 
-                // Remove node from unmerged nodes array
-                {
-                    u32 last = unmergedNodeCount[readIndex] - 1;
-                    unmergedNodes[readIndex][index] =
-                        unmergedNodes[readIndex][last];
-                    unmergedNodeCount[readIndex]--;
-                }
 
-                // Remove neighbors from unmerged node array
-                for (u32 i = 0; i < neighborCount; i++)
-                {
-                    u32 last = unmergedNodeCount[readIndex] - 1;
+                // Reduce the size of the read buffer by (neighborCount + 1) to
+                // remove the neighbors + the source node which are now the
+                // children of the node we just added to the write buffer.
+                Assert(unmergedNodeCount[readIndex] >= neighborCount + 1);
+                unmergedNodeCount[readIndex] -= (neighborCount + 1);
+            }
+            else
+            {
+                // Move node from read buffer to write buffer so it can be
+                // combined with other nodes
+                Assert(unmergedNodeCount[writeIndex] < count);
+                u32 newNodeIndex = unmergedNodeCount[writeIndex]++;
+                unmergedNodes[writeIndex][newNodeIndex].node = node;
 
-                    // NOTE: Can't use our indices here because they will
-                    // change as soon as we start modifying the unmergedNodes
-                    // array
-                    u32 foundIndex = bvh_FindNodeIndex(unmergedNodes[readIndex],
-                        unmergedNodeCount[readIndex], neighbors[i]);
-                    Assert(foundIndex != U32_MAX);
-
-                    // Swap and decrement read array size
-                    unmergedNodes[readIndex][foundIndex] =
-                        unmergedNodes[readIndex][last];
-                    unmergedNodeCount[readIndex]--;
-                }
+                unmergedNodeCount[readIndex]--;
             }
         }
 
-        // Swap read a write buffers
-        u32 temp = readIndex;
-        readIndex = writeIndex;
-        writeIndex = temp;
+        if (unmergedNodeCount[writeIndex] > 1)
+        {
+            // Swap read a write buffers and start processing the new read
+            // buffer
+            u32 temp = readIndex;
+            readIndex = writeIndex;
+            writeIndex = temp;
+        }
+        else
+        {
+            // No more nodes to combine, break out of the loop
+            workRemaining = false;
+            break;
+        }
     }
+
+    // Check that we built a complete BVH tree and didn't run out of iterations
+    Assert(!workRemaining);
 
     // NOTE: This frees both unmergedNodes buffers and the pairs array
     FreeFromMemoryArena(arena, unmergedNodes[0]);
@@ -320,7 +351,7 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
                 }
             }
 
-#if 1
+#if 0
             // FIXME: Remove this, we've confirmed that its the BVH
             // construction that is broken!
             for (u32 i = 0; i < childCount; i++)
@@ -371,6 +402,32 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
         if (stackSizes[readIndex] == 0)
         {
             SwapU32(&readIndex, &writeIndex);
+        }
+    }
+
+    return result;
+}
+
+b32 bvh_FindLeafIndex(bvh_Node *node, u32 index)
+{
+    b32 result = false;
+
+    if (node->leafIndex == index)
+    {
+        result = true;
+    }
+    else
+    {
+        for (u32 i = 0; i < 4; ++i)
+        {
+            if (node->children[i] != NULL)
+            {
+                if (bvh_FindLeafIndex(node->children[i], index))
+                {
+                    result = true;
+                    break;
+                }
+            }
         }
     }
 

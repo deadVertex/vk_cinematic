@@ -35,6 +35,7 @@
 #include "sp_scene.cpp"
 #include "sp_material_system.cpp"
 #include "simd_path_tracer.cpp"
+#include "mesh_generation.cpp" // Used for sphere mesh
 
 #define MEMORY_ARENA_SIZE Megabytes(16)
 
@@ -61,6 +62,30 @@ void TestLoadMesh()
     MeshData meshData = LoadMesh(meshName, &memoryArena, g_AssetDir);
     TEST_ASSERT_GREATER_THAN_UINT(0, meshData.vertexCount);
 }
+
+void TestBuildMeshMidphase()
+{
+    MeshData meshData = CreateIcosahedronMesh(3, &memoryArena);
+
+    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
+    for (u32 i = 0; i < meshData.vertexCount; i++)
+    {
+        vertices[i] = meshData.vertices[i].position;
+    }
+    sp_Mesh mesh = sp_CreateMesh(vertices, meshData.vertexCount,
+            meshData.indices, meshData.indexCount);
+    sp_BuildMeshMidphase(&mesh, &memoryArena, &memoryArena);
+
+    u32 leafCount = meshData.vertexCount / 3;
+    for (u32 i = 0; i < leafCount; i++)
+    {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "Cound not find leaf index %u", i);
+        TEST_ASSERT_TRUE_MESSAGE(
+            bvh_FindLeafIndex(mesh.midphaseTree.root, i), msg);
+    }
+}
+
 
 void TestSimdPathTracer()
 {
@@ -152,6 +177,7 @@ int main(int argc, char **argv)
 
     UNITY_BEGIN();
     RUN_TEST(TestLoadMesh);
+    RUN_TEST(TestBuildMeshMidphase);
     RUN_TEST(TestSimdPathTracer);
 
     free(memoryArena.base);
