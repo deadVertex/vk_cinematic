@@ -2,10 +2,12 @@
 
 #include "unity.h"
 
+#include "config.h" // Needed to enable BVH_SIMD_RAY_INTERSECT_AABB
 #include "platform.h"
 #include "math_lib.h"
 #include "memory_pool.h"
 #include "bvh.h"
+#include "ray_intersection.h"
 #include "sp_metrics.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
@@ -274,13 +276,13 @@ void TestMeshMidphase()
 
         u64 start = __rdtsc();
 
-        RayIntersectTriangleResult result =
+        sp_RayIntersectMeshResult result =
             sp_RayIntersectMesh(mesh, rayOrigin, rayDirection, &metrics);
 
         cyclesElapsed += __rdtsc() - start;
 
-        hitCount = (result.t >= 0.0f) ? hitCount + 1 : hitCount;
-        missCount = (result.t < 0.0f) ? missCount + 1 : missCount;
+        hitCount = (result.triangleIntersection.t >= 0.0f) ? hitCount + 1 : hitCount;
+        missCount = (result.triangleIntersection.t < 0.0f) ? missCount + 1 : missCount;
 
         u32 aabbCount = (u32)(
             metrics.values[sp_Metric_RayIntersectMesh_MidphaseAabbTestCount] -

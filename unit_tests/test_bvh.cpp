@@ -291,120 +291,6 @@ void TestBvh()
     TEST_ASSERT_TRUE(result2.errorOccurred);
 }
 
-void TestBvhFindClosestPartnerNode()
-{
-    bvh_Node nodes[3];
-    for (u32 x = 0; x < 3; ++x)
-    {
-        vec3 origin = Vec3(-5, -5, 0);
-        vec3 p = origin + Vec3((f32)x, 0, 0) * 3.0f;
-
-        Aabb aabb =
-            TransformAabb(Vec3(-0.5), Vec3(0.5), p, Quat(), Vec3(1));
-
-        nodes[x].min = aabb.min;
-        nodes[x].max = aabb.max;
-        nodes[x].leafIndex = x;
-    }
-
-    bvh_Node *unmergedNodes[3] = {nodes + 0, nodes + 1, nodes + 2};
-    bvh_FindClosestPartnerNodeResult result =
-        bvh_FindClosestPartnerNode(unmergedNodes[0], unmergedNodes, 3);
-    TEST_ASSERT_EQUAL_UINT32(1, result.index);
-    TEST_ASSERT_EQUAL_PTR(unmergedNodes[1], result.node);
-}
-
-#if 0
-void TestBvhFindNeighbours()
-{
-    // Given a list of 5 nodes
-    bvh_Node nodes[5];
-    for (u32 x = 0; x < 5; ++x)
-    {
-        vec3 origin = Vec3(-5, -5, 0);
-        vec3 p = origin + Vec3((f32)x, 0, 0) * 5.0f;
-
-        Aabb aabb =
-            TransformAabb(Vec3(-0.5), Vec3(0.5), p, Quat(), Vec3(1));
-
-        nodes[x].min = aabb.min;
-        nodes[x].max = aabb.max;
-        nodes[x].leafIndex = x;
-    }
-
-    // When we search for 3 neighbouring nodes
-    bvh_Node *unmergedNodes[5] = {
-        nodes + 0, nodes + 1, nodes + 2, nodes + 3, nodes + 4};
-
-    bvh_NodeIndexDistSqPair pairs[5] = {};
-
-    u32 neighbourIndices[3] = {};
-    u32 foundCount = bvh_FindNeighbours(
-        4, unmergedNodes, pairs, 5, neighbourIndices, 3);
-
-    // Then we find the closest 3
-    TEST_ASSERT_EQUAL_UINT32(3, foundCount);
-    TEST_ASSERT_EQUAL_UINT32(3, neighbourIndices[0]);
-    TEST_ASSERT_EQUAL_UINT32(2, neighbourIndices[1]);
-    TEST_ASSERT_EQUAL_UINT32(1, neighbourIndices[2]);
-}
-#endif
-
-// Don't think this test is valid anymore if we change to 4-node BVH tree
-#if 0
-void TestBvhDuplicateIntersectionsBug()
-{
-    vec3 aabbMin[3];
-    vec3 aabbMax[3];
-
-    for (u32 x = 0; x < 3; ++x)
-    {
-        vec3 origin = Vec3(-5, -5, 0);
-        vec3 p = origin + Vec3((f32)x, 0, 0) * 3.0f;
-
-        Aabb aabb =
-            TransformAabb(Vec3(-0.5), Vec3(0.5), p, Quat(), Vec3(1));
-
-        aabbMin[x] = aabb.min;
-        aabbMax[x] = aabb.max;
-    }
-
-    // Build Bvh
-    bvh_Tree worldBvh =
-        bvh_CreateTree(&memoryArena, aabbMin, aabbMax, ArrayCount(aabbMin));
-    /*    [root]
-     *    /    \
-     *   []    [2]
-     *  /  \
-     * [0] [1]
-     */
-    TEST_ASSERT_EQUAL_UINT32(U32_MAX, worldBvh.root->leafIndex);
-    TEST_ASSERT_NOT_NULL(worldBvh.root->children[1]);
-    bvh_Node *branchNode = worldBvh.root->children[1];
-    TEST_ASSERT_EQUAL_UINT32(0, branchNode->children[0]->leafIndex);
-    TEST_ASSERT_EQUAL_UINT32(1, branchNode->children[1]->leafIndex);
-    TEST_ASSERT_EQUAL_UINT32(2, worldBvh.root->children[0]->leafIndex);
-
-    bvh_Node *intersectedNodes[3] = {};
-
-    vec3 rayOrigin = Vec3(-10, -5, 0);
-    vec3 rayDirection = Vec3(1, 0, 0);
-
-    // Test ray intersection against it
-    bvh_IntersectRayResult result = bvh_IntersectRay(&worldBvh, rayOrigin,
-        rayDirection, intersectedNodes, ArrayCount(intersectedNodes));
-
-    // Check that it returns the expected objects
-    TEST_ASSERT_EQUAL_UINT32(3, result.count);
-    TEST_ASSERT_FALSE(result.errorOccurred);
-
-    TEST_ASSERT_TRUE(
-        intersectedNodes[0]->leafIndex != intersectedNodes[1]->leafIndex &&
-        intersectedNodes[0]->leafIndex != intersectedNodes[2]->leafIndex);
-}
-#endif
-
-
 int main()
 {
     InitializeMemoryArena(
@@ -419,10 +305,6 @@ int main()
     RUN_TEST(TestBvhAllLeavesReachable);
     RUN_TEST(TestBvhIntermediateNodesContainChildNodes);
     RUN_TEST(TestBvhRayIntersectGrid);
-    RUN_TEST(TestBvhFindClosestPartnerNode);
-    //RUN_TEST(TestBvhDuplicateIntersectionsBug);
-
-    //RUN_TEST(TestBvhFindNeighbours);
 
     free(memoryArena.base);
 

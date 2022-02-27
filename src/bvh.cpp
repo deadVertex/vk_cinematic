@@ -8,47 +8,6 @@ inline bvh_Node *bvh_AllocateNode(MemoryPool *pool)
     return node;
 }
 
-struct bvh_FindClosestPartnerNodeResult
-{
-    bvh_Node *node;
-    u32 index;
-};
-
-bvh_FindClosestPartnerNodeResult bvh_FindClosestPartnerNode(
-    bvh_Node *node, bvh_Node **allNodes, u32 count)
-{
-    vec3 centroid = (node->max + node->min) * 0.5f;
-
-    f32 closestDistance = F32_MAX;
-    bvh_FindClosestPartnerNodeResult result = {};
-
-    // TODO: Spatial hashing
-    // Find a node who's centroid is closest to ours
-    for (u32 index = 0; index < count; ++index)
-    {
-        bvh_Node *partnerNode = allNodes[index];
-
-        // Skip ourselves
-        if (partnerNode == node)
-        {
-            continue;
-        }
-
-        vec3 partnerCentroid = (partnerNode->max + partnerNode->min) * 0.5f;
-
-        // Find minimal distance via length squared to avoid sqrt
-        f32 dist = LengthSq(partnerCentroid - centroid);
-        if (dist < closestDistance)
-        {
-            closestDistance = dist;
-            result.node = partnerNode;
-            result.index = index;
-        }
-    }
-
-    return result;
-}
-
 struct bvh_NodeDistSqPair
 {
     f32 distSq;
@@ -72,62 +31,6 @@ inline i32 CompareNodeDistSqPair(const void *p1, const void *p2)
     {
         return 0;
     }
-}
-
-#if 0
-// TODO: Spatial hashing
-u32 bvh_FindNeighbours(u32 nodeIndex, bvh_Node **allNodes,
-    bvh_NodeIndexDistSqPair *pairs, u32 count, u32 *neighbourIndices, u32 maxNeighbors)
-{
-    bvh_Node *node = allNodes[nodeIndex];
-    vec3 centroid = (node->max + node->min) * 0.5f;
-
-    // Compute dist^2 to node for all nodes
-    for (u32 i = 0; i < count; i++)
-    {
-        bvh_Node *neighbor = allNodes[i];
-        vec3 neighborCentroid = (neighbor->max + neighbor->min) * 0.5f;
-
-        vec3 d = neighborCentroid - centroid;
-        pairs[i].distSq = LengthSq(d);
-        pairs[i].nodeIndex = i;
-    }
-
-    // Sort by dist^2
-    qsort(pairs, count, sizeof(pairs[0]), CompareNodeIndexDistSqPair);
-
-    // Take the top N
-    u32 result = 0;
-    u32 searchCount = MinU32(count, maxNeighbors + 1);
-    for (u32 i = 0; i < searchCount; ++i)
-    {
-        bvh_NodeIndexDistSqPair pair = pairs[i];
-        if (pair.nodeIndex == nodeIndex)
-        {
-            continue;
-        }
-
-        Assert(result < maxNeighbors);
-        neighbourIndices[result++] = pair.nodeIndex;
-    }
-
-    return result;
-}
-#endif
-
-inline u32 bvh_FindNodeIndex(bvh_Node **nodes, u32 count, bvh_Node *node)
-{
-    u32 index = U32_MAX;
-    for (u32 i = 0; i < count; i++)
-    {
-        if (nodes[i] == node)
-        {
-            index = i;
-            break;
-        }
-    }
-
-    return index;
 }
 
 void bvh_SortNodesByDistanceSq(vec3 p, bvh_NodeDistSqPair *nodes, u32 count)
@@ -335,8 +238,6 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
             // Assuming that this is always true?
             Assert(node->children[1] != NULL);
 
-            result.aabbTestCount++;
-
             vec3 boxMins[4];
             vec3 boxMaxes[4];
             u32 childCount = 0;
@@ -350,15 +251,16 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
                     childCount++;
                 }
             }
+            result.aabbTestCount += childCount;
 
-#if 0
-            // FIXME: Remove this, we've confirmed that its the BVH
-            // construction that is broken!
+#if USE_BVH_SIMD_RAY_INTERSECT_AABB
+            // Test each child node with single call simd_RayIntersectAabb4
+            // which will test multiple AABBs at once
+            u32 mask = simd_RayIntersectAabb4(
+                boxMins, boxMaxes, rayOrigin, invRayDirection);
             for (u32 i = 0; i < childCount; i++)
             {
-                f32 t = RayIntersectAabb(
-                    boxMins[i], boxMaxes[i], rayOrigin, rayDirection);
-                if (t >= 0.0f)
+                if ((mask & (1<<i)) != 0)
                 {
                     u32 entryIndex = stackSizes[writeIndex];
                     Assert(entryIndex <= BVH_STACK_SIZE);
@@ -367,13 +269,13 @@ bvh_IntersectRayResult bvh_IntersectRay(bvh_Tree *tree, vec3 rayOrigin,
                 }
             }
 #else
-            // Test each child node with single call simd_RayIntersectAabb4
-            // which will test multiple AABBs at once
-            u32 mask = simd_RayIntersectAabb4(
-                boxMins, boxMaxes, rayOrigin, invRayDirection);
+            // Reference implementation for performing RayIntersectAabb tests,
+            // mainly used for debugging
             for (u32 i = 0; i < childCount; i++)
             {
-                if ((mask & (1<<i)) != 0)
+                f32 t = RayIntersectAabb(
+                    boxMins[i], boxMaxes[i], rayOrigin, rayDirection);
+                if (t >= 0.0f)
                 {
                     u32 entryIndex = stackSizes[writeIndex];
                     Assert(entryIndex <= BVH_STACK_SIZE);

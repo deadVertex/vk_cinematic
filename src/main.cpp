@@ -997,15 +997,6 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     sp_BuildMeshMidphase(&meshes[Mesh_Sphere], meshDataArena,
             tempArena);
 
-    // FIXME: Remove this, just for checking that we've built a valid BVH tree
-    // with all leaf nodes reachable
-    u32 leafCount = sceneMeshData->meshes[Mesh_Sphere].vertexCount / 3;
-    for (u32 i = 0; i < leafCount; i++)
-    {
-        Assert(bvh_FindLeafIndex(meshes[Mesh_Sphere].midphaseTree.root, i));
-    }
-
-
     meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
         sceneMeshData->meshes[Mesh_Plane], meshDataArena);
     sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena,
