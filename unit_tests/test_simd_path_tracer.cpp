@@ -6,6 +6,8 @@
 #include "memory_pool.h"
 #include "bvh.h"
 #include "ray_intersection.h"
+#include "asset_loader/asset_loader.h"
+#include "image.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "simd_path_tracer.h"
@@ -18,6 +20,8 @@
 
 #include "memory_pool.cpp"
 #include "ray_intersection.cpp"
+
+#define SAMPLES_PER_PIXEL 1
 
 // Include cpp file for faster unity build
 #include "bvh.cpp"
@@ -74,10 +78,10 @@ void TestPathTraceSingleColor()
     tile.maxY = 4;
     sp_PathTraceTile(&ctx, tile, &rng, &metrics);
 
-    // Then all of the pixels are set to black
+    // Then all of the pixels are set to magenta (no background material set)
     for (u32 i = 0; i < 16; i++)
     {
-        AssertWithinVec4(EPSILON, Vec4(0, 0, 0, 1), pixels[i]);
+        AssertWithinVec4(EPSILON, Vec4(1, 0, 1, 1), pixels[i]);
     }
 }
 
@@ -118,8 +122,8 @@ void TestPathTraceTile()
     // clang-format off
     vec4 expectedPixels[16] = {
         Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0),
-        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 0),
-        Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 1), Vec4(0, 0, 0, 0),
+        Vec4(0, 0, 0, 0), Vec4(1, 0, 1, 1), Vec4(1, 0, 1, 1), Vec4(0, 0, 0, 0),
+        Vec4(0, 0, 0, 0), Vec4(1, 0, 1, 1), Vec4(1, 0, 1, 1), Vec4(0, 0, 0, 0),
         Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0), Vec4(0, 0, 0, 0),
     };
     // clang-format on
@@ -273,20 +277,56 @@ void TestRayIntersectScene()
 void TestEvaluateLightPath()
 {
     sp_MaterialSystem materialSystem = {};
-    materialSystem.backgroundEmission = Vec3(1);
+
+    sp_Material backgroundMaterial = {};
+    backgroundMaterial.emission = Vec3(1);
+    backgroundMaterial.emissionTexture = U32_MAX;
+    backgroundMaterial.albedoTexture = U32_MAX;
+    u32 backgroundMaterialId = 0;
+    sp_RegisterMaterial(
+        &materialSystem, backgroundMaterial, backgroundMaterialId);
+
     sp_Material material = {};
     material.albedo = Vec3(0.18, 0.18, 0.18);
+    material.albedoTexture = U32_MAX;
+    material.emissionTexture = U32_MAX;
 
     u32 materialId = 1;
     sp_RegisterMaterial(&materialSystem, material, materialId);
 
-    sp_PathVertex path[2];
+    sp_PathVertex path[2] = {};
     path[0].materialId = materialId;
     path[0].normal = Vec3(0, 1, 0);
     path[0].incomingDir = Vec3(0, 1, 0);
+    path[1].materialId = backgroundMaterialId;
     vec3 radiance = ComputeRadianceForPath(
         path, ArrayCount(path), &materialSystem);
     AssertWithinVec3(EPSILON, Vec3(0.18, 0.18, 0.18), radiance);
+}
+
+void TestMaterialAlbedoTexture()
+{
+    // Creat image
+    HdrImage image = AllocateImage(1, 1, &memoryArena);
+    SetPixel(&image, 0, 0, Vec4(1, 0, 0, 1));
+
+    sp_MaterialSystem materialSystem = {};
+
+    u32 imageId = 1;
+    sp_RegisterTexture(&materialSystem, image, imageId);
+
+    // Give a material
+    sp_Material material = {};
+    material.albedoTexture = imageId;
+    material.emissionTexture = U32_MAX;
+
+    sp_PathVertex vertex = {};
+
+    // Then we can retrieve the albedo term
+    sp_MaterialOutput output =
+        sp_EvaluateMaterial(&materialSystem, &material, &vertex);
+
+    AssertWithinVec3(EPSILON, Vec3(1, 0, 0), output.albedo);
 }
 
 void TestMetrics()
@@ -500,6 +540,7 @@ int main()
     RUN_TEST(TestRayIntersectScene);
 
     RUN_TEST(TestEvaluateLightPath);
+    RUN_TEST(TestMaterialAlbedoTexture);
 
     RUN_TEST(TestMetrics);
 

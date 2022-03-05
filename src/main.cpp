@@ -116,6 +116,7 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "memory_pool.h"
 #include "bvh.h"
 #include "ray_intersection.h"
+#include "asset_loader/asset_loader.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "sp_metrics.h"
@@ -1005,10 +1006,13 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
     {
-        sp_Material material = {};
-        material.albedo = materialData[i].baseColor;
-        // TODO: Don't ignore return value
-        sp_RegisterMaterial(materialSystem, material, i);
+        if (i != Material_Background)
+        {
+            sp_Material material = {};
+            material.albedo = materialData[i].baseColor;
+            // TODO: Don't ignore return value
+            sp_RegisterMaterial(materialSystem, material, i);
+        }
     }
 
     for (u32 i = 0; i < entityScene->count; i++)
@@ -1240,7 +1244,13 @@ int main(int argc, char **argv)
     context.scene = &pathTracerScene;
 
     sp_MaterialSystem materialSystem = {};
-    materialSystem.backgroundEmission = Vec3(0.4, 0.58, 0.93); // cornflower blue
+    sp_RegisterTexture(&materialSystem, image, 5);
+
+    sp_Material backgroundMaterial = {};
+    backgroundMaterial.emissionTexture = 5;
+    sp_RegisterMaterial(
+        &materialSystem, backgroundMaterial, Material_Background);
+    materialSystem.backgroundMaterialId = Material_Background;
     context.materialSystem = &materialSystem;
 
     // NOTE: Testing code
@@ -1456,8 +1466,8 @@ int main(int argc, char **argv)
         DrawEntityAabbs(scene, &debugDrawBuffer);
 #endif
 
-        DebugDrawBvh(
-            pathTracerScene.meshes[4].midphaseTree.root, &debugDrawBuffer);
+        //DebugDrawBvh(
+            //pathTracerScene.meshes[4].midphaseTree.root, &debugDrawBuffer);
 
         // Move camera around
         Update(&renderer, &rayTracer, &input, dt);

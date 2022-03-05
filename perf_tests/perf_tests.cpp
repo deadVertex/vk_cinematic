@@ -8,6 +8,7 @@
 #include "memory_pool.h"
 #include "bvh.h"
 #include "ray_intersection.h"
+#include "asset_loader/asset_loader.h"
 #include "sp_metrics.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
@@ -16,6 +17,7 @@
 
 #include "simd.h"
 #include "aabb.h"
+#include "image.h"
 
 #include "memory_pool.cpp"
 #include "ray_intersection.cpp"
@@ -147,7 +149,6 @@ void TestPathTraceTile()
     // FIXME: Need to build mesh midphase bvh tree!
 
     sp_MaterialSystem materialSystem = {};
-    materialSystem.backgroundEmission = Vec3(1);
 
     sp_Material material = {};
     material.albedo = Vec3(0.18);

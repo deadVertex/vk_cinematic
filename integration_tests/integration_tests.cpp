@@ -13,6 +13,7 @@
 #include "memory_pool.h"
 #include "bvh.h"
 #include "ray_intersection.h"
+#include "asset_loader/asset_loader.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "sp_metrics.h"
@@ -28,6 +29,8 @@
 #include "mesh.cpp"
 
 #include "cmdline.cpp"
+
+#define SAMPLES_PER_PIXEL 1
 
 #include "ray_intersection.cpp"
 #include "memory_pool.cpp"
@@ -121,7 +124,6 @@ void TestSimdPathTracer()
     sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
 
     sp_MaterialSystem materialSystem = {};
-    materialSystem.backgroundEmission = Vec3(1);
 
     sp_Material material = {};
     material.albedo = Vec3(0.18);

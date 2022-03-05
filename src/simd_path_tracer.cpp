@@ -62,15 +62,6 @@ u32 sp_CalculateFilmPositions(
     return count;
 }
 
-struct sp_PathVertex
-{
-    u32 materialId;
-    vec3 worldPosition;
-    vec3 outgoingDir;
-    vec3 incomingDir;
-    vec3 normal;
-};
-
 vec3 ComputeRadianceForPath(
     sp_PathVertex *path, u32 pathLength, sp_MaterialSystem *materialSystem)
 {
@@ -85,23 +76,24 @@ vec3 ComputeRadianceForPath(
         u32 materialId = vertex->materialId;
 
         // Set surface albedo and emission from material
-        vec3 albedo = {};
-        vec3 emission = {};
+        sp_MaterialOutput materialOutput = {};
         sp_Material *material = sp_FindMaterialById(materialSystem, materialId);
         if (material != NULL)
         {
-            albedo = material->albedo;
+            materialOutput =
+                sp_EvaluateMaterial(materialSystem, material, vertex);
         }
         else
         {
-            // Assume this is the background material
-            emission = materialSystem->backgroundEmission;
+            // No material, set emission color to magenta for debuggging
+            materialOutput.emission = Vec3(1, 0, 1);
         }
 
         f32 cosine = Max(0.0, Dot(normal, incomingDir));
         vec3 incomingRadiance = radiance;
 
-        radiance = emission + Hadamard(albedo, incomingRadiance) * cosine;
+        radiance = materialOutput.emission +
+                   Hadamard(materialOutput.albedo, incomingRadiance) * cosine;
     }
 
     return radiance;
@@ -124,7 +116,7 @@ void sp_PathTraceTile(
     u32 maxY = MinU32(tile.maxY, imagePlane->height);
 
     // TODO: Expose these via parameter!
-    u32 sampleCount = 64;
+    u32 sampleCount = SAMPLES_PER_PIXEL;
     u32 bounceCount = 4; // TODO: Use MAX_BOUNCES constant
 #if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||      \
      SP_DEBUG_MIDPHASE_INTERSECTION_COUNT)
@@ -228,8 +220,8 @@ void sp_PathTraceTile(
                     }
                     else
                     {
-                        // TODO: Constant for background material
-                        pathVertex->materialId = U32_MAX;
+                        pathVertex->materialId =
+                            materialSystem->backgroundMaterialId;
                         pathVertex->outgoingDir = -rayDirection;
 
                         // Count ray miss for metrics
