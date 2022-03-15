@@ -82,12 +82,14 @@ sp_MaterialOutput sp_EvaluateMaterial(sp_MaterialSystem *materialSystem,
         // emission = materialSystem->backgroundEmission;
 
         // Compute UVs
-        vec2 sphereCoords = ToSphericalCoordinates(vertex->outgoingDir);
+        // Reverse direction as outgoingDir is the direction the light is
+        // coming from, however we want to sample the equirectangular map in the
+        // direction of the surface towards the light source
+        vec2 sphereCoords = ToSphericalCoordinates(-vertex->outgoingDir);
         vec2 uv = MapToEquirectangular(sphereCoords);
 
         // Sample image
-        // TODO: Why no flip?
-        // uv.y = 1.0f - uv.y; // Flip Y axis as usual
+        uv.y = 1.0f - uv.y; // Flip Y axis as usual
         output.emission = SampleImageNearest(*emissionTexture, uv).xyz;
     }
     else
