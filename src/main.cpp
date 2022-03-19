@@ -973,14 +973,8 @@ internal void UnloadLibraryCode(LibraryCode *lib)
 internal sp_Mesh sp_CreateMeshFromMeshData(
     MeshData meshData, MemoryArena *arena)
 {
-    vec3 *vertices = AllocateArray(arena, vec3, meshData.vertexCount);
-    for (u32 i = 0; i < meshData.vertexCount; i++)
-    {
-        vertices[i] = meshData.vertices[i].position;
-    }
-
-    sp_Mesh mesh = sp_CreateMesh(vertices, meshData.vertexCount,
-            meshData.indices, meshData.indexCount);
+    sp_Mesh mesh = sp_CreateMesh(meshData.vertices, meshData.vertexCount,
+        meshData.indices, meshData.indexCount);
 
     return mesh;
 }
@@ -1006,7 +1000,7 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
     {
-        if (i != Material_Background)
+        if ((i != Material_Background) && (i != Material_CheckerBoard))
         {
             sp_Material material = {};
             material.albedo = materialData[i].baseColor;
@@ -1245,12 +1239,19 @@ int main(int argc, char **argv)
 
     sp_MaterialSystem materialSystem = {};
     sp_RegisterTexture(&materialSystem, image, 5);
+    sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
 
     sp_Material backgroundMaterial = {};
     backgroundMaterial.emissionTexture = 5;
     sp_RegisterMaterial(
         &materialSystem, backgroundMaterial, Material_Background);
     materialSystem.backgroundMaterialId = Material_Background;
+
+    sp_Material checkerboardMaterial = {};
+    checkerboardMaterial.albedoTexture = 6;
+    sp_RegisterMaterial(
+        &materialSystem, checkerboardMaterial, Material_CheckerBoard);
+
     context.materialSystem = &materialSystem;
 
     // NOTE: Testing code

@@ -8,6 +8,7 @@
 #include "ray_intersection.h"
 #include "asset_loader/asset_loader.h"
 #include "image.h"
+#include "mesh.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "simd_path_tracer.h"
@@ -234,10 +235,10 @@ void TestRayIntersectScene()
         Vec3(2),
     };
 
-    vec3 vertices[] = {
-        Vec3(-0.5, -0.5, 0),
-        Vec3(0.5, -0.5, 0),
-        Vec3(0.0, 0.5, 0),
+    VertexPNT vertices[] = {
+        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.0, 0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
     };
 
     u32 indices[] = { 0, 1, 2 };
@@ -369,10 +370,10 @@ void TestMetrics()
 void TestRayIntersectMesh()
 {
     // Given a mesh
-    vec3 vertices[] = {
-        Vec3(-0.5, -0.5, 0),
-        Vec3(0.5, -0.5, 0),
-        Vec3(0.0, 0.5, 0),
+    VertexPNT vertices[] = {
+        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.0, 0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
     };
 
     u32 indices[] = { 0, 1, 2 };
@@ -397,10 +398,10 @@ void TestRayIntersectMesh()
 void TestCreateMeshBuildsBvhTreeSingleTriangle()
 {
     // Given vertices and indices for a single triangle
-    vec3 vertices[] = {
-        Vec3(-0.5, -0.5, 0),
-        Vec3(0.5, -0.5, 0),
-        Vec3(0.0, 0.5, 0),
+    VertexPNT vertices[] = {
+        {Vec3(-0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.5, -0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
+        {Vec3(0.0, 0.5, 0), Vec3(0, 0, 1), Vec2(0, 0)},
     };
 
     u32 indices[] = { 0, 1, 2 };

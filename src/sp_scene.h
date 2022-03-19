@@ -2,7 +2,7 @@
 
 struct sp_Mesh
 {
-    vec3 *vertices; // Where dis memory at?
+    VertexPNT *vertices; // Where dis memory at?
     u32 *indices;
     u32 vertexCount;
     u32 indexCount;
@@ -40,6 +40,7 @@ struct sp_RayIntersectSceneResult
     f32 t;
     u32 materialId;
     vec3 normal;
+    vec2 uv;
 
 #if SP_DEBUG_BROADPHASE_INTERSECTION_COUNT
     u32 broadphaseIntersectionCount;

@@ -6,7 +6,7 @@ void sp_InitializeScene(sp_Scene *scene, MemoryArena *arena)
 
 // FIXME: What do we do with the memory!?!??!
 sp_Mesh sp_CreateMesh(
-    vec3 *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
+    VertexPNT *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
 {
     sp_Mesh result = {};
     result.vertices = vertices;
@@ -39,9 +39,9 @@ void sp_BuildMeshMidphase(
         indices[2] = mesh->indices[i * 3 + 2];
 
         // Fetch triangle vertices
-        vertices[0] = mesh->vertices[indices[0]];
-        vertices[1] = mesh->vertices[indices[1]];
-        vertices[2] = mesh->vertices[indices[2]];
+        vertices[0] = mesh->vertices[indices[0]].position;
+        vertices[1] = mesh->vertices[indices[1]].position;
+        vertices[2] = mesh->vertices[indices[2]].position;
 
         // Take min and max value of each vertex in the triangle
         aabbMin[i] = Min(vertices[0], Min(vertices[1], vertices[2]));
@@ -50,6 +50,27 @@ void sp_BuildMeshMidphase(
 
     // Build BVH tree
     mesh->midphaseTree = bvh_CreateTree(arena, aabbMin, aabbMax, triangleCount);
+}
+
+// Copy of ComputeAabb from aabb.h but for VertexPNT type
+inline Aabb ComputeAabb(VertexPNT *vertices, u32 vertexCount)
+{
+    Assert(vertices != NULL);
+    Assert(vertexCount > 0);
+
+    Aabb result = {};
+    result.min = vertices[0].position;
+    result.max = vertices[0].position;
+
+    // Build AABB by taking the min and max value of each component of the
+    // input vertices
+    for (u32 i = 1; i < vertexCount; ++i)
+    {
+        result.min = Min(result.min, vertices[i].position);
+        result.max = Max(result.max, vertices[i].position);
+    }
+
+    return result;
 }
 
 void sp_AddObjectToScene(sp_Scene *scene, sp_Mesh mesh, u32 material,
@@ -147,7 +168,7 @@ sp_RayIntersectMeshResult sp_RayIntersectMesh(
         indices[2] = mesh.indices[triangleIndex * 3 + 2];
 
         // Fetch vertices using the computed indices
-        vec3 vertices[3];
+        VertexPNT vertices[3];
         vertices[0] = mesh.vertices[indices[0]];
         vertices[1] = mesh.vertices[indices[1]];
         vertices[2] = mesh.vertices[indices[2]];
@@ -155,8 +176,9 @@ sp_RayIntersectMeshResult sp_RayIntersectMesh(
         u64 triangleIntersectStart = __rdtsc();
 
         // Perform ray intersect triangle test
-        RayIntersectTriangleResult triangleIntersect = RayIntersectTriangle(
-            rayOrigin, rayDirection, vertices[0], vertices[1], vertices[2]);
+        RayIntersectTriangleResult triangleIntersect =
+            RayIntersectTriangle(rayOrigin, rayDirection, vertices[0].position,
+                vertices[1].position, vertices[2].position);
 
         metrics->values[sp_Metric_CyclesElapsed_RayIntersectTriangle] +=
             __rdtsc() - triangleIntersectStart;
@@ -169,6 +191,15 @@ sp_RayIntersectMeshResult sp_RayIntersectMesh(
                 nearestTriangleIntersection.t < 0.0f)
             {
                 nearestTriangleIntersection = triangleIntersect;
+
+                // Compute UVs from barycentric coordinates
+                f32 w =
+                    1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
+                vec2 uv =
+                    vertices[0].textureCoord * w +
+                    vertices[1].textureCoord * triangleIntersect.uv.x +
+                    vertices[2].textureCoord * triangleIntersect.uv.y;
+                nearestTriangleIntersection.uv = uv;
             }
         }
     }
@@ -274,6 +305,7 @@ sp_RayIntersectSceneResult sp_RayIntersectScene(
                 result.t = t;
                 result.materialId = material;
                 result.normal = worldNormal;
+                result.uv = triangleIntersection.uv;
                 // TODO: Store other properties for the intersection
             }
         }

@@ -190,6 +190,7 @@ void sp_PathTraceTile(
                         pathVertex->worldPosition = rayOrigin + rayDirection * result.t;
                         pathVertex->outgoingDir = -rayDirection;
                         pathVertex->normal = result.normal;
+                        pathVertex->uv = result.uv;
 
                         // Compute random direction on hemi-sphere around
                         // result.normal

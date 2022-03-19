@@ -14,6 +14,7 @@
 #include "bvh.h"
 #include "ray_intersection.h"
 #include "asset_loader/asset_loader.h"
+#include "mesh.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
 #include "sp_metrics.h"
@@ -69,13 +70,7 @@ void TestLoadMesh()
 void TestBuildMeshMidphase()
 {
     MeshData meshData = CreateIcosahedronMesh(3, &memoryArena);
-
-    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
-    for (u32 i = 0; i < meshData.vertexCount; i++)
-    {
-        vertices[i] = meshData.vertices[i].position;
-    }
-    sp_Mesh mesh = sp_CreateMesh(vertices, meshData.vertexCount,
+    sp_Mesh mesh = sp_CreateMesh(meshData.vertices, meshData.vertexCount,
             meshData.indices, meshData.indexCount);
     sp_BuildMeshMidphase(&mesh, &memoryArena, &memoryArena);
 
@@ -110,15 +105,8 @@ void TestSimdPathTracer()
 
     const char *meshName = "bunny.obj";
     MeshData meshData = LoadMesh(meshName, &memoryArena, g_AssetDir);
-
-    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
-    for (u32 i = 0; i < meshData.vertexCount; i++)
-    {
-        vertices[i] = meshData.vertices[i].position;
-    }
-
-    sp_Mesh mesh = sp_CreateMesh(
-        vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+    sp_Mesh mesh = sp_CreateMesh(meshData.vertices, meshData.vertexCount,
+        meshData.indices, meshData.indexCount);
     MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Megabytes(6));
     MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(128));
     sp_BuildMeshMidphase(&mesh, &bvhNodeArena, &tempArena);
