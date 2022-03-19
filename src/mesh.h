@@ -47,5 +47,8 @@ enum
     Material_Background,
     Material_CheckerBoard,
     Material_White,
+    Material_BlueLight,
+    Material_WhiteLight,
+    Material_Black,
     MAX_MATERIALS,
 };

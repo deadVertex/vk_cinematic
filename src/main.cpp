@@ -1004,6 +1004,7 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
         {
             sp_Material material = {};
             material.albedo = materialData[i].baseColor;
+            material.emission = materialData[i].emission;
             // TODO: Don't ignore return value
             sp_RegisterMaterial(materialSystem, material, i);
         }
@@ -1159,6 +1160,9 @@ int main(int argc, char **argv)
     materialData[Material_Background].emission = Vec3(1, 0.95, 0.8);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
+    materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1) * 10.0;
+    materialData[Material_WhiteLight].emission = Vec3(1);
+    materialData[Material_Black].baseColor = Vec3(0);
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
@@ -1171,8 +1175,26 @@ int main(int argc, char **argv)
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
 
-    //AddEntity(&scene, Vec3(0, 0, 0), Quat(), Vec3(100), Mesh_Cube,
-        //Material_Background);
+#if 1
+    AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
+        Mesh_Plane, Material_CheckerBoard);
+
+    AddEntity(&scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
+        Mesh_Plane, Material_WhiteLight);
+
+    AddEntity(&scene, Vec3(0, 2, -8), Quat(), Vec3(5),
+        Mesh_Plane, Material_BlueLight);
+
+    for (u32 z = 0; z < 4; ++z)
+    {
+        for (u32 x = 0; x < 4; ++x)
+        {
+            vec3 origin = Vec3(-5, 1, -5);
+            vec3 p = origin + Vec3((f32)x, 0, (f32)z) * 3.0f;
+            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
+        }
+    }
+#else
     AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
         Mesh_Plane, Material_CheckerBoard);
 
@@ -1185,6 +1207,7 @@ int main(int argc, char **argv)
             AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
         }
     }
+#endif
 
     // Compute bounding box for each entity
     // TODO: Should not rely on CPU ray tracer for computing bounding boxes,
@@ -1245,12 +1268,16 @@ int main(int argc, char **argv)
     backgroundMaterial.emissionTexture = 5;
     sp_RegisterMaterial(
         &materialSystem, backgroundMaterial, Material_Background);
-    materialSystem.backgroundMaterialId = Material_Background;
 
     sp_Material checkerboardMaterial = {};
     checkerboardMaterial.albedoTexture = 6;
     sp_RegisterMaterial(
         &materialSystem, checkerboardMaterial, Material_CheckerBoard);
+
+    sp_Material blackMaterial = {};
+    sp_RegisterMaterial(
+        &materialSystem, blackMaterial, Material_Black);
+    materialSystem.backgroundMaterialId = Material_Black;
 
     context.materialSystem = &materialSystem;
 
