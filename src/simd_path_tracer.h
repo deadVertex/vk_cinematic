@@ -50,3 +50,9 @@ struct sp_Context
 
     // Texture data
 };
+
+inline void ClearImagePlane(ImagePlane *imagePlane)
+{
+    ClearToZero(imagePlane->pixels,
+        sizeof(vec4) * imagePlane->width * imagePlane->height);
+}

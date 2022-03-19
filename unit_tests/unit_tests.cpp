@@ -1,10 +1,17 @@
 #include "unity.h"
 
 #include "config.h"
-#include "cpu_ray_tracer.h"
+#include "platform.h"
+#include "intrinsics.h"
 #include "profiler.h"
 #include "work_queue.h"
+#include "math_lib.h"
 #include "ray_intersection.h"
+#include "mesh.h"
+#include "debug.h"
+#include "asset_loader/asset_loader.h"
+#include "image.h"
+#include "tile.h"
 
 #include "custom_assertions.h"
 
@@ -13,8 +20,6 @@
 #include "cubemap.cpp"
 #include "mesh_generation.cpp"
 #include "ray_intersection.cpp"
-#include "tree_utils.cpp"
-#include "cpu_ray_tracer.cpp"
 
 #define MEMORY_ARENA_SIZE Megabytes(1)
 
@@ -420,62 +425,6 @@ void TestRayIntersectTriangleMTBarycentricCoordsIssue()
     TEST_ASSERT_FLOAT_WITHIN(EPSILON, -1.0f, result.t);
 }
 
-void TestRayIntersectTriangleMeshFlatShading()
-{
-    vec3 rayDirection = Vec3(0, 0, -1);
-
-    // Given a mesh with different vertex normals and flat shading enabled
-    MeshData meshData = CreateTriangleMeshData(&memoryArena);
-    meshData.vertices[0].normal = Vec3(1, 0, 0);
-    meshData.vertices[1].normal = Vec3(0, 1, 0);
-    meshData.vertices[2].normal = Vec3(0, 0, 1);
-
-    RayTracerMesh mesh =
-        CreateMesh(meshData, &memoryArena, &memoryArena, false);
-
-    LocalMetrics localMetrics = {};
-
-    // When we intersect a two rays with that mesh
-    RayHitResult resultA = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
-
-    RayHitResult resultB = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0.5, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
-
-    // Then we get the same normal regards of where the ray intersects the
-    // triangle
-    TEST_ASSERT_TRUE(resultA.t >= 0);
-    TEST_ASSERT_TRUE(resultB.t >= 0);
-    AssertWithinVec3(EPSILON, resultA.normal, resultB.normal);
-};
-
-void TestRayIntersectTriangleMeshSmoothShading()
-{
-    vec3 rayDirection = Vec3(0, 0, -1);
-
-    // Given a mesh with different vertex normals and smooth shading enabled
-    MeshData meshData = CreateTriangleMeshData(&memoryArena);
-    meshData.vertices[0].normal = Vec3(1, 0, 0);
-    meshData.vertices[1].normal = Vec3(0, 1, 0);
-    meshData.vertices[2].normal = Vec3(0, 0, 1);
-
-    RayTracerMesh mesh = CreateMesh(meshData, &memoryArena, &memoryArena, true);
-
-    LocalMetrics localMetrics = {};
-
-    // When we intersect a two rays with that mesh
-    RayHitResult resultA = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
-
-    RayHitResult resultB = RayIntersectTriangleMesh(
-        mesh, Vec3(0, 0.5, 5), rayDirection, NULL, 0, 0.0f, &localMetrics);
-
-    // Then we get different normals for the intersection point
-    TEST_ASSERT_TRUE(resultA.t >= 0);
-    TEST_ASSERT_TRUE(resultB.t >= 0);
-    TEST_ASSERT_TRUE(Length(resultA.normal - resultB.normal) > EPSILON);
-};
-
 void TestNearestSampling()
 {
     // Given an image   | (0, 0, 0, 0) | (1, 1, 1, 1) |
@@ -647,9 +596,6 @@ int main()
     RUN_TEST(TestRayIntersectTriangleMiss);
     RUN_TEST(TestRayIntersectTriangleHitUV);
     RUN_TEST(TestRayIntersectTriangleMTBarycentricCoordsIssue);
-
-    RUN_TEST(TestRayIntersectTriangleMeshFlatShading);
-    RUN_TEST(TestRayIntersectTriangleMeshSmoothShading);
 
     RUN_TEST(TestNearestSampling);
     RUN_TEST(TestBilinearSampling);

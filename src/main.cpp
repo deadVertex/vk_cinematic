@@ -121,15 +121,12 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "sp_material_system.h"
 #include "sp_metrics.h"
 #include "simd_path_tracer.h"
-#include "cpu_ray_tracer.h"
 #include "simd.h"
 #include "aabb.h"
+#include "image.h"
 
 #include "debug.cpp"
 #include "ray_intersection.cpp"
-#include "tree_utils.cpp"
-#include "cpu_ray_tracer.cpp"
-#include "cpu_ray_tracer_manual_tests.cpp"
 #include "vulkan_renderer.cpp"
 #include "mesh.cpp"
 #include "cmdline.cpp"
@@ -549,8 +546,7 @@ internal void UpdateFreeRoamCamera(
     camera->rotation = rotation;
 }
 
-internal void Update(
-    VulkanRenderer *renderer, RayTracer *rayTracer, GameInput *input, f32 dt)
+internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
 {
     UpdateFreeRoamCamera(&g_camera, input, dt);
     UniformBufferObject *ubo = (UniformBufferObject *)renderer->uniformBuffer.data;
@@ -581,8 +577,6 @@ internal void Update(
     ubo->projectionMatrices[0] =
         correctionMatrix * Perspective(50.0f, aspect, 0.01f, 100.0f);
     ubo->projectionMatrices[1] = ubo->projectionMatrices[0];
-
-    rayTracer->viewMatrix = Translate(cameraPosition) * Rotate(cameraRotation);
 }
 
 internal void AddEntity(Scene *scene, vec3 position, quat rotation, vec3 scale,
@@ -647,20 +641,12 @@ internal void WorkerThread(WorkQueue *queue)
             rng.state = 0xF51C0E49;
 
             // Work to do
-#if USE_SIMD_PATH_TRACER
             sp_Metrics metrics = {};
             sp_Task *task = (sp_Task *)WorkQueuePop(queue, sizeof(sp_Task));
             sp_PathTraceTile(task->context, task->tile, &rng, &metrics);
 
             u32 index = AtomicExchangeAdd(&g_metricsBufferLength, 1);
             g_metricsBuffer[index] = metrics;
-#else
-            Task task = *(Task *)WorkQueuePop(queue, sizeof(Task));
-            ThreadData *threadData = task.threadData;
-            DoRayTracing(threadData->width, threadData->height,
-                threadData->imageBuffer, threadData->rayTracer,
-                threadData->scene, task.tile, &rng);
-#endif
         }
         else
         {
@@ -732,38 +718,29 @@ internal ThreadPool CreateThreadPool(WorkQueue *queue)
     return pool;
 }
 
-internal void AddRayTracingWorkQueue(
-    WorkQueue *workQueue, ThreadData *threadData, sp_Context *ctx)
+internal void AddRayTracingWorkQueue(WorkQueue *workQueue, sp_Context *ctx)
 {
     Assert(workQueue->head == workQueue->tail);
+
+    ImagePlane *imagePlane = ctx->camera->imagePlane;
 
     // TODO: Don't need to compute and store and array for this, could just
     // store a queue of tile indices that the worker threads read from. They
     // can then construct the tile data for each index from just the image
     // dimensions and tile dimensions.
     Tile tiles[MAX_TILES];
-    u32 tileCount = ComputeTiles(threadData->width, threadData->height,
+    u32 tileCount = ComputeTiles(imagePlane->width, imagePlane->height,
         TILE_WIDTH, TILE_HEIGHT, tiles, ArrayCount(tiles));
 
     workQueue->tail = 0; // oof
     for (u32 i = 0; i < tileCount; ++i)
     {
-#if USE_SIMD_PATH_TRACER
         sp_Task task = {};
         task.context = ctx;
         task.tile = tiles[i];
         g_metricsBufferLength = 0;
-#else
-        Task task = {};
-        task.threadData = threadData;
-        task.tile = tiles[i];
-#endif
         WorkQueuePush(workQueue, &task, sizeof(task));
     }
-
-    // TODO: Should have a nicer method for clearing the image
-    ClearToZero(threadData->imageBuffer,
-        sizeof(vec4) * threadData->width * threadData->height);
 
     workQueue->head = 0; // ooof
 }
@@ -800,29 +777,11 @@ internal void UploadMeshDataToGpu(
     VulkanCopyMeshDataToGpu(renderer);
 }
 
-internal void UploadMeshDataToCpuRayTracer(RayTracer *rayTracer,
-    SceneMeshData *sceneMeshData, MemoryArena *memoryArena,
-    MemoryArena *tempArena)
-{
-    for (u32 meshId = 0; meshId < MAX_MESHES; ++meshId)
-    {
-        rayTracer->meshes[meshId] = CreateMesh(
-            sceneMeshData->meshes[meshId], memoryArena, tempArena, true);
-    }
-}
-
 internal void UploadMaterialDataToGpu(
     VulkanRenderer *renderer, Material *materialData)
 {
     Material *materials = (Material *)renderer->materialBuffer.data;
     CopyMemory(materials, materialData, sizeof(Material) * MAX_MATERIALS);
-}
-
-internal void UploadMaterialDataToCpuRayTracer(
-    RayTracer *rayTracer, Material *materialData)
-{
-    CopyMemory(
-        rayTracer->materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
 internal void DrawMeshDataNormals(
@@ -1113,10 +1072,6 @@ int main(int argc, char **argv)
     VulkanRenderer renderer = {};
     VulkanInit(&renderer, g_Window);
 
-    // Create CPU Ray tracer
-    RayTracer rayTracer = {};
-    rayTracer.useAccelerationStructure = true;
-
     // Create SIMD Path tracer
     sp_Context context = {};
 
@@ -1127,21 +1082,15 @@ int main(int argc, char **argv)
     // Publish mesh data to vulkan renderer
     UploadMeshDataToGpu(&renderer, &sceneMeshData);
 
-    // Publish mesh data to CPU ray tracer
-    UploadMeshDataToCpuRayTracer(&rayTracer, &sceneMeshData,
-        &accelerationStructureMemoryArena, &tempArena);
-
     // Load image data
     //HdrImage image =
         //LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
     HdrImage image =
         LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
-    rayTracer.image = image;
 
     // Create checkerboard image
     HdrImage checkerBoardImage = CreateCheckerBoardImage(&imageDataArena);
     UploadHdrImageToGPU(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
-    rayTracer.checkerBoardImage = checkerBoardImage;
 
     // Create and upload test cube map
     HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);
@@ -1166,9 +1115,6 @@ int main(int argc, char **argv)
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
-
-    // Publish material data to CPU ray tracer
-    UploadMaterialDataToCpuRayTracer(&rayTracer, materialData);
 
     // Create scene
     Scene scene = {};
@@ -1212,24 +1158,7 @@ int main(int argc, char **argv)
     // Compute bounding box for each entity
     // TODO: Should not rely on CPU ray tracer for computing bounding boxes,
     // they should be calculated as part of mesh loading.
-    ComputeEntityBoundingBoxes(&scene, &rayTracer);
-
-    // Upload scene to CPU ray tracer
-    rayTracer.aabbTree = BuildSceneBroadphase(
-        &scene, &accelerationStructureMemoryArena, &tempArena);
-
-#if ANALYZE_BROAD_PHASE_TREE
-    LogMessage("Evaluate Broadphase tree");
-    EvaluateTree(rayTracer.aabbTree);
-    LogMessage("Evaluate Mesh_Bunny tree");
-    EvaluateTree(rayTracer.meshes[Mesh_Bunny].aabbTree);
-    LogMessage("Evaluate Mesh_Monkey tree");
-    EvaluateTree(rayTracer.meshes[Mesh_Monkey].aabbTree);
-    LogMessage("Evaluate Mesh_Sphere tree");
-    EvaluateTree(rayTracer.meshes[Mesh_Sphere].aabbTree);
-    LogMessage("Triangle count: %u",
-        rayTracer.meshes[Mesh_Sphere].meshData.indexCount / 3);
-#endif
+    //ComputeEntityBoundingBoxes(&scene, &rayTracer);
 
     g_Profiler.samples =
         (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
@@ -1238,14 +1167,6 @@ int main(int argc, char **argv)
     DebugDrawingBuffer debugDrawBuffer = {};
     debugDrawBuffer.vertices = (VertexPC *)renderer.debugVertexDataBuffer.data;
     debugDrawBuffer.max = DEBUG_VERTEX_BUFFER_SIZE / sizeof(VertexPC);
-    rayTracer.debugDrawBuffer = &debugDrawBuffer;
-
-    ThreadData threadData = {};
-    threadData.width = RAY_TRACER_WIDTH;
-    threadData.height = RAY_TRACER_HEIGHT;
-    threadData.imageBuffer = (vec4 *)renderer.imageUploadBuffer.data;
-    threadData.rayTracer = &rayTracer;
-    threadData.scene = &scene;
 
     ImagePlane imagePlane = {};
     imagePlane.pixels = (vec4 *)renderer.imageUploadBuffer.data;
@@ -1286,7 +1207,8 @@ int main(int argc, char **argv)
         &meshDataArena, &materialSystem, materialData, &tempArena);
     sp_BuildSceneBroadphase(&pathTracerScene);
 
-    WorkQueue workQueue = CreateWorkQueue(&workQueueArena, sizeof(Task), 1024);
+    WorkQueue workQueue =
+        CreateWorkQueue(&workQueueArena, sizeof(sp_Task), 1024);
     ThreadPool threadPool = CreateThreadPool(&workQueue);
 
     LogMessage("Start up time: %gs", glfwGetTime());
@@ -1346,7 +1268,6 @@ int main(int argc, char **argv)
         libraryCode.doThing();
 #endif
 
-#if USE_SIMD_PATH_TRACER
         if (isRayTracing)
         {
             // Only print metrics while we have path tracing work remaining
@@ -1426,7 +1347,6 @@ int main(int argc, char **argv)
                 }
             }
         }
-#endif
 
         if (WasPressed(input.buttonStates[KEY_SPACE]))
         {
@@ -1444,7 +1364,8 @@ int main(int argc, char **argv)
                 if (workQueue.head == workQueue.tail)
                 {
                     isRayTracing = true;
-                    AddRayTracingWorkQueue(&workQueue, &threadData, &context);
+                    ClearImagePlane(&imagePlane);
+                    AddRayTracingWorkQueue(&workQueue, &context);
                     rayTracingStartTime = glfwGetTime();
                 }
             }
@@ -1452,11 +1373,6 @@ int main(int argc, char **argv)
             {
                 isRayTracing = false;
             }
-        }
-
-        if (WasPressed(input.buttonStates[KEY_P]))
-        {
-            DumpMetrics(&g_Metrics);
         }
 
         if (LengthSq(g_camera.position - lastCameraPosition) > 0.0001f ||
@@ -1498,7 +1414,7 @@ int main(int argc, char **argv)
             //pathTracerScene.meshes[4].midphaseTree.root, &debugDrawBuffer);
 
         // Move camera around
-        Update(&renderer, &rayTracer, &input, dt);
+        Update(&renderer, &input, dt);
 
         // TODO: Don't do this here
         UniformBufferObject *ubo =

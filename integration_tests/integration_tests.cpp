@@ -22,10 +22,9 @@
 
 #include "simd.h"
 #include "aabb.h"
+#include "image.h"
 
 #include "custom_assertions.h"
-
-#include "cpu_ray_tracer.h"
 
 #include "mesh.cpp"
 

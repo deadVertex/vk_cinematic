@@ -9,6 +9,7 @@
 #include "bvh.h"
 #include "ray_intersection.h"
 #include "asset_loader/asset_loader.h"
+#include "mesh.h"
 #include "sp_metrics.h"
 #include "sp_scene.h"
 #include "sp_material_system.h"
@@ -137,15 +138,8 @@ void TestPathTraceTile()
     sp_InitializeScene(&scene, &memoryArena);
 
     MeshData meshData = CreateIcosahedronMesh(3, &memoryArena);
-
-    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
-    for (u32 i = 0; i < meshData.vertexCount; i++)
-    {
-        vertices[i] = meshData.vertices[i].position;
-    }
-
-    sp_Mesh mesh = sp_CreateMesh(
-        vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+    sp_Mesh mesh = sp_CreateMesh(meshData.vertices, meshData.vertexCount,
+        meshData.indices, meshData.indexCount);
     // FIXME: Need to build mesh midphase bvh tree!
 
     sp_MaterialSystem materialSystem = {};
@@ -220,15 +214,8 @@ void TestMeshMidphase()
     RandomNumberGenerator rng = { 0x1A34C249 };
 
     MeshData meshData = CreateIcosahedronMesh(3, &memoryArena);
-
-    vec3 *vertices = AllocateArray(&memoryArena, vec3, meshData.vertexCount);
-    for (u32 i = 0; i < meshData.vertexCount; i++)
-    {
-        vertices[i] = meshData.vertices[i].position;
-    }
-
     sp_Mesh mesh = sp_CreateMesh(
-        vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
+        meshData.vertices, meshData.vertexCount, meshData.indices, meshData.indexCount);
     MemoryArena bvhNodeArena = SubAllocateArena(&memoryArena, Megabytes(1));
     MemoryArena tempArena = SubAllocateArena(&memoryArena, Kilobytes(64));
 
