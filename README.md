@@ -5,6 +5,8 @@
 A sandbox project for playing around with computer graphics, experimenting with
 rasterization based methods and comparing them against CPU/GPU ray tracing.
 
+![screenshot](/docs/2022-03-20.png)
+![screenshot](/docs/2022-01-30.png)
 ![screenshot](/docs/2021-11-20.png)
 ![screenshot](/docs/2021-10-31.png)
 ![screenshot](/docs/2021-10-26.png)
