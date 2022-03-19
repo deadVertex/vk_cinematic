@@ -5,14 +5,15 @@ void sp_InitializeScene(sp_Scene *scene, MemoryArena *arena)
 }
 
 // FIXME: What do we do with the memory!?!??!
-sp_Mesh sp_CreateMesh(
-    VertexPNT *vertices, u32 vertexCount, u32 *indices, u32 indexCount)
+sp_Mesh sp_CreateMesh(VertexPNT *vertices, u32 vertexCount, u32 *indices,
+    u32 indexCount, b32 useSmoothShading = false)
 {
     sp_Mesh result = {};
     result.vertices = vertices;
     result.vertexCount = vertexCount;
     result.indices = indices;
     result.indexCount = indexCount;
+    result.useSmoothShading = useSmoothShading;
 
     return result;
 }
@@ -199,6 +200,16 @@ sp_RayIntersectMeshResult sp_RayIntersectMesh(
                     vertices[0].textureCoord * w +
                     vertices[1].textureCoord * triangleIntersect.uv.x +
                     vertices[2].textureCoord * triangleIntersect.uv.y;
+
+                if (mesh.useSmoothShading)
+                {
+                    // Compute smooth normal by interpolating the 3 vertex
+                    // normals using barycentric coordinates
+                    nearestTriangleIntersection.normal = Normalize(
+                        vertices[0].normal * w +
+                        vertices[1].normal * triangleIntersect.uv.x +
+                        vertices[2].normal * triangleIntersect.uv.y);
+                }
                 nearestTriangleIntersection.uv = uv;
             }
         }

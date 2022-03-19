@@ -971,10 +971,10 @@ internal void UnloadLibraryCode(LibraryCode *lib)
 #endif
 
 internal sp_Mesh sp_CreateMeshFromMeshData(
-    MeshData meshData, MemoryArena *arena)
+    MeshData meshData, MemoryArena *arena, b32 useSmoothShading)
 {
     sp_Mesh mesh = sp_CreateMesh(meshData.vertices, meshData.vertexCount,
-        meshData.indices, meshData.indexCount);
+        meshData.indices, meshData.indexCount, useSmoothShading);
 
     return mesh;
 }
@@ -987,13 +987,13 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     // Upload meshes
     sp_Mesh meshes[MAX_MESHES];
     meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Sphere], meshDataArena);
+        sceneMeshData->meshes[Mesh_Sphere], meshDataArena, true);
     // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
     sp_BuildMeshMidphase(&meshes[Mesh_Sphere], meshDataArena,
             tempArena);
 
     meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Plane], meshDataArena);
+        sceneMeshData->meshes[Mesh_Plane], meshDataArena, false);
     sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena,
             tempArena);
 

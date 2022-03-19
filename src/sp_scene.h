@@ -8,6 +8,7 @@ struct sp_Mesh
     u32 indexCount;
 
     bvh_Tree midphaseTree;
+    b32 useSmoothShading;
 };
 
 // TODO: Switch to dynamic arrays in the future
