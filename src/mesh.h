@@ -44,7 +44,6 @@ enum
 {
     Material_Red,
     Material_Blue,
-    Material_Background,
     Material_CheckerBoard,
     Material_White,
     Material_BlueLight,

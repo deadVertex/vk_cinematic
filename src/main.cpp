@@ -959,7 +959,8 @@ internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
     {
-        if ((i != Material_Background) && (i != Material_CheckerBoard))
+        // TODO: Do texture uploading here too
+        if (i != Material_CheckerBoard)
         {
             sp_Material material = {};
             material.albedo = materialData[i].baseColor;
@@ -1106,7 +1107,6 @@ int main(int argc, char **argv)
     Material materialData[MAX_MATERIALS] = {};
     materialData[Material_Red].baseColor = Vec3(0.18, 0.1, 0.1);
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
-    materialData[Material_Background].emission = Vec3(1, 0.95, 0.8);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1) * 10.0;
@@ -1185,10 +1185,12 @@ int main(int argc, char **argv)
     sp_RegisterTexture(&materialSystem, image, 5);
     sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
 
+#if 0
     sp_Material backgroundMaterial = {};
     backgroundMaterial.emissionTexture = 5;
     sp_RegisterMaterial(
         &materialSystem, backgroundMaterial, Material_Background);
+#endif
 
     sp_Material checkerboardMaterial = {};
     checkerboardMaterial.albedoTexture = 6;

@@ -3,6 +3,8 @@
 // FIXME: Copied from src/shaders/skybox.frag.glsl
 #define PI 3.14159265359f
 
+#define Material_CheckerBoard 2
+
 struct Material
 {
     float baseColorR, baseColorG, baseColorB;
@@ -31,7 +33,7 @@ void main()
     vec3 baseColor = vec3(materials[fragMaterialIndex].baseColorR,
                           materials[fragMaterialIndex].baseColorG,
                           materials[fragMaterialIndex].baseColorB);
-    if (fragMaterialIndex == 3)
+    if (fragMaterialIndex == Material_CheckerBoard)
     {
         baseColor = texture(
             sampler2D(checkerBoardTexture, defaultSampler), fragTexCoord).rgb;

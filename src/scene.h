@@ -18,4 +18,6 @@ struct Scene
     Entity *entities;
     u32 count;
     u32 max;
+
+    u32 backgroundMaterial;
 };

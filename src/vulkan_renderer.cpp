@@ -964,10 +964,11 @@ internal void VulkanRender(
         VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
         &renderer->descriptorSets[imageIndex], 0, NULL);
 
+#if 0
     // Draw skybox
     {
         u32 meshIndex = Mesh_Cube;
-        u32 materialIndex = Material_Background;
+        u32 materialIndex = scene.backgroundMaterial;
         Mesh mesh = renderer->meshes[meshIndex];
         vkCmdBindPipeline(renderer->commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
@@ -989,6 +990,7 @@ internal void VulkanRender(
 
         vkCmdDrawIndexed(renderer->commandBuffer, mesh.indexCount, 1, 0, 0, 0);
     }
+#endif
 
     // Draw mesh
     for (u32 i = 0; i < scene.count; ++i)
@@ -997,17 +999,8 @@ internal void VulkanRender(
         Mesh mesh = renderer->meshes[meshIndex];
         u32 materialIndex = scene.entities[i].material;
 
-        // FIXME: Should be defined from the material!
-        if (materialIndex == Material_Background)
-        {
-            vkCmdBindPipeline(renderer->commandBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->skyboxPipeline);
-        }
-        else
-        {
-            vkCmdBindPipeline(renderer->commandBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
-        }
+        vkCmdBindPipeline(renderer->commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
         // Bind index buffer
         vkCmdBindIndexBuffer(renderer->commandBuffer,
