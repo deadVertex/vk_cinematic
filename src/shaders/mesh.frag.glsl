@@ -11,9 +11,21 @@ struct Material
     float emissionColorR, emissionColorG, emissionColorB;
 };
 
+struct SphereLightData
+{
+    float px, py, pz;
+    float radianceR, radianceG, radianceB;
+    float radius;
+};
+
 layout(binding = 5) readonly buffer Materials
 {
     Material materials[];
+};
+
+layout(binding = 10) readonly buffer LightData
+{
+    SphereLightData sphereLights[];
 };
 
 layout(binding = 2) uniform sampler defaultSampler;
@@ -58,13 +70,22 @@ void main()
     vec3 outgoingRadiance = baseColor * incomingRadiance;
 
     // Sphere light test
-    vec3 sphereCenter = vec3(0, 10, 0);
+    uint sphereLightIndex = 0;
+
+    vec3 sphereCenter = vec3(sphereLights[sphereLightIndex].px,
+                             sphereLights[sphereLightIndex].py,
+                             sphereLights[sphereLightIndex].pz);
+    float radius = sphereLights[sphereLightIndex].radius;
+    vec3 lightRadiance = vec3(sphereLights[sphereLightIndex].radianceR,
+                              sphereLights[sphereLightIndex].radianceG,
+                              sphereLights[sphereLightIndex].radianceB);
+
     vec3 L = sphereCenter - fragWorldPosition;
-    float radius = 2.5f;
     float dist = length(L);
     L = normalize(L);
     float k = radius / dist;
-    vec3 lightRadiance = vec3(1) * (k * k);
+    lightRadiance *= (k * k);
+
     outgoingRadiance = baseColor * lightRadiance * max(dot(normal, L), 0.0);
     outgoingRadiance += emissionColor;
 

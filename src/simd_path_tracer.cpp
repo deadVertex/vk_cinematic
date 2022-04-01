@@ -117,7 +117,7 @@ void sp_PathTraceTile(
 
     // TODO: Expose these via parameter!
     u32 sampleCount = SAMPLES_PER_PIXEL;
-    u32 bounceCount = 4; // TODO: Use MAX_BOUNCES constant
+    u32 bounceCount = 2; // TODO: Use MAX_BOUNCES constant
 #if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||      \
      SP_DEBUG_MIDPHASE_INTERSECTION_COUNT)
     bounceCount = 1;

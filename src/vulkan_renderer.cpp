@@ -270,7 +270,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[10] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[11] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -313,6 +313,10 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[9].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     layoutBindings[9].descriptorCount = 1;
     layoutBindings[9].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[10].binding = 10;
+    layoutBindings[10].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[10].descriptorCount = 1;
+    layoutBindings[10].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -423,6 +427,7 @@ internal void UploadSceneDataToGpu(VulkanRenderer *renderer, Scene scene)
     }
 }
 
+// FIXME: Why does this share the same descriptor sets as the mesh shader!
 internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
 {
     // Post processing descriptor sets
@@ -445,6 +450,10 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         materialBufferInfo.buffer = renderer->materialBuffer.handle;
         materialBufferInfo.range = VK_WHOLE_SIZE;
 
+        VkDescriptorBufferInfo lightBufferInfo = {};
+        lightBufferInfo.buffer = renderer->lightBuffer.handle;
+        lightBufferInfo.range = VK_WHOLE_SIZE;
+
         VkDescriptorImageInfo vulkanImageInfo = {};
         vulkanImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         vulkanImageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
@@ -453,7 +462,7 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         rayTracerImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         rayTracerImageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
 
-        VkWriteDescriptorSet descriptorWrites[6] = {};
+        VkWriteDescriptorSet descriptorWrites[7] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -492,6 +501,12 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[5].descriptorCount = 1;
         descriptorWrites[5].pImageInfo = &rayTracerImageInfo;
+        descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[6].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[6].dstBinding = 10;
+        descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[6].descriptorCount = 1;
+        descriptorWrites[6].pBufferInfo = &lightBufferInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
@@ -637,6 +652,13 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->materialBuffer =
         VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
             MATERIAL_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // TODO: Combine this with materialBuffer?
+    renderer->lightBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            LIGHT_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -844,11 +866,15 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         materialBufferInfo.buffer = renderer->materialBuffer.handle;
         materialBufferInfo.range = VK_WHOLE_SIZE;
 
+        VkDescriptorBufferInfo lightBufferInfo = {};
+        lightBufferInfo.buffer = renderer->lightBuffer.handle;
+        lightBufferInfo.range = VK_WHOLE_SIZE;
+
         VkDescriptorImageInfo imageInfo = {};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
 
-        VkWriteDescriptorSet descriptorWrites[5] = {};
+        VkWriteDescriptorSet descriptorWrites[6] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -880,6 +906,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pBufferInfo = &materialBufferInfo;
+        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[5].dstSet = renderer->descriptorSets[i];
+        descriptorWrites[5].dstBinding = 10;
+        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[5].descriptorCount = 1;
+        descriptorWrites[5].pBufferInfo = &lightBufferInfo;
 
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);

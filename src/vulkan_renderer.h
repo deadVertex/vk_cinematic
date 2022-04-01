@@ -10,6 +10,9 @@
 #define DEBUG_VERTEX_BUFFER_SIZE Megabytes(256)
 #define MODEL_MATRICES_BUFFER_SIZE Megabytes(4)
 #define MATERIAL_BUFFER_SIZE Kilobytes(4) // TODO: Combine this UBO?
+#define LIGHT_BUFFER_SIZE Kilobytes(1) // TODO: Combine this with material buffer?
+
+#define MAX_SPHERE_LIGHTS 1
 
 #define TEXTURE_UPLOAD_BUFFER_SIZE Megabytes(128)
 
@@ -31,6 +34,13 @@ enum
 {
     Output_None = 0,
     Output_ShowDebugDrawing = 1,
+};
+
+struct SphereLightData
+{
+    vec3 position;
+    vec3 radiance;
+    f32 radius;
 };
 
 struct Mesh
@@ -166,6 +176,7 @@ struct VulkanRenderer
     VulkanBuffer imageUploadBuffer;
     VulkanBuffer modelMatricesBuffer;
     VulkanBuffer materialBuffer;
+    VulkanBuffer lightBuffer;
 
     // FIXME: Should be combined with imageUploadBuffer but imageUploadBuffer
     // is currently being used in a strange way for uploading the CPU ray

@@ -784,6 +784,13 @@ internal void UploadMaterialDataToGpu(
     CopyMemory(materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
+internal void UploadLightDataToGpu(
+    VulkanRenderer *renderer, SphereLightData *sphereLightData)
+{
+    SphereLightData *dst = (SphereLightData *)renderer->lightBuffer.data;
+    CopyMemory(dst, sphereLightData, sizeof(SphereLightData) * MAX_SPHERE_LIGHTS);
+}
+
 internal void DrawMeshDataNormals(
     DebugDrawingBuffer *debugDrawBuffer, MeshData meshData)
 {
@@ -1121,15 +1128,11 @@ int main(int argc, char **argv)
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
 
-#if 1
     AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
         Mesh_Plane, Material_CheckerBoard);
 
     AddEntity(&scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
         Mesh_Sphere, Material_WhiteLight);
-
-    //AddEntity(&scene, Vec3(0, 2, -8), Quat(), Vec3(5),
-        //Mesh_Plane, Material_BlueLight);
 
     for (u32 z = 0; z < 4; ++z)
     {
@@ -1140,25 +1143,18 @@ int main(int argc, char **argv)
             AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
         }
     }
-#else
-    AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
-        Mesh_Plane, Material_CheckerBoard);
 
-    for (u32 y = 0; y < 6; ++y)
-    {
-        for (u32 x = 0; x < 5; ++x)
-        {
-            vec3 origin = Vec3(-5, -5, 0);
-            vec3 p = origin + Vec3((f32)x, (f32)y, 0) * 3.0f;
-            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
-        }
-    }
-#endif
+    // TODO: Support more than 1 light
+    SphereLightData sphereLightData[MAX_SPHERE_LIGHTS];
 
-    // Compute bounding box for each entity
-    // TODO: Should not rely on CPU ray tracer for computing bounding boxes,
-    // they should be calculated as part of mesh loading.
-    //ComputeEntityBoundingBoxes(&scene, &rayTracer);
+    // TODO: Derive this data from the scene or maybe annotate the scene data
+    // with this lighting data
+    sphereLightData[0].position = Vec3(0, 10, 0);
+    sphereLightData[0].radiance = materialData[Material_WhiteLight].emission;
+    sphereLightData[0].radius = 5.0 * 0.5f;
+
+    // Publish light data to vulkan renderer
+    UploadLightDataToGpu(&renderer, sphereLightData);
 
     g_Profiler.samples =
         (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
