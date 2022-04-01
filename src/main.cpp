@@ -945,38 +945,9 @@ internal sp_Mesh sp_CreateMeshFromMeshData(
     return mesh;
 }
 
-internal void BuildPathTracerScene(sp_Scene *scene, Scene *entityScene,
-    SceneMeshData *sceneMeshData, MemoryArena *meshDataArena,
-    sp_MaterialSystem *materialSystem, Material *materialData,
-    MemoryArena *tempArena)
+internal void BuildPathTracerScene(
+    sp_Scene *scene, Scene *entityScene, sp_Mesh *meshes)
 {
-    // Upload meshes
-    sp_Mesh meshes[MAX_MESHES];
-    meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Sphere], meshDataArena, true);
-    // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
-    sp_BuildMeshMidphase(&meshes[Mesh_Sphere], meshDataArena,
-            tempArena);
-
-    meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Plane], meshDataArena, false);
-    sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena,
-            tempArena);
-
-    // Upload materials
-    for (u32 i = 0; i < MAX_MATERIALS; ++i)
-    {
-        // TODO: Do texture uploading here too
-        if (i != Material_CheckerBoard)
-        {
-            sp_Material material = {};
-            material.albedo = materialData[i].baseColor;
-            material.emission = materialData[i].emission;
-            // TODO: Don't ignore return value
-            sp_RegisterMaterial(materialSystem, material, i);
-        }
-    }
-
     for (u32 i = 0; i < entityScene->count; i++)
     {
         Entity *entity = entityScene->entities + i;
@@ -1177,6 +1148,19 @@ int main(int argc, char **argv)
     sp_InitializeScene(&pathTracerScene, &applicationMemoryArena);
     context.scene = &pathTracerScene;
 
+    // Only build meshes on startup for now
+    sp_Mesh meshes[MAX_MESHES];
+    meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
+        sceneMeshData.meshes[Mesh_Sphere], &meshDataArena, true);
+    // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
+    sp_BuildMeshMidphase(&meshes[Mesh_Sphere], &meshDataArena,
+            &tempArena);
+
+    meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
+        sceneMeshData.meshes[Mesh_Plane], &meshDataArena, false);
+    sp_BuildMeshMidphase(&meshes[Mesh_Plane], &meshDataArena,
+            &tempArena);
+
     sp_MaterialSystem materialSystem = {};
     //sp_RegisterTexture(&materialSystem, image, 5);
     sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
@@ -1198,12 +1182,21 @@ int main(int argc, char **argv)
         &materialSystem, blackMaterial, Material_Black);
     materialSystem.backgroundMaterialId = Material_Black;
 
-    context.materialSystem = &materialSystem;
+    // Upload materials
+    for (u32 i = 0; i < MAX_MATERIALS; ++i)
+    {
+        // TODO: Do texture uploading here too
+        if (i != Material_CheckerBoard)
+        {
+            sp_Material material = {};
+            material.albedo = materialData[i].baseColor;
+            material.emission = materialData[i].emission;
+            // TODO: Don't ignore return value
+            sp_RegisterMaterial(&materialSystem, material, i);
+        }
+    }
 
-    // NOTE: Testing code
-    BuildPathTracerScene(&pathTracerScene, &scene, &sceneMeshData,
-        &meshDataArena, &materialSystem, materialData, &tempArena);
-    sp_BuildSceneBroadphase(&pathTracerScene);
+    context.materialSystem = &materialSystem;
 
     WorkQueue workQueue =
         CreateWorkQueue(&workQueueArena, sizeof(sp_Task), 1024);
@@ -1265,6 +1258,12 @@ int main(int argc, char **argv)
 
         libraryCode.doThing();
 #endif
+
+        if (WasPressed(input.buttonStates[KEY_B]))
+        {
+            vec3 p = Vec3(4, 1, 8);
+            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_Blue);
+        }
 
         if (isRayTracing)
         {
@@ -1363,6 +1362,14 @@ int main(int argc, char **argv)
                 {
                     isRayTracing = true;
                     ClearImagePlane(&imagePlane);
+
+                    // TODO: Switch to immediate mode API style
+                    pathTracerScene.objectCount = 0;
+                    ResetMemoryArena(&pathTracerScene.memoryArena);
+
+                    BuildPathTracerScene(&pathTracerScene, &scene, meshes);
+                    sp_BuildSceneBroadphase(&pathTracerScene);
+
                     AddRayTracingWorkQueue(&workQueue, &context);
                     rayTracingStartTime = glfwGetTime();
                 }
