@@ -27,12 +27,16 @@ layout(location = 0) in vec3 fragNormal;
 layout(location = 1) flat in uint fragMaterialIndex;
 layout(location = 2) in vec3 fragLocalPosition;
 layout(location = 3) in vec2 fragTexCoord;
+layout(location = 4) in vec3 fragWorldPosition;
 
 void main()
 {
     vec3 baseColor = vec3(materials[fragMaterialIndex].baseColorR,
                           materials[fragMaterialIndex].baseColorG,
                           materials[fragMaterialIndex].baseColorB);
+    vec3 emissionColor = vec3(materials[fragMaterialIndex].emissionColorR,
+                              materials[fragMaterialIndex].emissionColorG,
+                              materials[fragMaterialIndex].emissionColorB);
     if (fragMaterialIndex == Material_CheckerBoard)
     {
         baseColor = texture(
@@ -52,5 +56,17 @@ void main()
         texture(samplerCube(irradianceMap, defaultSampler), normal).rgb;
 
     vec3 outgoingRadiance = baseColor * incomingRadiance;
+
+    // Sphere light test
+    vec3 sphereCenter = vec3(0, 10, 0);
+    vec3 L = sphereCenter - fragWorldPosition;
+    float radius = 2.5f;
+    float dist = length(L);
+    L = normalize(L);
+    float k = radius / dist;
+    vec3 lightRadiance = vec3(1) * (k * k);
+    outgoingRadiance = baseColor * lightRadiance * max(dot(normal, L), 0.0);
+    outgoingRadiance += emissionColor;
+
     outputColor = vec4(outgoingRadiance, 0);
 }

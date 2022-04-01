@@ -42,6 +42,7 @@ layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out uint fragMaterialIndex;
 layout(location = 2) out vec3 fragLocalPosition;
 layout(location = 3) out vec2 fragTexCoord;
+layout(location = 4) out vec3 fragWorldPosition;
 
 void main()
 {
@@ -75,4 +76,6 @@ void main()
     fragLocalPosition = inPosition;
 
     fragTexCoord = inTextureCoord;
+
+    fragWorldPosition = vec3(modelMatrix * vec4(inPosition, 1.0));
 }

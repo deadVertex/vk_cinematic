@@ -1126,10 +1126,10 @@ int main(int argc, char **argv)
         Mesh_Plane, Material_CheckerBoard);
 
     AddEntity(&scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
-        Mesh_Plane, Material_WhiteLight);
+        Mesh_Sphere, Material_WhiteLight);
 
-    AddEntity(&scene, Vec3(0, 2, -8), Quat(), Vec3(5),
-        Mesh_Plane, Material_BlueLight);
+    //AddEntity(&scene, Vec3(0, 2, -8), Quat(), Vec3(5),
+        //Mesh_Plane, Material_BlueLight);
 
     for (u32 z = 0; z < 4; ++z)
     {
