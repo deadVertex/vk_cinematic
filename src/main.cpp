@@ -1093,22 +1093,22 @@ int main(int argc, char **argv)
     // Load image data
     //HdrImage image =
         //LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
-    HdrImage image =
-        LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
+    //HdrImage image =
+        //LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
 
     // Create checkerboard image
     HdrImage checkerBoardImage = CreateCheckerBoardImage(&imageDataArena);
     UploadHdrImageToGPU(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
 
     // Create and upload test cube map
-    HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);
-    UploadCubeMapToGPU(&renderer, cubeMap, Image_CubeMapTest, 6, 1024, 1024);
+    //HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);
+    //UploadCubeMapToGPU(&renderer, cubeMap, Image_CubeMapTest, 6, 1024, 1024);
 
     // Create and upload irradiance cube map
-    HdrCubeMap irradianceCubeMap =
-        CreateIrradianceCubeMap(image, &imageDataArena, 32, 32);
-    UploadCubeMapToGPU(
-        &renderer, irradianceCubeMap, Image_IrradianceCubeMap, 7, 32, 32);
+    //HdrCubeMap irradianceCubeMap =
+        //CreateIrradianceCubeMap(image, &imageDataArena, 32, 32);
+    //UploadCubeMapToGPU(
+        //&renderer, irradianceCubeMap, Image_IrradianceCubeMap, 7, 32, 32);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
@@ -1178,7 +1178,7 @@ int main(int argc, char **argv)
     context.scene = &pathTracerScene;
 
     sp_MaterialSystem materialSystem = {};
-    sp_RegisterTexture(&materialSystem, image, 5);
+    //sp_RegisterTexture(&materialSystem, image, 5);
     sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
 
 #if 0

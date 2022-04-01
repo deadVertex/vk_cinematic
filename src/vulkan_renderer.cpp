@@ -428,6 +428,7 @@ internal void UploadSceneDataToGpu(VulkanRenderer *renderer, Scene scene)
 }
 
 // FIXME: Why does this share the same descriptor sets as the mesh shader!
+// Because we use the mesh.vert.glsl shader
 internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
 {
     // Post processing descriptor sets
@@ -446,14 +447,6 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         modelMatrixBufferInfo.buffer = renderer->modelMatricesBuffer.handle;
         modelMatrixBufferInfo.range = VK_WHOLE_SIZE;
 
-        VkDescriptorBufferInfo materialBufferInfo = {};
-        materialBufferInfo.buffer = renderer->materialBuffer.handle;
-        materialBufferInfo.range = VK_WHOLE_SIZE;
-
-        VkDescriptorBufferInfo lightBufferInfo = {};
-        lightBufferInfo.buffer = renderer->lightBuffer.handle;
-        lightBufferInfo.range = VK_WHOLE_SIZE;
-
         VkDescriptorImageInfo vulkanImageInfo = {};
         vulkanImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         vulkanImageInfo.imageView = renderer->hdrSwapchain.framebuffers[i].color.view;
@@ -462,7 +455,7 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         rayTracerImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         rayTracerImageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
 
-        VkWriteDescriptorSet descriptorWrites[7] = {};
+        VkWriteDescriptorSet descriptorWrites[5] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -488,25 +481,15 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[3].descriptorCount = 1;
         descriptorWrites[3].pBufferInfo = &modelMatrixBufferInfo;
+        // Binding 5 is for the material data
+        // Binding 6 is for the test cube map
         descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[4].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[4].dstBinding = 5;
-        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[4].dstBinding = 9;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[4].descriptorCount = 1;
-        descriptorWrites[4].pBufferInfo = &materialBufferInfo;
-        // Binding 6 is for the test cube map
-        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[5].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[5].dstBinding = 9;
-        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        descriptorWrites[5].descriptorCount = 1;
-        descriptorWrites[5].pImageInfo = &rayTracerImageInfo;
-        descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[6].dstSet = renderer->postProcessDescriptorSets[i];
-        descriptorWrites[6].dstBinding = 10;
-        descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        descriptorWrites[6].descriptorCount = 1;
-        descriptorWrites[6].pBufferInfo = &lightBufferInfo;
+        descriptorWrites[4].pImageInfo = &rayTracerImageInfo;
+        // Binding 10 is the lighting data
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }

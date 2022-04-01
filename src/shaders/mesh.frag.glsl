@@ -30,7 +30,7 @@ layout(binding = 10) readonly buffer LightData
 
 layout(binding = 2) uniform sampler defaultSampler;
 layout(binding = 6) uniform textureCube cubeMap;
-layout(binding = 7) uniform textureCube irradianceMap;
+//layout(binding = 7) uniform textureCube irradianceMap;
 layout(binding = 8) uniform texture2D checkerBoardTexture;
 
 layout(location = 0) out vec4 outputColor;
@@ -64,10 +64,10 @@ void main()
     //float brdf = 1.0;
     //vec3 incomingRadiance = lightColor * brdf * cosine;
 
-    vec3 incomingRadiance =
-        texture(samplerCube(irradianceMap, defaultSampler), normal).rgb;
+    //vec3 incomingRadiance =
+        //texture(samplerCube(irradianceMap, defaultSampler), normal).rgb;
 
-    vec3 outgoingRadiance = baseColor * incomingRadiance;
+    //vec3 outgoingRadiance = baseColor * incomingRadiance;
 
     // Sphere light test
     uint sphereLightIndex = 0;
@@ -86,7 +86,7 @@ void main()
     float k = radius / dist;
     lightRadiance *= (k * k);
 
-    outgoingRadiance = baseColor * lightRadiance * max(dot(normal, L), 0.0);
+    vec3 outgoingRadiance = baseColor * lightRadiance * max(dot(normal, L), 0.0);
     outgoingRadiance += emissionColor;
 
     outputColor = vec4(outgoingRadiance, 0);
