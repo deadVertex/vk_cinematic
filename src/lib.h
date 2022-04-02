@@ -1,5 +1,10 @@
 #pragma once
 
+#include "platform.h"
+#include "math_lib.h"
+#include "scene.h"
+#include "aabb.h"
+
 // TODO: Move to platform.h?
 #ifdef _MSC_VER
 #define EXPORT_FUNCTION __declspec(dllexport)
@@ -9,5 +14,5 @@
 
 extern "C"
 {
-    EXPORT_FUNCTION void DoThing();
+    EXPORT_FUNCTION void GenerateScene(Scene *scene, Aabb *meshAabbs);
 }

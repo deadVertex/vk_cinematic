@@ -580,29 +580,6 @@ internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
     ubo->projectionMatrices[1] = ubo->projectionMatrices[0];
 }
 
-internal void AddEntity(Scene *scene, vec3 position, quat rotation, vec3 scale,
-    u32 mesh, u32 material, Aabb *meshAabbs)
-{
-    // TODO: Support non-uniform scaling in the ray tracer
-    Assert(scale.x == scale.y && scale.x == scale.z);
-    if (scene->count < scene->max)
-    {
-        Entity *entity = scene->entities + scene->count++;
-        entity->position = position;
-        entity->rotation = rotation;
-        entity->scale = scale;
-        entity->mesh = mesh;
-        entity->material = material;
-
-        // TODO: Don't duplicate this with sp_AddObjectToScene
-        Aabb transformedAabb = TransformAabb(meshAabbs[mesh].min,
-            meshAabbs[mesh].max, position, rotation, scale);
-
-        entity->aabbMin = transformedAabb.min;
-        entity->aabbMax = transformedAabb.max;
-    }
-}
-
 internal void DrawEntityAabbs(Scene scene, DebugDrawingBuffer *debugDrawBuffer)
 {
     for (u32 entityIndex = 0; entityIndex < scene.count; ++entityIndex)
@@ -856,11 +833,11 @@ internal HdrImage LoadImage(
 }
 
 #if LIVE_CODE_RELOADING_TEST_ENABLED
-typedef void LibraryFunction(void);
+typedef void LibraryFunction(Scene *, Aabb *);
 
 struct LibraryCode
 {
-    LibraryFunction *doThing;
+    LibraryFunction *generateScene;
 #ifdef PLATFORM_LINUX
     void *handle;
     time_t lastWriteTime;
@@ -896,9 +873,9 @@ internal LibraryCode LoadLibraryCode()
     result.handle = LoadLibraryA(LIBRARY_PATH_TEMP);
     if (result.handle != NULL)
     {
-        result.doThing =
-            (LibraryFunction *)GetProcAddress(result.handle, "DoThing");
-        Assert(result.doThing); // FIXME: Should error not assert!
+        result.generateScene =
+            (LibraryFunction *)GetProcAddress(result.handle, "GenerateScene");
+        Assert(result.generateScene); // FIXME: Should error not assert!
     }
     else
     {
@@ -1189,33 +1166,17 @@ int main(int argc, char **argv)
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
 
-    // Create scene
-    Scene scene = {};
-    scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
-    scene.max = MAX_ENTITIES;
-
     Aabb meshAabbs[MAX_MESHES] = {};
     meshAabbs[Mesh_Sphere].min = meshes[Mesh_Sphere].midphaseTree.root->min;
     meshAabbs[Mesh_Sphere].max = meshes[Mesh_Sphere].midphaseTree.root->max;
     meshAabbs[Mesh_Plane].min = meshes[Mesh_Plane].midphaseTree.root->min;
     meshAabbs[Mesh_Plane].max = meshes[Mesh_Plane].midphaseTree.root->max;
 
-    AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
-        Mesh_Plane, Material_CheckerBoard, meshAabbs);
-
-    AddEntity(&scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
-        Mesh_Sphere, Material_WhiteLight, meshAabbs);
-
-    for (u32 z = 0; z < 4; ++z)
-    {
-        for (u32 x = 0; x < 4; ++x)
-        {
-            vec3 origin = Vec3(-5, 1, -5);
-            vec3 p = origin + Vec3((f32)x, 0, (f32)z) * 3.0f;
-            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White,
-                meshAabbs);
-        }
-    }
+    // Create scene
+    Scene scene = {};
+    scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
+    scene.max = MAX_ENTITIES;
+    libraryCode.generateScene(&scene, meshAabbs);
 
     // TODO: Support more than 1 light
     SphereLightData sphereLightData[MAX_SPHERE_LIGHTS];
@@ -1345,15 +1306,8 @@ int main(int argc, char **argv)
             libraryCode = LoadLibraryCode();
         }
 
-        libraryCode.doThing();
+        libraryCode.generateScene(&scene, meshAabbs);
 #endif
-
-        if (WasPressed(input.buttonStates[KEY_B]))
-        {
-            vec3 p = Vec3(4, 1, 8);
-            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_Blue,
-                meshAabbs);
-        }
 
         if (WasPressed(input.buttonStates[KEY_MOUSE_BUTTON_LEFT]))
         {
