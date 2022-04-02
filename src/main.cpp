@@ -580,7 +580,7 @@ internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
 }
 
 internal void AddEntity(Scene *scene, vec3 position, quat rotation, vec3 scale,
-    u32 mesh, u32 material)
+    u32 mesh, u32 material, Aabb *meshAabbs)
 {
     // TODO: Support non-uniform scaling in the ray tracer
     Assert(scale.x == scale.y && scale.x == scale.z);
@@ -592,6 +592,13 @@ internal void AddEntity(Scene *scene, vec3 position, quat rotation, vec3 scale,
         entity->scale = scale;
         entity->mesh = mesh;
         entity->material = material;
+
+        // TODO: Don't duplicate this with sp_AddObjectToScene
+        Aabb transformedAabb = TransformAabb(meshAabbs[mesh].min,
+            meshAabbs[mesh].max, position, rotation, scale);
+
+        entity->aabbMin = transformedAabb.min;
+        entity->aabbMax = transformedAabb.max;
     }
 }
 
@@ -975,6 +982,19 @@ internal void DebugDrawBvh(bvh_Node *node, DebugDrawingBuffer *debugDrawBuffer)
     DrawBox(debugDrawBuffer, node->min, node->max, Vec3(0, 1, 0));
 }
 
+internal void CreatePathTracerMeshData(SceneMeshData *sceneMeshData,
+    sp_Mesh *meshes, MemoryArena *meshDataArena, MemoryArena *tempArena)
+{
+    meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
+        sceneMeshData->meshes[Mesh_Sphere], meshDataArena, true);
+    // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
+    sp_BuildMeshMidphase(&meshes[Mesh_Sphere], meshDataArena, tempArena);
+
+    meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
+        sceneMeshData->meshes[Mesh_Plane], meshDataArena, false);
+    sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena, tempArena);
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1061,6 +1081,11 @@ int main(int argc, char **argv)
     // Publish mesh data to vulkan renderer
     UploadMeshDataToGpu(&renderer, &sceneMeshData);
 
+    // Build mesh data for path tracer
+    sp_Mesh meshes[MAX_MESHES];
+    CreatePathTracerMeshData(
+        &sceneMeshData, meshes, &meshDataArena, &tempArena);
+
     // Load image data
     //HdrImage image =
         //LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
@@ -1099,11 +1124,17 @@ int main(int argc, char **argv)
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
 
+    Aabb meshAabbs[MAX_MESHES] = {};
+    meshAabbs[Mesh_Sphere].min = meshes[Mesh_Sphere].midphaseTree.root->min;
+    meshAabbs[Mesh_Sphere].max = meshes[Mesh_Sphere].midphaseTree.root->max;
+    meshAabbs[Mesh_Plane].min = meshes[Mesh_Plane].midphaseTree.root->min;
+    meshAabbs[Mesh_Plane].max = meshes[Mesh_Plane].midphaseTree.root->max;
+
     AddEntity(&scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
-        Mesh_Plane, Material_CheckerBoard);
+        Mesh_Plane, Material_CheckerBoard, meshAabbs);
 
     AddEntity(&scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
-        Mesh_Sphere, Material_WhiteLight);
+        Mesh_Sphere, Material_WhiteLight, meshAabbs);
 
     for (u32 z = 0; z < 4; ++z)
     {
@@ -1111,7 +1142,8 @@ int main(int argc, char **argv)
         {
             vec3 origin = Vec3(-5, 1, -5);
             vec3 p = origin + Vec3((f32)x, 0, (f32)z) * 3.0f;
-            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White);
+            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_White,
+                meshAabbs);
         }
     }
 
@@ -1147,19 +1179,6 @@ int main(int argc, char **argv)
     sp_Scene pathTracerScene = {};
     sp_InitializeScene(&pathTracerScene, &applicationMemoryArena);
     context.scene = &pathTracerScene;
-
-    // Only build meshes on startup for now
-    sp_Mesh meshes[MAX_MESHES];
-    meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
-        sceneMeshData.meshes[Mesh_Sphere], &meshDataArena, true);
-    // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
-    sp_BuildMeshMidphase(&meshes[Mesh_Sphere], &meshDataArena,
-            &tempArena);
-
-    meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
-        sceneMeshData.meshes[Mesh_Plane], &meshDataArena, false);
-    sp_BuildMeshMidphase(&meshes[Mesh_Plane], &meshDataArena,
-            &tempArena);
 
     sp_MaterialSystem materialSystem = {};
     //sp_RegisterTexture(&materialSystem, image, 5);
@@ -1262,7 +1281,8 @@ int main(int argc, char **argv)
         if (WasPressed(input.buttonStates[KEY_B]))
         {
             vec3 p = Vec3(4, 1, 8);
-            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_Blue);
+            AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_Blue,
+                meshAabbs);
         }
 
         if (isRayTracing)
