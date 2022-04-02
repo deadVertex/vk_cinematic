@@ -575,7 +575,8 @@ internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
     correctionMatrix.columns[2] = Vec4(0, 0, 0.5f, 0);
     correctionMatrix.columns[3] = Vec4(0, 0, 0.5f, 1);
     ubo->projectionMatrices[0] =
-        correctionMatrix * Perspective(50.0f, aspect, 0.01f, 100.0f);
+        correctionMatrix *
+        Perspective(CAMERA_FOV, aspect, CAMERA_NEAR_CLIP, 100.0f);
     ubo->projectionMatrices[1] = ubo->projectionMatrices[0];
 }
 
@@ -995,6 +996,75 @@ internal void CreatePathTracerMeshData(SceneMeshData *sceneMeshData,
     sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena, tempArena);
 }
 
+// Copied from old project, don't really remember how this works
+internal vec3 GenerateSelectionRayDirection(f32 x, f32 y, f32 framebufferWidth,
+    f32 framebufferHeight, f32 fov, f32 nearClip, vec3 cameraRotation)
+{
+    y = framebufferHeight - y;
+
+    f32 aspect = framebufferWidth / framebufferHeight;
+    f32 rad = Radians(fov);
+    f32 vLen = Tan(rad / 2.0f) * nearClip;
+    f32 hLen = vLen * aspect;
+
+    mat4 rotation = RotateX(-cameraRotation.x) * RotateY(-cameraRotation.y);
+    rotation = Transpose(rotation); // Why do this, just don't negate rotation
+
+    vec3 right = Normalize(rotation.columns[0].xyz);
+    vec3 up = Normalize(rotation.columns[1].xyz);
+    vec3 forward = -Normalize(rotation.columns[2].xyz);
+
+    vec3 v = up * vLen;
+    vec3 h = right * hLen;
+
+    x -= framebufferWidth * 0.5f;
+    y -= framebufferHeight * 0.5f;
+
+    x /= framebufferWidth * 0.5f;
+    y /= framebufferHeight * 0.5f;
+
+    vec3 dir = forward * nearClip + h * x + v * y;
+    return dir;
+}
+
+internal void HandleSelection(
+    Scene *scene, DebugDrawingBuffer *debugDrawBuffer, GameInput *input)
+{
+    // Create Ray
+    vec3 rayOrigin = g_camera.position;
+    vec3 rayDirection = GenerateSelectionRayDirection((f32)input->mousePosX,
+        (f32)input->mousePosY, (f32)g_FramebufferWidth,
+        (f32)g_FramebufferHeight, CAMERA_FOV, CAMERA_NEAR_CLIP,
+        g_camera.rotation);
+
+    DrawLine(debugDrawBuffer, rayOrigin, rayOrigin + rayDirection * 10.0f,
+        Vec3(1, 0, 0));
+
+    // Intersect ray against entity AABBs
+    f32 tmin = F32_MAX;
+    Entity *hitEntity = NULL;
+    for (u32 i = 0; i < scene->count; i++)
+    {
+        Entity *entity = scene->entities + i;
+        f32 t = RayIntersectAabb(
+            entity->aabbMin, entity->aabbMax, rayOrigin, rayDirection);
+
+        // NOTE: t > 0 to avoid selecting when inside the AABB
+        if (t > 0.0f && t < tmin)
+        {
+            tmin = t;
+            hitEntity = entity;
+        }
+    }
+
+    if (hitEntity != NULL)
+    {
+        LogMessage("Selected entity with mesh %u", hitEntity->mesh);
+        DrawBox(debugDrawBuffer, hitEntity->position - Vec3(0.25),
+                hitEntity->position + Vec3(0.25), Vec3(1, 0, 0));
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1283,6 +1353,11 @@ int main(int argc, char **argv)
             vec3 p = Vec3(4, 1, 8);
             AddEntity(&scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_Blue,
                 meshAabbs);
+        }
+
+        if (WasPressed(input.buttonStates[KEY_MOUSE_BUTTON_LEFT]))
+        {
+            HandleSelection(&scene, &debugDrawBuffer, &input);
         }
 
         if (isRayTracing)
