@@ -1,5 +1,7 @@
 #pragma once
 
+#include "aabb.h"
+
 struct Entity
 {
     vec3 position;
@@ -20,4 +22,6 @@ struct Scene
     u32 max;
 
     u32 backgroundMaterial;
+
+    Aabb *meshAabbs;
 };

@@ -3,7 +3,6 @@
 #include "platform.h"
 #include "math_lib.h"
 #include "scene.h"
-#include "aabb.h"
 
 // TODO: Move to platform.h?
 #ifdef _MSC_VER
@@ -14,5 +13,5 @@
 
 extern "C"
 {
-    EXPORT_FUNCTION void GenerateScene(Scene *scene, Aabb *meshAabbs);
+    EXPORT_FUNCTION void GenerateScene(Scene *scene);
 }

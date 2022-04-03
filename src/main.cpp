@@ -851,6 +851,7 @@ struct LibraryCode
 #define LIBRARY_PATH_TEMP "lib_temp.dll"
 #define LIBRARY_LOCK_PATH "lock.tmp"
 
+#ifdef PLATFORM_WINDOWS
 // TODO: 64-bit version?
 inline FILETIME GetLastWriteTime(const char *fileName)
 {
@@ -918,6 +919,22 @@ internal void UnloadLibraryCode(LibraryCode *lib)
 
     ClearToZero(lib, sizeof(*lib));
 }
+#else
+internal LibraryCode LoadLibraryCode()
+{
+    LibraryCode result = {};
+    return result;
+}
+
+internal b32 WasLibraryCodeModified(LibraryCode *lib)
+{
+    return false;
+}
+
+internal void UnloadLibraryCode(LibraryCode *lib)
+{
+}
+#endif
 
 #endif
 
@@ -1174,6 +1191,7 @@ int main(int argc, char **argv)
 
     // Create scene
     Scene scene = {};
+    scene.meshAabbs = meshAabbs;
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
     libraryCode.generateScene(&scene, meshAabbs);
