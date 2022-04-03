@@ -2,6 +2,22 @@
 
 #include "aabb.h"
 
+#define MAX_SPHERE_LIGHTS 20
+// TODO: Find a better place for this!
+// NOTE: Needs to be kept in sync with shaders
+struct SphereLightData
+{
+    vec3 position;
+    vec3 radiance;
+    f32 radius;
+};
+
+struct LightData
+{
+    u32 sphereLightCount;
+    SphereLightData sphereLights[MAX_SPHERE_LIGHTS];
+};
+
 struct Entity
 {
     vec3 position;
@@ -24,4 +40,5 @@ struct Scene
     u32 backgroundMaterial;
 
     Aabb *meshAabbs;
+    LightData *lightData;
 };

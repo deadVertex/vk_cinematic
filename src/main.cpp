@@ -769,13 +769,6 @@ internal void UploadMaterialDataToGpu(
     CopyMemory(materials, materialData, sizeof(Material) * MAX_MATERIALS);
 }
 
-internal void UploadLightDataToGpu(
-    VulkanRenderer *renderer, SphereLightData *sphereLightData)
-{
-    SphereLightData *dst = (SphereLightData *)renderer->lightBuffer.data;
-    CopyMemory(dst, sphereLightData, sizeof(SphereLightData) * MAX_SPHERE_LIGHTS);
-}
-
 internal void DrawMeshDataNormals(
     DebugDrawingBuffer *debugDrawBuffer, MeshData meshData)
 {
@@ -1192,21 +1185,12 @@ int main(int argc, char **argv)
     // Create scene
     Scene scene = {};
     scene.meshAabbs = meshAabbs;
+    scene.lightData =(LightData *)renderer.lightBuffer.data;
+    Assert(sizeof(LightData) <= LIGHT_BUFFER_SIZE);
+
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
     libraryCode.generateScene(&scene, meshAabbs);
-
-    // TODO: Support more than 1 light
-    SphereLightData sphereLightData[MAX_SPHERE_LIGHTS];
-
-    // TODO: Derive this data from the scene or maybe annotate the scene data
-    // with this lighting data
-    sphereLightData[0].position = Vec3(0, 10, 0);
-    sphereLightData[0].radiance = materialData[Material_WhiteLight].emission;
-    sphereLightData[0].radius = 5.0 * 0.5f;
-
-    // Publish light data to vulkan renderer
-    UploadLightDataToGpu(&renderer, sphereLightData);
 
     g_Profiler.samples =
         (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);

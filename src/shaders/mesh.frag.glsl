@@ -25,8 +25,9 @@ layout(binding = 5) readonly buffer Materials
 
 layout(binding = 10) readonly buffer LightData
 {
-    SphereLightData sphereLights[];
-};
+    uint sphereLightCount;
+    SphereLightData sphereLights[20]; // TODO: Use MAX_SPHERE_LIGHTS constant
+} lightData;
 
 layout(binding = 2) uniform sampler defaultSampler;
 layout(binding = 6) uniform textureCube cubeMap;
@@ -70,23 +71,27 @@ void main()
     //vec3 outgoingRadiance = baseColor * incomingRadiance;
 
     // Sphere light test
-    uint sphereLightIndex = 0;
+    vec3 outgoingRadiance = vec3(0);
+    for (uint i = 0; i < lightData.sphereLightCount; i++)
+    {
+        vec3 sphereCenter = vec3(lightData.sphereLights[i].px,
+                                 lightData.sphereLights[i].py,
+                                 lightData.sphereLights[i].pz);
 
-    vec3 sphereCenter = vec3(sphereLights[sphereLightIndex].px,
-                             sphereLights[sphereLightIndex].py,
-                             sphereLights[sphereLightIndex].pz);
-    float radius = sphereLights[sphereLightIndex].radius;
-    vec3 lightRadiance = vec3(sphereLights[sphereLightIndex].radianceR,
-                              sphereLights[sphereLightIndex].radianceG,
-                              sphereLights[sphereLightIndex].radianceB);
+        float radius = lightData.sphereLights[i].radius;
+        vec3 lightRadiance = vec3(lightData.sphereLights[i].radianceR,
+                                  lightData.sphereLights[i].radianceG,
+                                  lightData.sphereLights[i].radianceB);
 
-    vec3 L = sphereCenter - fragWorldPosition;
-    float dist = length(L);
-    L = normalize(L);
-    float k = radius / dist;
-    lightRadiance *= (k * k);
+        vec3 L = sphereCenter - fragWorldPosition;
+        float dist = length(L);
+        L = normalize(L);
+        float k = radius / dist;
+        lightRadiance *= (k * k);
 
-    vec3 outgoingRadiance = baseColor * lightRadiance * max(dot(normal, L), 0.0);
+        outgoingRadiance +=
+            baseColor * lightRadiance * max(dot(normal, L), 0.0);
+    }
     outgoingRadiance += emissionColor;
 
     outputColor = vec4(outgoingRadiance, 0);

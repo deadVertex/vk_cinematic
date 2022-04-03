@@ -12,8 +12,6 @@
 #define MATERIAL_BUFFER_SIZE Kilobytes(4) // TODO: Combine this UBO?
 #define LIGHT_BUFFER_SIZE Kilobytes(1) // TODO: Combine this with material buffer?
 
-#define MAX_SPHERE_LIGHTS 1
-
 #define TEXTURE_UPLOAD_BUFFER_SIZE Megabytes(128)
 
 //#define SHADER_PATH "src/shaders"
@@ -34,13 +32,6 @@ enum
 {
     Output_None = 0,
     Output_ShowDebugDrawing = 1,
-};
-
-struct SphereLightData
-{
-    vec3 position;
-    vec3 radiance;
-    f32 radius;
 };
 
 struct Mesh
