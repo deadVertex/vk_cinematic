@@ -247,7 +247,7 @@ internal void VulkanDestroySwapchain(VulkanSwapchain swapchain, VkDevice device)
 // TODO: Define constants for this
 internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 {
-    VkDescriptorPoolSize poolSizes[4];
+    VkDescriptorPoolSize poolSizes[5];
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = 64;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -256,6 +256,8 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
     poolSizes[2].descriptorCount = 64;
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     poolSizes[3].descriptorCount = 256;
+    poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    poolSizes[4].descriptorCount = 64;
 
     VkDescriptorPoolCreateInfo createInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     createInfo.poolSizeCount = ArrayCount(poolSizes);
@@ -270,7 +272,7 @@ internal VkDescriptorPool VulkanCreateDescriptorPool(VkDevice device)
 internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[11] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[12] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[0].descriptorCount = 1;
@@ -317,6 +319,10 @@ internal VkDescriptorSetLayout VulkanCreateDescriptorSetLayout(
     layoutBindings[10].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     layoutBindings[10].descriptorCount = 1;
     layoutBindings[10].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layoutBindings[11].binding = 11;
+    layoutBindings[11].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layoutBindings[11].descriptorCount = 1;
+    layoutBindings[11].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -455,7 +461,11 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         rayTracerImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         rayTracerImageInfo.imageView = renderer->images[Image_CpuRayTracer].view;
 
-        VkWriteDescriptorSet descriptorWrites[5] = {};
+        VkDescriptorImageInfo computeShaderImageInfo = {};
+        computeShaderImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        computeShaderImageInfo.imageView = renderer->images[Image_ComputeShader].view;
+
+        VkWriteDescriptorSet descriptorWrites[6] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->postProcessDescriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
@@ -490,10 +500,92 @@ internal void UpdatePostProcessingDescriptorSets(VulkanRenderer *renderer)
         descriptorWrites[4].descriptorCount = 1;
         descriptorWrites[4].pImageInfo = &rayTracerImageInfo;
         // Binding 10 is the lighting data
+        descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[5].dstSet = renderer->postProcessDescriptorSets[i];
+        descriptorWrites[5].dstBinding = 11;
+        descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[5].descriptorCount = 1;
+        descriptorWrites[5].pImageInfo = &computeShaderImageInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }
 
+}
+
+internal VkPipeline VulkanCreateComputePipeline(VkDevice device,
+        VkPipelineCache pipelineCache, VkPipelineLayout pipelineLayout,
+        VkShaderModule shaderModule)
+{
+    VkPipeline pipeline = VK_NULL_HANDLE;
+
+    VkComputePipelineCreateInfo computePipelineCreateInfo = {
+        VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+
+    computePipelineCreateInfo.stage.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    computePipelineCreateInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    computePipelineCreateInfo.stage.module = shaderModule;
+    computePipelineCreateInfo.stage.pName = "main";
+    computePipelineCreateInfo.layout = pipelineLayout;
+
+    VK_CHECK(vkCreateComputePipelines(
+        device, pipelineCache, 1, &computePipelineCreateInfo, NULL, &pipeline));
+
+    return pipeline;
+}
+
+internal VkPipelineLayout VulkanCreateComputePipelineLayout(
+    VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
+{
+    VkPipelineLayoutCreateInfo createInfo = {
+        VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    createInfo.setLayoutCount = 1;
+    createInfo.pSetLayouts = &descriptorSetLayout;
+
+    VkPipelineLayout layout;
+    VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
+    return layout;
+}
+
+internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
+    VkDevice device)
+{
+    VkDescriptorSetLayoutBinding layoutBindings[1] = {};
+    layoutBindings[0].binding = 0;
+    layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    layoutBindings[0].descriptorCount = 1;
+    layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutCreateInfo createInfo = {
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    createInfo.bindingCount = ArrayCount(layoutBindings);
+    createInfo.pBindings = layoutBindings;
+
+    VkDescriptorSetLayout descriptorSetLayout;
+
+    VK_CHECK(vkCreateDescriptorSetLayout(
+        device, &createInfo, NULL, &descriptorSetLayout));
+
+    return descriptorSetLayout;
+}
+
+internal void VulkanUpdateComputeDescriptorSets(
+    VkDevice device, VkDescriptorSet set, VulkanImage image)
+{
+    VkDescriptorImageInfo outputImageInfo = {};
+    outputImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    outputImageInfo.imageView = image.view;
+
+    VkWriteDescriptorSet descriptorWrites[1] = {};
+    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].dstSet = set;
+    descriptorWrites[0].dstBinding = 0;
+    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].pImageInfo = &outputImageInfo;
+
+    vkUpdateDescriptorSets(
+        device, ArrayCount(descriptorWrites), descriptorWrites, 0, NULL);
 }
 
 // TODO: Handle errors gracefully?
@@ -668,6 +760,9 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     // Skybox shader
     renderer->skyboxFragmentShader = LoadShader(renderer->device, "skybox.frag.spv");
 
+    // Compute shader
+    renderer->computeShader = LoadShader(renderer->device, "test_compute.comp.spv");
+
     // TODO: CLAMP_TO_EDGE sampler 
     VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
@@ -695,12 +790,18 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->debugDrawDescriptorSetLayout =
         VulkanCreateDebugDrawDescriptorSetLayout(renderer->device);
 
+    renderer->computeDescriptorSetLayout =
+        VulkanCreateComputeDescriptorSetLayout(renderer->device);
+
     // Create pipeline layout
     renderer->pipelineLayout = VulkanCreatePipelineLayout(
         renderer->device, renderer->descriptorSetLayout, true);
 
     renderer->debugDrawPipelineLayout = VulkanCreatePipelineLayout(
         renderer->device, renderer->debugDrawDescriptorSetLayout, false);
+
+    renderer->computePipelineLayout = VulkanCreateComputePipelineLayout(
+        renderer->device, renderer->computeDescriptorSetLayout);
 
     // Create pipeline
     VulkanPipelineDefinition pipelineDefinition = {};
@@ -759,6 +860,11 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         renderer->pipelineLayout, renderer->testVertexShader,
         renderer->skyboxFragmentShader, &skyboxPipelineDefinition);
 
+    // Create compute shader pipeline
+    renderer->computePipeline =
+        VulkanCreateComputePipeline(renderer->device, renderer->pipelineCache,
+            renderer->computePipelineLayout, renderer->computeShader);
+
     // Allocate descriptor sets
     {
         VkDescriptorSetLayout layouts[2] = {
@@ -785,6 +891,16 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         Assert(ArrayCount(layouts) == ArrayCount(renderer->debugDrawDescriptorSets));
         VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
             layouts, ArrayCount(layouts), renderer->debugDrawDescriptorSets);
+    }
+
+    // Alocate compute shader descriptor sets
+    {
+        VkDescriptorSetLayout layouts[2] = {
+            renderer->computeDescriptorSetLayout,
+            renderer->computeDescriptorSetLayout};
+        Assert(ArrayCount(layouts) == ArrayCount(renderer->computeDescriptorSets));
+        VulkanAllocateDescriptorSets(renderer->device, renderer->descriptorPool,
+            layouts, ArrayCount(layouts), renderer->computeDescriptorSets);
     }
 
     // Populate vertex data buffer
@@ -825,6 +941,20 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
         VulkanTransitionImageLayout(renderer->images[Image_CpuRayTracer].handle,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            renderer->device, renderer->commandPool, renderer->graphicsQueue);
+    }
+
+    // Create image for compute shader
+    {
+        u32 width = RAY_TRACER_WIDTH;
+        u32 height = RAY_TRACER_HEIGHT;
+        VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        renderer->images[Image_ComputeShader] = VulkanCreateImage(
+            renderer->device, renderer->physicalDevice, width, height, format,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        VulkanTransitionImageLayout(renderer->images[Image_ComputeShader].handle,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
             renderer->device, renderer->commandPool, renderer->graphicsQueue);
     }
 
@@ -931,6 +1061,12 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             descriptorWrites, 0, NULL);
     }
 
+    for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
+    {
+        VulkanUpdateComputeDescriptorSets(renderer->device,
+            renderer->computeDescriptorSets[i],
+            renderer->images[Image_ComputeShader]);
+    }
 }
 
 internal void VulkanRender(
@@ -948,6 +1084,25 @@ internal void VulkanRender(
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(renderer->commandBuffer, &beginInfo));
+
+    // Execution barrier
+    vkCmdPipelineBarrier(renderer->commandBuffer,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 0, NULL);
+
+    vkCmdBindPipeline(renderer->commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+        renderer->computePipeline);
+    vkCmdBindDescriptorSets(renderer->commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE, renderer->computePipelineLayout, 0, 1,
+        &renderer->computeDescriptorSets[imageIndex], 0, NULL);
+    vkCmdDispatch(
+        renderer->commandBuffer, RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT, 1);
+
+    // Execution barrier
+    vkCmdPipelineBarrier(renderer->commandBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+        0, 0, NULL, 0, NULL, 0, NULL);
 
     // Begin render pass
     VkClearValue clearValues[2] = {};

@@ -1,3 +1,36 @@
+/* TODO (NEW):
+- GPU Ray tracing!!!
+    - Basic compute shader implementation
+- Lights for rasterization
+    - Sphere
+    - Directional
+    - Spot
+    - Quad
+    - Tube/Line?
+- Restore Environment/HDR lighting
+- Proper PBR material model
+    - Albedo maps
+    - Normal maps
+    - Metalness
+    - Roughness
+- Tone mapping
+    - Reinhard
+    - Filmic
+    - ACES
+- Screen space ambient occlusion
+- Screen space reflections
+- Bloom
+- Global Illumination
+    - Light Propagation Volumes
+    - Voxel cone tracing
+    - SDFGI
+    - Screen space GI
+    - Light probes
+- Shadows
+    - Directional 
+    - Omni directional
+    - Cascaded shadow maps
+*/
 /* TODO:
 List:
  - Code duplication for creating and uploading images/cube maps to GPU [x]
@@ -1267,6 +1300,7 @@ int main(int argc, char **argv)
     f32 t = 0.0f;
     f64 rayTracingStartTime = 0.0;
     f64 nextStatPrintTime = 0.0;
+    b32 showComputeShaderOutput = false;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -1460,6 +1494,11 @@ int main(int argc, char **argv)
             showDebugDrawing = !showDebugDrawing;
         }
 
+        if (WasPressed(input.buttonStates[KEY_F3]))
+        {
+            showComputeShaderOutput = !showComputeShaderOutput;
+        }
+
         VulkanCopyImageFromCPU(&renderer);
         
 #if DRAW_ENTITY_AABBS
@@ -1485,6 +1524,11 @@ int main(int argc, char **argv)
         else
         {
             ubo->showComparision = 0;
+        }
+
+        if (showComputeShaderOutput)
+        {
+            ubo->showComparision = 3;
         }
 
         renderer.debugDrawVertexCount = debugDrawBuffer.count;

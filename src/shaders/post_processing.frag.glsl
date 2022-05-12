@@ -10,6 +10,7 @@ layout(binding = 0) uniform UniformBufferObject {
 layout(binding = 2) uniform sampler defaultSampler;
 layout(binding = 3) uniform texture2D vulkanImage;
 layout(binding = 9) uniform texture2D rayTracerImage;
+layout(binding = 11) uniform texture2D computeShaderImage;
 
 layout(location = 0) in vec2 fragTexCoord;
 
@@ -40,6 +41,11 @@ void main()
         color = texture(sampler2D(rayTracerImage, defaultSampler), fragTexCoord).rgb;
         if (fragTexCoord.x < 0.5)
             color = texture(sampler2D(vulkanImage, defaultSampler), fragTexCoord).rgb;
+    }
+    else if (ubo.showComparision == 3)
+    {
+        // Compute shader image
+        color = texture(sampler2D(computeShaderImage, defaultSampler), fragTexCoord).rgb;
     }
 
     vec3 toneMappedColor = PerformToneMapping(color);

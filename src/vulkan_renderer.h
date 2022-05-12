@@ -25,6 +25,7 @@ enum
     Image_Irradiance,
     Image_CheckerBoard,
     Image_IrradianceCubeMap,
+    Image_ComputeShader,
     MAX_IMAGES,
 };
 
@@ -206,6 +207,13 @@ struct VulkanRenderer
     // Skybox stuff
     VkShaderModule skyboxFragmentShader;
     VkPipeline skyboxPipeline;
+
+    // Compute shader stuff
+    VkShaderModule computeShader;
+    VkDescriptorSetLayout computeDescriptorSetLayout;
+    VkPipelineLayout computePipelineLayout;
+    VkPipeline computePipeline;
+    VkDescriptorSet computeDescriptorSets[2];
 
     u32 vertexDataUploadBufferSize;
     u32 indexUploadBufferSize;

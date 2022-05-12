@@ -1,9 +1,3 @@
-/* SIMD Path Tracer
-
-TODO:
-- Writing single colour to output image
-- Basic ray triangle intersection
- */
 #pragma once
 
 struct ImagePlane
