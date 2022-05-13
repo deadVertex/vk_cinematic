@@ -11,6 +11,7 @@
 #define MODEL_MATRICES_BUFFER_SIZE Megabytes(4)
 #define MATERIAL_BUFFER_SIZE Kilobytes(4) // TODO: Combine this UBO?
 #define LIGHT_BUFFER_SIZE Kilobytes(1) // TODO: Combine this with material buffer?
+#define COMPUTE_UNIFORM_BUFFER_SIZE Kilobytes(1)
 
 #define TEXTURE_UPLOAD_BUFFER_SIZE Megabytes(128)
 
@@ -48,6 +49,11 @@ struct UniformBufferObject
     mat4 projectionMatrices[16];
     vec3 cameraPosition;
     u32 showComparision;
+};
+
+struct ComputeShaderUniformBuffer
+{
+    mat4 cameraTransform;
 };
 
 struct VulkanQueueFamilyIndices
@@ -214,6 +220,7 @@ struct VulkanRenderer
     VkPipelineLayout computePipelineLayout;
     VkPipeline computePipeline;
     VkDescriptorSet computeDescriptorSets[2];
+    VulkanBuffer computeUniformBuffer;
 
     u32 vertexDataUploadBufferSize;
     u32 indexUploadBufferSize;

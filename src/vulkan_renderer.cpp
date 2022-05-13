@@ -550,11 +550,15 @@ internal VkPipelineLayout VulkanCreateComputePipelineLayout(
 internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     VkDevice device)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[1] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[2] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     layoutBindings[0].descriptorCount = 1;
     layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[1].binding = 1;
+    layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layoutBindings[1].descriptorCount = 1;
+    layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -569,20 +573,30 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     return descriptorSetLayout;
 }
 
-internal void VulkanUpdateComputeDescriptorSets(
-    VkDevice device, VkDescriptorSet set, VulkanImage image)
+internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
+    VkDescriptorSet set, VulkanImage image, VulkanBuffer uniformBuffer)
 {
     VkDescriptorImageInfo outputImageInfo = {};
     outputImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     outputImageInfo.imageView = image.view;
 
-    VkWriteDescriptorSet descriptorWrites[1] = {};
+    VkDescriptorBufferInfo uniformBufferInfo = {};
+    uniformBufferInfo.buffer = uniformBuffer.handle;
+    uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet descriptorWrites[2] = {};
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].dstSet = set;
     descriptorWrites[0].dstBinding = 0;
     descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     descriptorWrites[0].descriptorCount = 1;
     descriptorWrites[0].pImageInfo = &outputImageInfo;
+    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[1].dstSet = set;
+    descriptorWrites[1].dstBinding = 1;
+    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorWrites[1].descriptorCount = 1;
+    descriptorWrites[1].pBufferInfo = &uniformBufferInfo;
 
     vkUpdateDescriptorSets(
         device, ArrayCount(descriptorWrites), descriptorWrites, 0, NULL);
@@ -740,6 +754,13 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->textureUploadBuffer =
         VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
             TEXTURE_UPLOAD_BUFFER_SIZE, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // Compute shader uniform buffer
+    renderer->computeUniformBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            COMPUTE_UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -1065,7 +1086,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     {
         VulkanUpdateComputeDescriptorSets(renderer->device,
             renderer->computeDescriptorSets[i],
-            renderer->images[Image_ComputeShader]);
+            renderer->images[Image_ComputeShader],
+            renderer->computeUniformBuffer);
     }
 }
 

@@ -3,6 +3,9 @@
 #define F32_MAX 3.402823466e+38
 
 layout(binding = 0, rgba32f) uniform writeonly image2D outputImage;
+layout(binding = 1, std140) uniform ComputeShaderUniformBuffer {
+    mat4 cameraTransform;
+} ubo;
 
 float RayIntersectSphere(vec3 center, float radius, vec3 rayOrigin, vec3 rayDirection)
 {
@@ -27,6 +30,45 @@ float RayIntersectSphere(vec3 center, float radius, vec3 rayOrigin, vec3 rayDire
     return t;
 }
 
+float RayIntersectPlane(vec3 normal, float dist, vec3 rayOrigin, vec3 rayDirection)
+{
+    float t = dot(normal * dist - rayOrigin, normal) / dot(rayDirection, normal);
+    return t;
+}
+
+struct RayIntersectionResult
+{
+    float t;
+    uint materialIndex;
+};
+
+RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
+{
+    RayIntersectionResult result;
+    result.t = F32_MAX;
+    result.materialIndex = 0;
+
+    vec3 sphereCenter = vec3(0, 0, 0);
+    float sphereRadius = 1.5;
+    float sphereT = RayIntersectSphere(sphereCenter, sphereRadius, rayOrigin, rayDirection);
+    if (sphereT >= 0.0 && sphereT < result.t)
+    {
+        result.t = sphereT;
+        result.materialIndex = 1;
+    }
+
+    vec3 planeNormal = vec3(0, 1, 0);
+    float planeDist = -0.5f;
+    float planeT = RayIntersectPlane(planeNormal, planeDist, rayOrigin, rayDirection);
+    if (planeT >= 0.0 && planeT < result.t)
+    {
+        result.t = planeT;
+        result.materialIndex = 2;
+    }
+
+    return result;
+}
+
 void main()
 {
     vec3 p = vec3(gl_GlobalInvocationID) / vec3(gl_NumWorkGroups);
@@ -35,10 +77,10 @@ void main()
     // Map p from 0..1 range into -1..1 range
     p = p * 2.0 - vec3(1.0);
 
-    vec3 forward = vec3(0, 0, -1);
-    vec3 up = vec3(0, 1, 0);
-    vec3 right = vec3(1, 0, 0);
-    vec3 cameraP = vec3(0, 0, 10);
+    vec3 forward = vec3(ubo.cameraTransform[2]);
+    vec3 up = vec3(ubo.cameraTransform[1]);
+    vec3 right = vec3(ubo.cameraTransform[0]);
+    vec3 cameraP = vec3(ubo.cameraTransform[3]);
     float filmDistance = 1.0;
     vec3 filmCenter = cameraP + forward * filmDistance;
 
@@ -67,13 +109,15 @@ void main()
 
     vec3 outputColor = vec3(0.08, 0.02, 0.05);
 
-    // Perform ray sphere intersection
-    vec3 sphereCenter = vec3(0, 0, 0);
-    float sphereRadius = 1.5;
-    float t = RayIntersectSphere(sphereCenter, sphereRadius, rayOrigin, rayDirection);
-    if (t >= 0.0 && t < F32_MAX)
+    RayIntersectionResult result = RayIntersectScene(rayOrigin, rayDirection); 
+
+    if (result.materialIndex == 1)
     {
         outputColor = vec3(1, 0, 1);
+    }
+    else if (result.materialIndex == 2)
+    {
+        outputColor = vec3(0.08, 0.08, 0.08);
     }
 
     ivec2 uv = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);

@@ -1,6 +1,13 @@
 /* TODO (NEW):
 - GPU Ray tracing!!!
-    - Basic compute shader implementation
+    - Basic compute shader implementation [x]
+    - Camera [ ]
+    - Basic ray bouncing [ ]
+    - Basic diffuse material [ ]
+    - Multi sampling [ ]
+    - Triangle mesh support [ ]
+    - Include system for shaders [ ]
+    - Unit test framework for compute shaders [ ]
 - Lights for rasterization
     - Sphere
     - Directional
@@ -611,6 +618,16 @@ internal void Update(VulkanRenderer *renderer, GameInput *input, f32 dt)
         correctionMatrix *
         Perspective(CAMERA_FOV, aspect, CAMERA_NEAR_CLIP, 100.0f);
     ubo->projectionMatrices[1] = ubo->projectionMatrices[0];
+
+    // TODO: Provide proper API for this
+    ComputeShaderUniformBuffer *computeUbo =
+        (ComputeShaderUniformBuffer *)renderer->computeUniformBuffer.data;
+    mat4 cameraTransform = Identity();
+    cameraTransform.columns[0] = Vec4(RotateVector(Vec3(1, 0, 0), cameraRotation), 0);
+    cameraTransform.columns[1] = Vec4(RotateVector(Vec3(0, 1, 0), cameraRotation), 0);
+    cameraTransform.columns[2] = Vec4(RotateVector(Vec3(0, 0, -1), cameraRotation), 0);
+    cameraTransform.columns[3] = Vec4(cameraPosition, 0);
+    computeUbo->cameraTransform = cameraTransform;
 }
 
 internal void DrawEntityAabbs(Scene scene, DebugDrawingBuffer *debugDrawBuffer)
