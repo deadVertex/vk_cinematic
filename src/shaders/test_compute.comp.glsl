@@ -1,11 +1,40 @@
 #version 450 
 
+#define U32_MAX 0xffffffff
 #define F32_MAX 3.402823466e+38
 
 layout(binding = 0, rgba32f) uniform writeonly image2D outputImage;
 layout(binding = 1, std140) uniform ComputeShaderUniformBuffer {
     mat4 cameraTransform;
 } ubo;
+
+// NOTE: This needs to be correctly seeded in main()
+int rng_state;
+
+// Reference implementation from https://en.wikipedia.org/wiki/Xorshift
+int XorShift32()
+{
+    int x = rng_state;
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+    rng_state = x;
+	return x;
+}
+
+float RandomUnilateral()
+{
+    float numerator = float(XorShift32());
+    float denom = float(U32_MAX);
+    float result = numerator / denom;
+    return result;
+}
+
+float RandomBilateral()
+{
+    float result = -1.0f + 2.0f * RandomUnilateral();
+    return result;
+} 
 
 float RayIntersectSphere(vec3 center, float radius, vec3 rayOrigin, vec3 rayDirection)
 {
@@ -40,6 +69,7 @@ struct RayIntersectionResult
 {
     float t;
     uint materialIndex;
+    vec3 normal;
 };
 
 RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
@@ -48,29 +78,105 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
     result.t = F32_MAX;
     result.materialIndex = 0;
 
-    vec3 sphereCenter = vec3(0, 0, 0);
-    float sphereRadius = 1.5;
-    float sphereT = RayIntersectSphere(sphereCenter, sphereRadius, rayOrigin, rayDirection);
-    if (sphereT >= 0.0 && sphereT < result.t)
-    {
-        result.t = sphereT;
-        result.materialIndex = 1;
-    }
-
     vec3 planeNormal = vec3(0, 1, 0);
-    float planeDist = -0.5f;
+    float planeDist = 0.0;
     float planeT = RayIntersectPlane(planeNormal, planeDist, rayOrigin, rayDirection);
     if (planeT >= 0.0 && planeT < result.t)
     {
         result.t = planeT;
         result.materialIndex = 2;
+        result.normal = planeNormal;
+    }
+
+    // Sphere light
+    vec3 sphereLightCenter = vec3(0, 10, 0);
+    float sphereLightRadius = 5.0;
+    float sphereLightT = RayIntersectSphere(sphereLightCenter, sphereLightRadius, rayOrigin, rayDirection);
+    if (sphereLightT >= 0.0 && sphereLightT < result.t)
+    {
+        result.t = sphereLightT;
+        result.materialIndex = 3;
+        result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereLightCenter);
+    }
+
+    for (uint z = 0; z < 4; ++z)
+    {
+        for (uint x = 0; x < 4; ++x)
+        {
+            vec3 origin = vec3(-8, 1, -8);
+            vec3 sphereCenter = origin + vec3(float(x), 0, float(z)) * 5.0;
+            float sphereRadius = 1.0;
+            float sphereT = RayIntersectSphere(sphereCenter, sphereRadius, rayOrigin, rayDirection);
+            if (sphereT >= 0.0 && sphereT < result.t)
+            {
+                result.t = sphereT;
+                result.materialIndex = 1;
+                result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereCenter);
+            }
+        }
     }
 
     return result;
 }
 
+#define MAX_BOUNCES 3
+struct PathVertex
+{
+    uint materialId;
+    vec3 outgoingDir;
+    vec3 incomingDir;
+    vec3 normal;
+};
+
+vec3 ComputeRadianceForPath(PathVertex path[MAX_BOUNCES], int pathLength)
+{
+    vec3 radiance = vec3(0, 0, 0);
+
+    for (int i = pathLength - 1; i >= 0; i--)
+    {
+        PathVertex vertex = path[i];
+
+        // Fetch values out of path vertex
+        vec3 incomingDir = vertex.incomingDir;
+        vec3 normal = vertex.normal;
+        uint materialId = vertex.materialId;
+
+        vec3 emission = vec3(0, 0, 0);
+        vec3 albedo = vec3(0, 0, 0);
+        if (materialId == 1)
+        {
+            albedo = vec3(0.18, 0.1, 0.1);
+        }
+        else if (materialId == 2)
+        {
+            albedo = vec3(0.08, 0.08, 0.08);
+        }
+        else if (materialId == 0)
+        {
+            // Background (black)
+            //emission = vec3(0.1, 0.05, 0.15);
+        }
+        else if (materialId == 3)
+        {
+            // White light
+            emission = vec3(1);
+        }
+
+        float cosine = max(0.0, dot(normal, incomingDir));
+        vec3 incomingRadiance = radiance;
+
+        radiance = emission + albedo * incomingRadiance * cosine;
+    }
+
+    return radiance;
+}
+
 void main()
 {
+    // Seed our random number generator
+    rng_state =
+        int(gl_GlobalInvocationID.x * 0xF51C0E49) + int(gl_GlobalInvocationID.y * 0x13AC29D1);
+
     vec3 p = vec3(gl_GlobalInvocationID) / vec3(gl_NumWorkGroups);
     p.y = 1.0 - p.y; // Flip image vertically
 
@@ -109,16 +215,58 @@ void main()
 
     vec3 outputColor = vec3(0.08, 0.02, 0.05);
 
-    RayIntersectionResult result = RayIntersectScene(rayOrigin, rayDirection); 
+    PathVertex path[MAX_BOUNCES];
+    int pathLength = 0;
 
-    if (result.materialIndex == 1)
+    for (uint bounceCount = 0; bounceCount < MAX_BOUNCES; bounceCount++)
     {
-        outputColor = vec3(1, 0, 1);
+        RayIntersectionResult result = RayIntersectScene(rayOrigin, rayDirection); 
+
+        if (result.t > 0.0f && result.t < F32_MAX)
+        {
+            // Ray intersection occurred
+            PathVertex vertex;
+            vertex.materialId = result.materialIndex;
+            vertex.outgoingDir = -rayDirection;
+            vertex.normal = result.normal;
+
+            // TODO: Compute bounce direction
+            vec3 dirOffset =
+                vec3(RandomBilateral(), RandomBilateral(), RandomBilateral());
+
+            vec3 dir = normalize(result.normal + dirOffset);
+            if (dot(dir, result.normal) < 0.0f)
+            {
+                dir = -dir;
+            }
+
+            vertex.incomingDir = dir;
+
+            path[pathLength++] = vertex;
+
+            // Update ray origin and ray direction for next iteration
+            float bias = 0.001f;
+            vec3 worldPosition = rayOrigin + rayDirection * result.t;
+            rayOrigin = worldPosition + result.normal * bias;
+            rayDirection = dir;
+        }
+        else
+        {
+            // Ray miss
+            PathVertex vertex;
+            vertex.materialId = 0;
+            vertex.outgoingDir = -rayDirection;
+            path[pathLength++] = vertex;
+
+            // FIXME: Don't use break
+            break;
+        }
+
     }
-    else if (result.materialIndex == 2)
-    {
-        outputColor = vec3(0.08, 0.08, 0.08);
-    }
+
+    // Compute lighting for our path
+    vec3 radiance = ComputeRadianceForPath(path, pathLength);
+    outputColor = radiance;
 
     ivec2 uv = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
     imageStore(outputImage, uv, vec4(outputColor, 1));

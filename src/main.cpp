@@ -1,7 +1,7 @@
 /* TODO (NEW):
 - GPU Ray tracing!!!
     - Basic compute shader implementation [x]
-    - Camera [ ]
+    - Camera [x]
     - Basic ray bouncing [ ]
     - Basic diffuse material [ ]
     - Multi sampling [ ]
