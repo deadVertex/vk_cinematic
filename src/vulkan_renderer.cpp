@@ -1107,18 +1107,21 @@ internal void VulkanRender(
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(renderer->commandBuffer, &beginInfo));
 
-    // Execution barrier
-    vkCmdPipelineBarrier(renderer->commandBuffer,
-        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 0, NULL);
+    if (outputFlags & Output_RunPathTracingComputeShader)
+    {
+        // Execution barrier
+        vkCmdPipelineBarrier(renderer->commandBuffer,
+                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 0, NULL);
 
-    vkCmdBindPipeline(renderer->commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-        renderer->computePipeline);
-    vkCmdBindDescriptorSets(renderer->commandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, renderer->computePipelineLayout, 0, 1,
-        &renderer->computeDescriptorSets[imageIndex], 0, NULL);
-    vkCmdDispatch(
-        renderer->commandBuffer, RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT, 1);
+        vkCmdBindPipeline(renderer->commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                renderer->computePipeline);
+        vkCmdBindDescriptorSets(renderer->commandBuffer,
+                VK_PIPELINE_BIND_POINT_COMPUTE, renderer->computePipelineLayout, 0, 1,
+                &renderer->computeDescriptorSets[imageIndex], 0, NULL);
+        vkCmdDispatch(
+                renderer->commandBuffer, RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT, 1);
+    }
 
     // Execution barrier
     vkCmdPipelineBarrier(renderer->commandBuffer,

@@ -206,7 +206,7 @@ void main()
     float halfFilmWidth = filmWidth * 0.5;
     float halfFilmHeight = filmHeight * 0.5;
 
-    uint sampleCount = 4;
+    uint sampleCount = 64;
     float sampleContribution = 1.0 / float(sampleCount);
 
     vec3 totalRadiance = vec3(0, 0, 0);

@@ -34,6 +34,7 @@ enum
 {
     Output_None = 0,
     Output_ShowDebugDrawing = 1,
+    Output_RunPathTracingComputeShader = 2,
 };
 
 struct Mesh

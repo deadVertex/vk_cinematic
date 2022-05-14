@@ -5,6 +5,8 @@
     - Basic ray bouncing [x]
     - Basic diffuse material [x]
     - Multi sampling [x]
+    - Don't run GPU ray tracing every frame! [ ]
+    - Accumulate pixel samples over multiple frames [ ]
     - Triangle mesh support [ ]
     - Include system for shaders [ ]
     - Unit test framework for compute shaders [ ]
@@ -1318,6 +1320,8 @@ int main(int argc, char **argv)
     f64 rayTracingStartTime = 0.0;
     f64 nextStatPrintTime = 0.0;
     b32 showComputeShaderOutput = false;
+    b32 runPathTracingComputeShader = false;
+    b32 oneShotComputeShaderPathTracing = false;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -1516,6 +1520,13 @@ int main(int argc, char **argv)
             showComputeShaderOutput = !showComputeShaderOutput;
         }
 
+        if (WasPressed(input.buttonStates[KEY_P]))
+        {
+            runPathTracingComputeShader = true;
+            oneShotComputeShaderPathTracing = true;
+            showComputeShaderOutput = true;
+        }
+
         VulkanCopyImageFromCPU(&renderer);
         
 #if DRAW_ENTITY_AABBS
@@ -1555,7 +1566,17 @@ int main(int argc, char **argv)
         {
             outputFlags |= Output_ShowDebugDrawing;
         }
+
+        if (runPathTracingComputeShader)
+        {
+            outputFlags |= Output_RunPathTracingComputeShader;
+        }
         VulkanRender(&renderer, outputFlags, scene);
+
+        if (oneShotComputeShaderPathTracing)
+        {
+            runPathTracingComputeShader = false;
+        }
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;
