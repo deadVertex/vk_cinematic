@@ -37,6 +37,7 @@ internal void UploadHdrImageToGPU(
         renderer->commandPool, renderer->graphicsQueue);
 
 
+    // FIXME: This seems horrific!
     Assert(renderer->swapchain.imageCount == 2);
     for (u32 i = 0; i < renderer->swapchain.imageCount; ++i)
     {
@@ -44,13 +45,19 @@ internal void UploadHdrImageToGPU(
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = renderer->images[imageId].view;
 
-        VkWriteDescriptorSet descriptorWrites[1] = {};
+        VkWriteDescriptorSet descriptorWrites[2] = {};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = renderer->descriptorSets[i];
         descriptorWrites[0].dstBinding = dstBinding;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pImageInfo = &imageInfo;
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = renderer->computeDescriptorSets[i];
+        descriptorWrites[1].dstBinding = dstBinding;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
         vkUpdateDescriptorSets(renderer->device, ArrayCount(descriptorWrites),
             descriptorWrites, 0, NULL);
     }

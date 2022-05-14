@@ -8,6 +8,10 @@ layout(binding = 1, std140) uniform ComputeShaderUniformBuffer {
     mat4 cameraTransform;
 } ubo;
 
+layout(binding = 2) uniform sampler defaultSampler;
+// FIXME: Texture binding is a horrific mess at the moment!
+layout(binding = 8) uniform texture2D checkerBoardTexture;
+
 // NOTE: This needs to be correctly seeded in main()
 uint rng_state;
 
@@ -59,10 +63,96 @@ float RayIntersectSphere(vec3 center, float radius, vec3 rayOrigin, vec3 rayDire
     return t;
 }
 
-float RayIntersectPlane(vec3 normal, float dist, vec3 rayOrigin, vec3 rayDirection)
+struct RayIntersectTriangleResult
 {
-    float t = dot(normal * dist - rayOrigin, normal) / dot(rayDirection, normal);
-    return t;
+    float t;
+    vec2 uv;
+    vec3 normal;
+};
+
+RayIntersectTriangleResult RayIntersectTriangleMT(vec3 rayOrigin,
+    vec3 rayDirection, vec3 a, vec3 b, vec3 c)
+{
+    RayIntersectTriangleResult result;
+    result.t = -1.0f;
+
+    vec3 T = rayOrigin - a;
+    vec3 e1 = b - a;
+    vec3 e2 = c - a;
+
+    vec3 p = cross(rayDirection, e2);
+    vec3 q = cross(T, e1);
+
+    vec3 m = vec3(dot(q, e2), dot(p, T), dot(q, rayDirection));
+
+    float det = 1.0f / dot(p, e1);
+
+    float t = det * m.x;
+    float u = det * m.y;
+    float v = det * m.z;
+    float w = 1.0f - u - v;
+
+    if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f && w >= 0.0f &&
+        w <= 1.0f)
+    {
+        result.t = t;
+        result.normal = normalize(cross(e1, e2));
+        result.uv = vec2(u, v);
+    }
+
+    return result;
+}
+
+vec2 ComputeUV(RayIntersectTriangleResult triangleIntersect, vec2 a, vec2 b, vec2 c)
+{
+    // Compute UVs from barycentric coordinates
+    float w =
+        1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
+    vec2 uv =
+        a * w +
+        b * triangleIntersect.uv.x +
+        c * triangleIntersect.uv.y;
+    return uv;
+}
+
+RayIntersectTriangleResult RayIntersectQuad(vec3 rayOrigin, vec3 rayDirection, vec3 position, vec3 scale)
+{
+    vec3 h = scale * 0.5f;
+    vec3 verts[4];
+    verts[0] = position + vec3(-h.x, 0, -h.z);
+    verts[1] = position + vec3(h.x, 0, -h.z);
+    verts[2] = position + vec3(h.x, 0, h.z);
+    verts[3] = position + vec3(-h.x, 0, h.z);
+
+    vec2 uvs[4];
+    uvs[0] = vec2(0, 0);
+    uvs[1] = vec2(1, 0);
+    uvs[2] = vec2(1, 1);
+    uvs[3] = vec2(0, 1);
+
+    RayIntersectTriangleResult a = RayIntersectTriangleMT(rayOrigin,
+        rayDirection, verts[0], verts[3], verts[2]);
+    RayIntersectTriangleResult b = RayIntersectTriangleMT(rayOrigin,
+        rayDirection, verts[0], verts[2], verts[1]);
+
+    RayIntersectTriangleResult result;
+    result.t = -1.0;
+
+    if (a.t >= 0.0f)
+    {
+        result = a;
+        result.uv = ComputeUV(a, uvs[0], uvs[3], uvs[2]);
+    }
+    if (b.t >= 0.0f)
+    {
+        if (result.t < 0.0f || b.t < result.t)
+        {
+            result = b;
+            result.uv = ComputeUV(b, uvs[0], uvs[2], uvs[1]);
+        }
+    }
+
+    return result;
 }
 
 struct RayIntersectionResult
@@ -70,6 +160,7 @@ struct RayIntersectionResult
     float t;
     uint materialIndex;
     vec3 normal;
+    vec2 uv;
 };
 
 RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
@@ -78,14 +169,14 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
     result.t = F32_MAX;
     result.materialIndex = 0;
 
-    vec3 planeNormal = vec3(0, 1, 0);
-    float planeDist = 0.0;
-    float planeT = RayIntersectPlane(planeNormal, planeDist, rayOrigin, rayDirection);
-    if (planeT >= 0.0 && planeT < result.t)
+    RayIntersectTriangleResult quadResult =
+        RayIntersectQuad(rayOrigin, rayDirection, vec3(0, 0, 0), vec3(50));
+    if (quadResult.t >= 0.0 && quadResult.t < result.t)
     {
-        result.t = planeT;
+        result.t = quadResult.t;
         result.materialIndex = 2;
-        result.normal = planeNormal;
+        result.normal = quadResult.normal;
+        result.uv = quadResult.uv;
     }
 
     // Sphere light
@@ -126,6 +217,7 @@ struct PathVertex
     vec3 outgoingDir;
     vec3 incomingDir;
     vec3 normal;
+    vec2 uv;
 };
 
 vec3 ComputeRadianceForPath(PathVertex path[MAX_BOUNCES], int pathLength)
@@ -139,6 +231,7 @@ vec3 ComputeRadianceForPath(PathVertex path[MAX_BOUNCES], int pathLength)
         // Fetch values out of path vertex
         vec3 incomingDir = vertex.incomingDir;
         vec3 normal = vertex.normal;
+        vec2 uv = vertex.uv;
         uint materialId = vertex.materialId;
 
         vec3 emission = vec3(0, 0, 0);
@@ -149,7 +242,9 @@ vec3 ComputeRadianceForPath(PathVertex path[MAX_BOUNCES], int pathLength)
         }
         else if (materialId == 2)
         {
-            albedo = vec3(0.08, 0.08, 0.08);
+            //albedo = vec3(0.08, 0.08, 0.08);
+            albedo =
+                texture(sampler2D(checkerBoardTexture, defaultSampler), uv).rgb;
         }
         else if (materialId == 0)
         {
@@ -251,6 +346,7 @@ void main()
                 vertex.materialId = result.materialIndex;
                 vertex.outgoingDir = -rayDirection;
                 vertex.normal = result.normal;
+                vertex.uv = result.uv;
 
                 // TODO: Compute bounce direction
                 vec3 dirOffset =

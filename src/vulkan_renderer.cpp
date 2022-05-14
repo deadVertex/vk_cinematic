@@ -548,9 +548,9 @@ internal VkPipelineLayout VulkanCreateComputePipelineLayout(
 }
 
 internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
-    VkDevice device)
+    VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[2] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[4] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     layoutBindings[0].descriptorCount = 1;
@@ -559,6 +559,15 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[1].descriptorCount = 1;
     layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[2].binding = 2;
+    layoutBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    layoutBindings[2].descriptorCount = 1;
+    layoutBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[2].pImmutableSamplers = &sampler;
+    layoutBindings[3].binding = 8;
+    layoutBindings[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layoutBindings[3].descriptorCount = 1;
+    layoutBindings[3].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -812,7 +821,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         VulkanCreateDebugDrawDescriptorSetLayout(renderer->device);
 
     renderer->computeDescriptorSetLayout =
-        VulkanCreateComputeDescriptorSetLayout(renderer->device);
+        VulkanCreateComputeDescriptorSetLayout(
+            renderer->device, renderer->defaultSampler);
 
     // Create pipeline layout
     renderer->pipelineLayout = VulkanCreatePipelineLayout(

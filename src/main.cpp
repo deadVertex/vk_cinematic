@@ -5,11 +5,15 @@
     - Basic ray bouncing [x]
     - Basic diffuse material [x]
     - Multi sampling [x]
-    - Don't run GPU ray tracing every frame! [ ]
+    - Don't run GPU ray tracing every frame! [x]
+    - Texture mapping [x]
+    - Triangle intersection [x]
     - Accumulate pixel samples over multiple frames [ ]
     - Triangle mesh support [ ]
+    - Uploading meshes [ ]
     - Include system for shaders [ ]
     - Unit test framework for compute shaders [ ]
+- Texture binding mess (see FIXMEs)
 - Lights for rasterization
     - Sphere
     - Directional
