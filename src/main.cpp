@@ -2,9 +2,9 @@
 - GPU Ray tracing!!!
     - Basic compute shader implementation [x]
     - Camera [x]
-    - Basic ray bouncing [ ]
-    - Basic diffuse material [ ]
-    - Multi sampling [ ]
+    - Basic ray bouncing [x]
+    - Basic diffuse material [x]
+    - Multi sampling [x]
     - Triangle mesh support [ ]
     - Include system for shaders [ ]
     - Unit test framework for compute shaders [ ]
