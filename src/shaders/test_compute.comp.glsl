@@ -283,7 +283,7 @@ void main()
     vec3 up = vec3(ubo.cameraTransform[1]);
     vec3 right = vec3(ubo.cameraTransform[0]);
     vec3 cameraP = vec3(ubo.cameraTransform[3]);
-    float filmDistance = 1.0;
+    float filmDistance = 0.8; // FIXME: Magic number copied from CPU path tracer
     vec3 filmCenter = cameraP + forward * filmDistance;
 
     // Calculate aspect ratio correction
