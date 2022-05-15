@@ -550,7 +550,7 @@ internal VkPipelineLayout VulkanCreateComputePipelineLayout(
 internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[4] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[7] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     layoutBindings[0].descriptorCount = 1;
@@ -568,6 +568,18 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     layoutBindings[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     layoutBindings[3].descriptorCount = 1;
     layoutBindings[3].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[4].binding = 3;
+    layoutBindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[4].descriptorCount = 1;
+    layoutBindings[4].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[5].binding = 4;
+    layoutBindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[5].descriptorCount = 1;
+    layoutBindings[5].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[6].binding = 5;
+    layoutBindings[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[6].descriptorCount = 1;
+    layoutBindings[6].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -583,7 +595,9 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
 }
 
 internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
-    VkDescriptorSet set, VulkanImage image, VulkanBuffer uniformBuffer)
+    VkDescriptorSet set, VulkanImage image, VulkanBuffer uniformBuffer,
+    VulkanBuffer vertexDataBuffer, VulkanBuffer indexBuffer,
+    VulkanBuffer meshBuffer)
 {
     VkDescriptorImageInfo outputImageInfo = {};
     outputImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -593,7 +607,19 @@ internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
     uniformBufferInfo.buffer = uniformBuffer.handle;
     uniformBufferInfo.range = VK_WHOLE_SIZE;
 
-    VkWriteDescriptorSet descriptorWrites[2] = {};
+    VkDescriptorBufferInfo vertexDataBufferInfo = {};
+    vertexDataBufferInfo.buffer = vertexDataBuffer.handle;
+    vertexDataBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo indexBufferInfo = {};
+    indexBufferInfo.buffer = indexBuffer.handle;
+    indexBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo meshBufferInfo = {};
+    meshBufferInfo.buffer = meshBuffer.handle;
+    meshBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet descriptorWrites[5] = {};
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].dstSet = set;
     descriptorWrites[0].dstBinding = 0;
@@ -606,9 +632,47 @@ internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
     descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     descriptorWrites[1].descriptorCount = 1;
     descriptorWrites[1].pBufferInfo = &uniformBufferInfo;
+    descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[2].dstSet = set;
+    descriptorWrites[2].dstBinding = 3;
+    descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[2].descriptorCount = 1;
+    descriptorWrites[2].pBufferInfo = &vertexDataBufferInfo;
+    descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[3].dstSet = set;
+    descriptorWrites[3].dstBinding = 4;
+    descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[3].descriptorCount = 1;
+    descriptorWrites[3].pBufferInfo = &indexBufferInfo;
+    descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[4].dstSet = set;
+    descriptorWrites[4].dstBinding = 5;
+    descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[4].descriptorCount = 1;
+    descriptorWrites[4].pBufferInfo = &meshBufferInfo;
 
     vkUpdateDescriptorSets(
         device, ArrayCount(descriptorWrites), descriptorWrites, 0, NULL);
+}
+
+struct ComputeMesh
+{
+    u32 indexCount;
+    u32 indicesOffset;
+    u32 vertexDataOffset;
+};
+
+internal void VulkanUploadComputeMeshData(VulkanRenderer *renderer)
+{
+    ComputeMesh *meshBuffer = (ComputeMesh *)renderer->computeMeshBuffer.data;
+    for (u32 i = 0; i < ArrayCount(renderer->meshes); ++i)
+    {
+        Mesh in = renderer->meshes[i];
+        ComputeMesh *out = meshBuffer + i;
+        out->indexCount = in.indexCount;
+        out->indicesOffset = in.indexDataOffset / sizeof(u32);
+        out->vertexDataOffset = in.vertexDataOffset;
+    }
 }
 
 // TODO: Handle errors gracefully?
@@ -726,7 +790,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
 
     renderer->indexBuffer = VulkanCreateBuffer(renderer->device,
         renderer->physicalDevice, INDEX_BUFFER_SIZE,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     renderer->imageUploadBuffer =
@@ -770,6 +835,13 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->computeUniformBuffer =
         VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
             COMPUTE_UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // Compute shader buffer of mesh data (vertex + index offsets)
+    renderer->computeMeshBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            COMPUTE_UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -1097,7 +1169,10 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
         VulkanUpdateComputeDescriptorSets(renderer->device,
             renderer->computeDescriptorSets[i],
             renderer->images[Image_ComputeShader],
-            renderer->computeUniformBuffer);
+            renderer->computeUniformBuffer,
+            renderer->vertexDataBuffer,
+            renderer->indexBuffer,
+            renderer->computeMeshBuffer);
     }
 }
 

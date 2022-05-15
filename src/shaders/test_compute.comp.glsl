@@ -3,6 +3,31 @@
 #define U32_MAX 0xffffffffu
 #define F32_MAX 3.402823466e+38
 
+#define Mesh_Plane 2
+#define Mesh_Cube 3
+#define Mesh_Sphere 5
+
+struct VertexPNT
+{
+    float px, py, pz;
+    float nx, ny, nz;
+    float tx, ty;
+};
+
+struct RayTracingVertex
+{
+    vec3 position;
+    vec3 normal;
+    vec2 textureCoord;
+};
+
+struct Mesh
+{
+    uint indexCount;
+    uint indicesOffset; // In sizeof(uint) units
+    uint vertexDataOffset; // In sizeof(VertexPNT) units
+};
+
 layout(binding = 0, rgba32f) uniform writeonly image2D outputImage;
 layout(binding = 1, std140) uniform ComputeShaderUniformBuffer {
     mat4 cameraTransform;
@@ -11,6 +36,21 @@ layout(binding = 1, std140) uniform ComputeShaderUniformBuffer {
 layout(binding = 2) uniform sampler defaultSampler;
 // FIXME: Texture binding is a horrific mess at the moment!
 layout(binding = 8) uniform texture2D checkerBoardTexture;
+
+layout(binding = 3) readonly buffer Vertices
+{
+    VertexPNT g_vertices[];
+};
+
+layout(binding = 4) readonly buffer Indices
+{
+    uint g_indices[];
+};
+
+layout(binding = 5) readonly buffer Meshes
+{
+    Mesh g_meshes[];
+};
 
 // NOTE: This needs to be correctly seeded in main()
 uint rng_state;
@@ -155,6 +195,75 @@ RayIntersectTriangleResult RayIntersectQuad(vec3 rayOrigin, vec3 rayDirection, v
     return result;
 }
 
+RayTracingVertex FetchVertex(uint vertexIndex, uint vertexDataOffset)
+{
+    RayTracingVertex vertex;
+
+    vertex.position = vec3(
+            g_vertices[vertexIndex + vertexDataOffset].px,
+            g_vertices[vertexIndex + vertexDataOffset].py,
+            g_vertices[vertexIndex + vertexDataOffset].pz);
+
+    vertex.normal = vec3(
+            g_vertices[vertexIndex + vertexDataOffset].nx,
+            g_vertices[vertexIndex + vertexDataOffset].ny,
+            g_vertices[vertexIndex + vertexDataOffset].nz);
+
+    vertex.textureCoord = vec2(
+            g_vertices[vertexIndex + vertexDataOffset].tx,
+            g_vertices[vertexIndex + vertexDataOffset].ty);
+
+    return vertex;
+}
+
+RayIntersectTriangleResult RayIntersectTriangleMesh(
+    Mesh mesh, vec3 rayOrigin, vec3 rayDirection)
+{
+    RayIntersectTriangleResult closestIntersection;
+    closestIntersection.t = F32_MAX;
+
+    uint triangleCount = mesh.indexCount / 3;
+
+    // RayIntersectTriangleMT each one and keep track of closest intersection
+    for (uint triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++)
+    {
+        // Compute vertex indices
+        uint indices[3];
+        indices[0] = g_indices[triangleIndex * 3 + 0 + mesh.indicesOffset];
+        indices[1] = g_indices[triangleIndex * 3 + 1 + mesh.indicesOffset];
+        indices[2] = g_indices[triangleIndex * 3 + 2 + mesh.indicesOffset];
+
+        RayTracingVertex vertices[3];
+        vertices[0] = FetchVertex(indices[0], mesh.vertexDataOffset);
+        vertices[1] = FetchVertex(indices[1], mesh.vertexDataOffset);
+        vertices[2] = FetchVertex(indices[2], mesh.vertexDataOffset);
+
+        RayIntersectTriangleResult triangleIntersect = RayIntersectTriangleMT(
+            rayOrigin, rayDirection, vertices[0].position, vertices[1].position,
+            vertices[2].position);
+
+        if (triangleIntersect.t >= 0.0f && triangleIntersect.t < F32_MAX)
+        {
+            if (triangleIntersect.t < closestIntersection.t)
+            {
+                closestIntersection = triangleIntersect;
+
+                // Compute UVs from barycentric coordinates
+                float w =
+                    1.0f - triangleIntersect.uv.x - triangleIntersect.uv.y;
+                vec2 uv =
+                    vertices[0].textureCoord * w +
+                    vertices[1].textureCoord * triangleIntersect.uv.x +
+                    vertices[2].textureCoord * triangleIntersect.uv.y;
+
+                closestIntersection.uv = uv;
+            }
+        }
+    }
+
+    return closestIntersection;
+}
+
 struct RayIntersectionResult
 {
     float t;
@@ -190,6 +299,7 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
         result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereLightCenter);
     }
 
+#if 0
     for (uint z = 0; z < 4; ++z)
     {
         for (uint x = 0; x < 4; ++x)
@@ -205,6 +315,19 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
                 result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereCenter);
             }
         }
+    }
+#endif
+
+    // Test mesh
+    Mesh mesh = g_meshes[Mesh_Plane];
+    RayIntersectTriangleResult meshResult =
+        RayIntersectTriangleMesh(mesh, rayOrigin, rayDirection);
+    if (meshResult.t >= 0.0 && meshResult.t < result.t)
+    {
+        result.t = meshResult.t;
+        result.materialIndex = 1;
+        result.normal = meshResult.normal;
+        //result.uv = meshResult.uv;
     }
 
     return result;
@@ -301,6 +424,7 @@ void main()
     float halfFilmWidth = filmWidth * 0.5;
     float halfFilmHeight = filmHeight * 0.5;
 
+#if 1
     uint sampleCount = 64;
     float sampleContribution = 1.0 / float(sampleCount);
 
@@ -388,6 +512,26 @@ void main()
     }
 
     vec3 outputColor = totalRadiance;
+#endif
+
+#if 0
+    vec3 outputColor = vec3(0, 0, 0);
+    // Mesh_Plane: indexCount: 6 indexDataOffset: 248544 vertexDataOffset: 22858
+    Mesh mesh = g_meshes[Mesh_Plane];
+    // Mesh data is good!
+
+    // Compute vertex indices
+    uint triangleIndex = 0;
+    uint indices[3];
+    indices[0] = g_indices[triangleIndex * 3 + 0 + mesh.indicesOffset];
+    indices[0] = g_indices[triangleIndex * 3 + 1 + mesh.indicesOffset];
+    indices[0] = g_indices[triangleIndex * 3 + 2 + mesh.indicesOffset];
+
+    RayTracingVertex vertices[3];
+    vertices[0] = FetchVertex(indices[0], mesh.vertexDataOffset);
+    vertices[1] = FetchVertex(indices[1], mesh.vertexDataOffset);
+    vertices[2] = FetchVertex(indices[2], mesh.vertexDataOffset);
+#endif
 
     ivec2 uv = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
     imageStore(outputImage, uv, vec4(outputColor, 1));

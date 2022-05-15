@@ -9,8 +9,11 @@
     - Texture mapping [x]
     - Triangle intersection [x]
     - Fix camera FOV to match CPU path tracer [ ]
-    - Triangle mesh support [ ]
-    - Uploading meshes [ ]
+    - Triangle mesh support [x]
+    - Uploading meshes [x]
+    - Serious performance issues with triangle meshes [ ]
+    - Broadphase? [ ]
+    - Midphase [ ]
     - Fix texture coordinates mismatch [ ]
     - Accumulate pixel samples over multiple frames [ ]
     - Update screen with partial updates from GPU ray tracing [ ]
@@ -1198,6 +1201,9 @@ int main(int argc, char **argv)
     // Publish mesh data to vulkan renderer
     UploadMeshDataToGpu(&renderer, &sceneMeshData);
 
+    // Publish mesh data to GPU path tracer
+    VulkanUploadComputeMeshData(&renderer);
+
     // Build mesh data for path tracer
     sp_Mesh meshes[MAX_MESHES];
     CreatePathTracerMeshData(
@@ -1315,6 +1321,15 @@ int main(int argc, char **argv)
     ThreadPool threadPool = CreateThreadPool(&workQueue);
 
     LogMessage("Start up time: %gs", glfwGetTime());
+
+    // Debugging compute shader
+    {
+        Mesh mesh = renderer.meshes[Mesh_Plane];
+        LogMessage("Mesh_Plane: indexCount: %u indexDataOffset: %u vertexDataOffset: %u",
+                mesh.indexCount,
+                mesh.indexDataOffset,
+                mesh.vertexDataOffset);
+    }
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
