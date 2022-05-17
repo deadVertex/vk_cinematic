@@ -299,7 +299,7 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
         result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereLightCenter);
     }
 
-#if 0
+#if 1
     for (uint z = 0; z < 4; ++z)
     {
         for (uint x = 0; x < 4; ++x)
@@ -318,6 +318,7 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
     }
 #endif
 
+#if 0
     // Test mesh
     Mesh mesh = g_meshes[Mesh_Plane];
     RayIntersectTriangleResult meshResult =
@@ -327,8 +328,9 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
         result.t = meshResult.t;
         result.materialIndex = 1;
         result.normal = meshResult.normal;
-        //result.uv = meshResult.uv;
+        result.uv = meshResult.uv;
     }
+#endif
 
     return result;
 }
@@ -389,150 +391,186 @@ vec3 ComputeRadianceForPath(PathVertex path[MAX_BOUNCES], int pathLength)
     return radiance;
 }
 
+struct Camera
+{
+    vec3 right;
+    vec3 up;
+    vec3 forward;
+    vec3 position;
+};
+
+struct Film
+{
+    float halfWidth;
+    float halfHeight;
+    float halfPixelWidth;
+    float halfPixelHeight;
+    vec3 center;
+    vec2 oneOverImagePlaneDims;
+};
+
+struct Tile
+{
+    uint minX;
+    uint minY;
+    uint maxX;
+    uint maxY;
+};
+
+void PathTraceTile(Tile tile, Camera camera, Film film)
+{
+    for (uint y = tile.minY; y < tile.maxY; y++)
+    {
+        for (uint x = tile.minX; x < tile.maxX; x++)
+        {
+            uint sampleCount = 256;
+            float sampleContribution = 1.0 / float(sampleCount);
+
+            vec3 totalRadiance = vec3(0, 0, 0);
+            for (uint sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+            {
+                // Offset pixel position by 0.5 to sample from center
+                vec2 pixelPosition = vec2(x, y) + vec2(0.5);
+
+                pixelPosition += vec2(film.halfPixelWidth * RandomBilateral(),
+                                      film.halfPixelHeight * RandomBilateral());
+
+                // Calculate position on film plane as 0->1 range
+                vec2 p = pixelPosition * film.oneOverImagePlaneDims;
+
+                p.y = 1.0 - p.y; // Flip image vertically
+
+                // Map p from 0..1 range into -1..1 range
+                p = p * 2.0 - vec2(1.0);
+
+                // Compute world position on film plane
+                vec3 filmP = film.center;
+                filmP += (film.halfWidth * p.x) * camera.right;
+                filmP += (film.halfHeight * p.y) * camera.up;
+
+                vec3 rayOrigin = camera.position;
+                vec3 rayDirection = normalize(filmP - rayOrigin);
+
+                vec3 outputColor = vec3(0.08, 0.02, 0.05);
+
+                PathVertex path[MAX_BOUNCES];
+                int pathLength = 0;
+
+                for (uint bounceCount = 0; bounceCount < MAX_BOUNCES; bounceCount++)
+                {
+                    RayIntersectionResult result = RayIntersectScene(rayOrigin, rayDirection); 
+
+                    if (result.t > 0.0f && result.t < F32_MAX)
+                    {
+                        // Ray intersection occurred
+                        PathVertex vertex;
+                        vertex.materialId = result.materialIndex;
+                        vertex.outgoingDir = -rayDirection;
+                        vertex.normal = result.normal;
+                        vertex.uv = result.uv;
+
+                        // TODO: Compute bounce direction
+                        vec3 dirOffset =
+                            vec3(RandomBilateral(), RandomBilateral(), RandomBilateral());
+
+                        vec3 dir = normalize(result.normal + dirOffset);
+                        if (dot(dir, result.normal) < 0.0f)
+                        {
+                            dir = -dir;
+                        }
+
+                        vertex.incomingDir = dir;
+
+                        path[pathLength++] = vertex;
+
+                        // Update ray origin and ray direction for next iteration
+                        float bias = 0.001f;
+                        vec3 worldPosition = rayOrigin + rayDirection * result.t;
+                        rayOrigin = worldPosition + result.normal * bias;
+                        rayDirection = dir;
+                    }
+                    else
+                    {
+                        // Ray miss
+                        PathVertex vertex;
+                        vertex.materialId = 0;
+                        vertex.outgoingDir = -rayDirection;
+                        path[pathLength++] = vertex;
+
+                        // FIXME: Don't use break
+                        break;
+                    }
+
+                }
+
+                // Compute lighting for our path
+                vec3 radiance = ComputeRadianceForPath(path, pathLength);
+                totalRadiance += radiance * sampleContribution;
+            }
+
+            vec3 outputColor = totalRadiance;
+
+            ivec2 uv = ivec2(x, y);
+            imageStore(outputImage, uv, vec4(outputColor, 1));
+        }
+    }
+}
+
 void main()
 {
     // Seed our random number generator
-    rng_state =
-        gl_GlobalInvocationID.x * 0xF51C0E49 + gl_GlobalInvocationID.y * 0x13AC29D1;
+    rng_state = (gl_GlobalInvocationID.x + 1) * 0xF51C0E49 +
+                (gl_GlobalInvocationID.y + 1) * 0x13AC29D1;
 
-    float imagePlaneWidth = float(gl_NumWorkGroups.x);
-    float imagePlaneHeight = float(gl_NumWorkGroups.y);
-    vec2 oneOverImagePlaneDims = vec2(1.0) / vec2(imagePlaneWidth, imagePlaneHeight);
+    // FIXME: Don't duplicate this info from config.h
+#define IMAGE_WIDTH 1024
+#define IMAGE_HEIGHT 768
+#define TILE_WIDTH 64
+#define TILE_HEIGHT 64
 
-    float halfPixelWidth = 0.5 / imagePlaneWidth;
-    float halfPixelHeight = 0.5 / imagePlaneHeight;
-
-    vec3 forward = vec3(ubo.cameraTransform[2]);
-    vec3 up = vec3(ubo.cameraTransform[1]);
-    vec3 right = vec3(ubo.cameraTransform[0]);
-    vec3 cameraP = vec3(ubo.cameraTransform[3]);
+    float imagePlaneWidth = float(IMAGE_WIDTH);
+    float imagePlaneHeight = float(IMAGE_HEIGHT);
     float filmDistance = 0.8; // FIXME: Magic number copied from CPU path tracer
-    vec3 filmCenter = cameraP + forward * filmDistance;
 
     // Calculate aspect ratio correction
     float filmWidth = 1.0;
     float filmHeight = 1.0;
-    if (gl_NumWorkGroups.x > gl_NumWorkGroups.y)
+    if (imagePlaneWidth > imagePlaneHeight)
     {
-        filmHeight = float(gl_NumWorkGroups.y) / float(gl_NumWorkGroups.x);
+        filmHeight = imagePlaneHeight / imagePlaneWidth;
     }
-    else if (gl_NumWorkGroups.x < gl_NumWorkGroups.y)
+    else if (imagePlaneWidth < imagePlaneHeight)
     {
-        filmWidth = float(gl_NumWorkGroups.x) / float(gl_NumWorkGroups.y);
-    }
-
-    float halfFilmWidth = filmWidth * 0.5;
-    float halfFilmHeight = filmHeight * 0.5;
-
-#if 1
-    uint sampleCount = 64;
-    float sampleContribution = 1.0 / float(sampleCount);
-
-    vec3 totalRadiance = vec3(0, 0, 0);
-    for (uint sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
-    {
-        // Offset pixel position by 0.5 to sample from center
-        vec2 pixelPosition =
-            vec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y) + vec2(0.5);
-
-        pixelPosition += vec2(halfPixelWidth * RandomBilateral(),
-            halfPixelHeight * RandomBilateral());
-
-        // Calculate position on film plane as 0->1 range
-        vec2 p = pixelPosition * oneOverImagePlaneDims;
-
-        p.y = 1.0 - p.y; // Flip image vertically
-
-        // Map p from 0..1 range into -1..1 range
-        p = p * 2.0 - vec2(1.0);
-
-        // Compute world position on film plane
-        vec3 filmP = filmCenter;
-        filmP += (halfFilmWidth * p.x) * right;
-        filmP += (halfFilmHeight * p.y) * up;
-
-        vec3 rayOrigin = cameraP;
-        vec3 rayDirection = normalize(filmP - rayOrigin);
-
-        vec3 outputColor = vec3(0.08, 0.02, 0.05);
-
-        PathVertex path[MAX_BOUNCES];
-        int pathLength = 0;
-
-        for (uint bounceCount = 0; bounceCount < MAX_BOUNCES; bounceCount++)
-        {
-            RayIntersectionResult result = RayIntersectScene(rayOrigin, rayDirection); 
-
-            if (result.t > 0.0f && result.t < F32_MAX)
-            {
-                // Ray intersection occurred
-                PathVertex vertex;
-                vertex.materialId = result.materialIndex;
-                vertex.outgoingDir = -rayDirection;
-                vertex.normal = result.normal;
-                vertex.uv = result.uv;
-
-                // TODO: Compute bounce direction
-                vec3 dirOffset =
-                    vec3(RandomBilateral(), RandomBilateral(), RandomBilateral());
-
-                vec3 dir = normalize(result.normal + dirOffset);
-                if (dot(dir, result.normal) < 0.0f)
-                {
-                    dir = -dir;
-                }
-
-                vertex.incomingDir = dir;
-
-                path[pathLength++] = vertex;
-
-                // Update ray origin and ray direction for next iteration
-                float bias = 0.001f;
-                vec3 worldPosition = rayOrigin + rayDirection * result.t;
-                rayOrigin = worldPosition + result.normal * bias;
-                rayDirection = dir;
-            }
-            else
-            {
-                // Ray miss
-                PathVertex vertex;
-                vertex.materialId = 0;
-                vertex.outgoingDir = -rayDirection;
-                path[pathLength++] = vertex;
-
-                // FIXME: Don't use break
-                break;
-            }
-
-        }
-
-        // Compute lighting for our path
-        vec3 radiance = ComputeRadianceForPath(path, pathLength);
-        totalRadiance += radiance * sampleContribution;
+        filmWidth = imagePlaneWidth / imagePlaneHeight;
     }
 
-    vec3 outputColor = totalRadiance;
-#endif
-
+    Tile tile;
 #if 0
-    vec3 outputColor = vec3(0, 0, 0);
-    // Mesh_Plane: indexCount: 6 indexDataOffset: 248544 vertexDataOffset: 22858
-    Mesh mesh = g_meshes[Mesh_Plane];
-    // Mesh data is good!
+    tile.minX = gl_GlobalInvocationID.x;
+    tile.maxX = gl_GlobalInvocationID.x + 1;
 
-    // Compute vertex indices
-    uint triangleIndex = 0;
-    uint indices[3];
-    indices[0] = g_indices[triangleIndex * 3 + 0 + mesh.indicesOffset];
-    indices[0] = g_indices[triangleIndex * 3 + 1 + mesh.indicesOffset];
-    indices[0] = g_indices[triangleIndex * 3 + 2 + mesh.indicesOffset];
-
-    RayTracingVertex vertices[3];
-    vertices[0] = FetchVertex(indices[0], mesh.vertexDataOffset);
-    vertices[1] = FetchVertex(indices[1], mesh.vertexDataOffset);
-    vertices[2] = FetchVertex(indices[2], mesh.vertexDataOffset);
+    tile.minY = gl_GlobalInvocationID.y;
+    tile.maxY = gl_GlobalInvocationID.y + 1;
 #endif
 
-    ivec2 uv = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
-    imageStore(outputImage, uv, vec4(outputColor, 1));
+    tile.minX = gl_GlobalInvocationID.x * TILE_WIDTH;
+    tile.maxX = min(IMAGE_WIDTH, (gl_GlobalInvocationID.x + 1) * TILE_WIDTH);
+    tile.minY = gl_GlobalInvocationID.y * TILE_HEIGHT;
+    tile.maxY = min(IMAGE_HEIGHT, (gl_GlobalInvocationID.y + 1) * TILE_HEIGHT);
+
+    Camera camera;
+    camera.right = vec3(ubo.cameraTransform[0]);
+    camera.up = vec3(ubo.cameraTransform[1]);
+    camera.forward = vec3(ubo.cameraTransform[2]);
+    camera.position = vec3(ubo.cameraTransform[3]);
+
+    Film film;
+    film.halfWidth = filmWidth * 0.5;
+    film.halfHeight = filmHeight * 0.5;
+    film.halfPixelWidth = 0.5 / imagePlaneWidth;
+    film.halfPixelHeight = 0.5 / imagePlaneHeight;
+    film.center = camera.position + camera.forward * filmDistance;
+    film.oneOverImagePlaneDims = vec2(1.0) / vec2(imagePlaneWidth, imagePlaneHeight);
+
+    PathTraceTile(tile, camera, film);
 }

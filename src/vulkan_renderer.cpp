@@ -1204,8 +1204,11 @@ internal void VulkanRender(
         vkCmdBindDescriptorSets(renderer->commandBuffer,
                 VK_PIPELINE_BIND_POINT_COMPUTE, renderer->computePipelineLayout, 0, 1,
                 &renderer->computeDescriptorSets[imageIndex], 0, NULL);
+
+        u32 tileCountX = RAY_TRACER_WIDTH / 64;
+        u32 tileCountY = RAY_TRACER_HEIGHT / 64;
         vkCmdDispatch(
-                renderer->commandBuffer, RAY_TRACER_WIDTH, RAY_TRACER_HEIGHT, 1);
+                renderer->commandBuffer, tileCountX, tileCountY, 1);
     }
 
     // Execution barrier

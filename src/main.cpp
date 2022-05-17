@@ -11,7 +11,7 @@
     - Fix camera FOV to match CPU path tracer [ ]
     - Triangle mesh support [x]
     - Uploading meshes [x]
-    - Serious performance issues with triangle meshes [ ]
+    - Split compute shader workload into smaller chunks for prevent lockup [ ]
     - Broadphase? [ ]
     - Midphase [ ]
     - Fix texture coordinates mismatch [ ]
@@ -1344,7 +1344,7 @@ int main(int argc, char **argv)
     f64 nextStatPrintTime = 0.0;
     b32 showComputeShaderOutput = false;
     b32 runPathTracingComputeShader = false;
-    b32 oneShotComputeShaderPathTracing = false;
+    b32 oneShotComputeShaderPathTracing = true;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
