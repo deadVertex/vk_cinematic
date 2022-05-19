@@ -1344,7 +1344,6 @@ int main(int argc, char **argv)
     f64 nextStatPrintTime = 0.0;
     b32 showComputeShaderOutput = false;
     b32 runPathTracingComputeShader = false;
-    b32 oneShotComputeShaderPathTracing = true;
     while (!glfwWindowShouldClose(g_Window))
     {
         f32 dt = prevFrameTime;
@@ -1546,8 +1545,8 @@ int main(int argc, char **argv)
         if (WasPressed(input.buttonStates[KEY_P]))
         {
             runPathTracingComputeShader = true;
-            oneShotComputeShaderPathTracing = true;
             showComputeShaderOutput = true;
+            VulkanUploadComputeTileQueue(&renderer);
         }
 
         VulkanCopyImageFromCPU(&renderer);
@@ -1596,10 +1595,6 @@ int main(int argc, char **argv)
         }
         VulkanRender(&renderer, outputFlags, scene);
 
-        if (oneShotComputeShaderPathTracing)
-        {
-            runPathTracingComputeShader = false;
-        }
         prevFrameTime = (f32)(glfwGetTime() - frameStart);
     }
     return 0;

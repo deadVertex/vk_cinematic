@@ -13,6 +13,8 @@
 #define LIGHT_BUFFER_SIZE Kilobytes(1) // TODO: Combine this with material buffer?
 #define COMPUTE_UNIFORM_BUFFER_SIZE Kilobytes(1)
 #define COMPUTE_MESH_BUFFER_SIZE Kilobytes(1)
+#define COMPUTE_TILE_QUEUE_BUFFER_SIZE Kilobytes(4)
+#define COMPUTE_MAX_TILES_PER_FRAME 64
 
 #define TEXTURE_UPLOAD_BUFFER_SIZE Megabytes(128)
 
@@ -142,6 +144,13 @@ struct MeshPushConstants
     u32 cameraIndex;
 };
 
+// NOTE: 64 indices is our limit since for our GTX 1070 we can only use 256
+// bytes for push constants
+struct ComputePushConstants
+{
+    u32 tileIndices[COMPUTE_MAX_TILES_PER_FRAME];
+};
+
 struct VulkanRenderer
 {
     VkInstance instance;
@@ -224,6 +233,10 @@ struct VulkanRenderer
     VkDescriptorSet computeDescriptorSets[2];
     VulkanBuffer computeUniformBuffer;
     VulkanBuffer computeMeshBuffer;
+    VulkanBuffer computeTileQueueBuffer;
+    u32 computeTileQueueHead;
+    u32 computeTileQueueTail;
+    u32 computeTileQueue[4096];
 
     u32 vertexDataUploadBufferSize;
     u32 indexUploadBufferSize;

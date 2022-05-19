@@ -537,10 +537,17 @@ internal VkPipeline VulkanCreateComputePipeline(VkDevice device,
 internal VkPipelineLayout VulkanCreateComputePipelineLayout(
     VkDevice device, VkDescriptorSetLayout descriptorSetLayout)
 {
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(ComputePushConstants);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
     VkPipelineLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     createInfo.setLayoutCount = 1;
     createInfo.pSetLayouts = &descriptorSetLayout;
+    createInfo.pPushConstantRanges = &pushConstantRange;
+    createInfo.pushConstantRangeCount = 1;
 
     VkPipelineLayout layout;
     VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
@@ -597,7 +604,7 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
 internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
     VkDescriptorSet set, VulkanImage image, VulkanBuffer uniformBuffer,
     VulkanBuffer vertexDataBuffer, VulkanBuffer indexBuffer,
-    VulkanBuffer meshBuffer)
+    VulkanBuffer meshBuffer, VulkanBuffer tileQueueBuffer)
 {
     VkDescriptorImageInfo outputImageInfo = {};
     outputImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -672,6 +679,30 @@ internal void VulkanUploadComputeMeshData(VulkanRenderer *renderer)
         out->indexCount = in.indexCount;
         out->indicesOffset = in.indexDataOffset / sizeof(u32);
         out->vertexDataOffset = in.vertexDataOffset;
+    }
+}
+
+internal void VulkanUploadComputeTileQueue(VulkanRenderer *renderer)
+{
+    // FIXME: Don't duplicate these constants!
+    u32 tileWidth = 16;
+    u32 tileHeight = 16;
+    u32 imageWidth = RAY_TRACER_WIDTH;
+    u32 imageHeight = RAY_TRACER_HEIGHT;
+    u32 tileCountX = imageWidth / tileWidth;
+    u32 tileCountY = imageHeight / tileHeight;
+
+    renderer->computeTileQueueTail = 0;
+    renderer->computeTileQueueHead = 0;
+    for (u32 y = 0; y < tileCountY; y++)
+    {
+        for (u32 x = 0; x < tileCountX; x++)
+        {
+            Assert(renderer->computeTileQueueTail <
+                   ArrayCount(renderer->computeTileQueue));
+            renderer->computeTileQueue[renderer->computeTileQueueTail++] =
+                y * tileCountX + x;
+        }
     }
 }
 
@@ -841,7 +872,13 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     // Compute shader buffer of mesh data (vertex + index offsets)
     renderer->computeMeshBuffer =
         VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
-            COMPUTE_UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            COMPUTE_MESH_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    renderer->computeTileQueueBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            COMPUTE_TILE_QUEUE_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -1172,7 +1209,8 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             renderer->computeUniformBuffer,
             renderer->vertexDataBuffer,
             renderer->indexBuffer,
-            renderer->computeMeshBuffer);
+            renderer->computeMeshBuffer,
+            renderer->computeTileQueueBuffer);
     }
 }
 
@@ -1205,10 +1243,46 @@ internal void VulkanRender(
                 VK_PIPELINE_BIND_POINT_COMPUTE, renderer->computePipelineLayout, 0, 1,
                 &renderer->computeDescriptorSets[imageIndex], 0, NULL);
 
-        u32 tileCountX = RAY_TRACER_WIDTH / 64;
-        u32 tileCountY = RAY_TRACER_HEIGHT / 64;
-        vkCmdDispatch(
-                renderer->commandBuffer, tileCountX, tileCountY, 1);
+        //u32 tileCountX = RAY_TRACER_WIDTH / 64;
+        //u32 tileCountY = RAY_TRACER_HEIGHT / 64;
+        // TODO: Figure out max number of tiles to render per frame
+        u32 maxTilesPerFrame = COMPUTE_MAX_TILES_PER_FRAME;
+
+        u32 queueLength = renderer->computeTileQueueTail - renderer->computeTileQueueHead;
+        if (queueLength > 0)
+        {
+            u32 tilesToDispatch = MinU32(queueLength, maxTilesPerFrame);
+
+            // FIXME: THIS IS TERRIBLE NEEDS SYNC!!!
+            // Copy from CPU queue to GPU queue
+            //CopyMemory(renderer->computeTileQueueBuffer.data,
+                //renderer->computeTileQueue + renderer->computeTileQueueHead,
+                //tilesToDispatch * sizeof(u32));
+
+            ComputePushConstants pushConstants = {};
+            CopyMemory(pushConstants.tileIndices,
+                renderer->computeTileQueue + renderer->computeTileQueueHead,
+                tilesToDispatch * sizeof(u32));
+
+#if 0
+            for (u32 i = 0; i < tilesToDispatch; ++i)
+            {
+                LogMessage("Rendering tile %u",
+                        pushConstants.tileIndices[i]);
+            }
+#endif
+
+            // Advance queue head
+            renderer->computeTileQueueHead += tilesToDispatch;
+            Assert(renderer->computeTileQueueHead <= renderer->computeTileQueueTail);
+
+            vkCmdPushConstants(renderer->commandBuffer, renderer->computePipelineLayout,
+                    VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstants),
+                    &pushConstants);
+
+            vkCmdDispatch(
+                    renderer->commandBuffer, tilesToDispatch, 1, 1);
+        }
     }
 
     // Execution barrier

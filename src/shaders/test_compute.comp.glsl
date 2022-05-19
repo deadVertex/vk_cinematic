@@ -52,6 +52,16 @@ layout(binding = 5) readonly buffer Meshes
     Mesh g_meshes[];
 };
 
+//layout(binding = 6) readonly buffer TileIndices
+//{
+    //uint g_tileIndices[];
+//};
+
+layout(push_constant) uniform PushConstants
+{
+    uint g_tileIndices[8];
+};
+
 // NOTE: This needs to be correctly seeded in main()
 uint rng_state;
 
@@ -423,7 +433,7 @@ void PathTraceTile(Tile tile, Camera camera, Film film)
     {
         for (uint x = tile.minX; x < tile.maxX; x++)
         {
-            uint sampleCount = 256;
+            uint sampleCount = 64;
             float sampleContribution = 1.0 / float(sampleCount);
 
             vec3 totalRadiance = vec3(0, 0, 0);
@@ -518,15 +528,11 @@ void PathTraceTile(Tile tile, Camera camera, Film film)
 
 void main()
 {
-    // Seed our random number generator
-    rng_state = (gl_GlobalInvocationID.x + 1) * 0xF51C0E49 +
-                (gl_GlobalInvocationID.y + 1) * 0x13AC29D1;
-
     // FIXME: Don't duplicate this info from config.h
 #define IMAGE_WIDTH 1024
 #define IMAGE_HEIGHT 768
-#define TILE_WIDTH 64
-#define TILE_HEIGHT 64
+#define TILE_WIDTH 16
+#define TILE_HEIGHT 16
 
     float imagePlaneWidth = float(IMAGE_WIDTH);
     float imagePlaneHeight = float(IMAGE_HEIGHT);
@@ -553,10 +559,20 @@ void main()
     tile.maxY = gl_GlobalInvocationID.y + 1;
 #endif
 
-    tile.minX = gl_GlobalInvocationID.x * TILE_WIDTH;
-    tile.maxX = min(IMAGE_WIDTH, (gl_GlobalInvocationID.x + 1) * TILE_WIDTH);
-    tile.minY = gl_GlobalInvocationID.y * TILE_HEIGHT;
-    tile.maxY = min(IMAGE_HEIGHT, (gl_GlobalInvocationID.y + 1) * TILE_HEIGHT);
+    uint queueIndex = gl_GlobalInvocationID.x;
+    uint tileIndex = g_tileIndices[queueIndex];
+    uint tileCountX = IMAGE_WIDTH / TILE_WIDTH;
+    uint tileX = tileIndex % tileCountX;
+    uint tileY = tileIndex / tileCountX;
+    //uint tileIndex = gl_GlobalInvocationID.y * TILE_WIDTH + gl_GlobalInvocationID.x;
+
+    tile.minX = tileX * TILE_WIDTH;
+    tile.maxX = min(IMAGE_WIDTH, (tileX + 1) * TILE_WIDTH);
+    tile.minY = tileY * TILE_HEIGHT;
+    tile.maxY = min(IMAGE_HEIGHT, (tileY + 1) * TILE_HEIGHT);
+
+    // Seed our random number generator
+    rng_state = (tileIndex + 1) * 0xF51C0E49;
 
     Camera camera;
     camera.right = vec3(ubo.cameraTransform[0]);
