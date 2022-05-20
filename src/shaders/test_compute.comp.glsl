@@ -7,6 +7,26 @@
 #define Mesh_Cube 3
 #define Mesh_Sphere 5
 
+#define Material_Red 0
+#define Material_Blue 1
+#define Material_CheckerBoard 2
+#define Material_White 3
+#define Material_BlueLight 4
+#define Material_WhiteLight 5
+#define Material_Black 6
+
+vec3 TransformVector(vec3 d, mat4 m)
+{
+    vec4 v = m * vec4(d, 0.0);
+    return v.xyz;
+}
+
+vec3 TransformPoint(vec3 p, mat4 m)
+{
+    vec4 v = m * vec4(p, 1.0);
+    return v.xyz;
+}
+
 struct VertexPNT
 {
     float px, py, pz;
@@ -26,6 +46,13 @@ struct Mesh
     uint indexCount;
     uint indicesOffset; // In sizeof(uint) units
     uint vertexDataOffset; // In sizeof(VertexPNT) units
+};
+
+struct Entity
+{
+    uint meshIndex;
+    uint materialId;
+    uint modelMatrixIndex;
 };
 
 layout(binding = 0, rgba32f) uniform writeonly image2D outputImage;
@@ -50,6 +77,24 @@ layout(binding = 4) readonly buffer Indices
 layout(binding = 5) readonly buffer Meshes
 {
     Mesh g_meshes[];
+};
+
+layout(binding = 6) readonly buffer ModelMatrices
+{
+    mat4 g_modelMatrices[];
+};
+
+// FIXME: Copied from scene.h
+#define MAX_ENTITIES 1024
+layout(binding = 7) readonly buffer Entities
+{
+    uint count;
+    Entity entities[MAX_ENTITIES];
+} sceneBuffer;
+
+layout(binding = 9) readonly buffer InvModelMatrices
+{
+    mat4 g_invModelMatrices[];
 };
 
 //layout(binding = 6) readonly buffer TileIndices
@@ -286,14 +331,15 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
 {
     RayIntersectionResult result;
     result.t = F32_MAX;
-    result.materialIndex = 0;
+    result.materialIndex = Material_Black;
 
+#if 0
     RayIntersectTriangleResult quadResult =
         RayIntersectQuad(rayOrigin, rayDirection, vec3(0, 0, 0), vec3(50));
     if (quadResult.t >= 0.0 && quadResult.t < result.t)
     {
         result.t = quadResult.t;
-        result.materialIndex = 2;
+        result.materialIndex = Material_CheckerBoard;
         result.normal = quadResult.normal;
         result.uv = quadResult.uv;
     }
@@ -305,11 +351,10 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
     if (sphereLightT >= 0.0 && sphereLightT < result.t)
     {
         result.t = sphereLightT;
-        result.materialIndex = 3;
+        result.materialIndex = Material_WhiteLight;
         result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereLightCenter);
     }
 
-#if 1
     for (uint z = 0; z < 4; ++z)
     {
         for (uint x = 0; x < 4; ++x)
@@ -321,7 +366,7 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
             if (sphereT >= 0.0 && sphereT < result.t)
             {
                 result.t = sphereT;
-                result.materialIndex = 1;
+                result.materialIndex = Material_Red;
                 result.normal = normalize((rayOrigin + rayDirection * result.t) - sphereCenter);
             }
         }
@@ -330,17 +375,57 @@ RayIntersectionResult RayIntersectScene(vec3 rayOrigin, vec3 rayDirection)
 
 #if 0
     // Test mesh
-    Mesh mesh = g_meshes[Mesh_Plane];
+    Mesh mesh = g_meshes[Mesh_Cube];
     RayIntersectTriangleResult meshResult =
         RayIntersectTriangleMesh(mesh, rayOrigin, rayDirection);
     if (meshResult.t >= 0.0 && meshResult.t < result.t)
     {
         result.t = meshResult.t;
-        result.materialIndex = 1;
+        result.materialIndex = Material_Red;
         result.normal = meshResult.normal;
         result.uv = meshResult.uv;
     }
 #endif
+
+    for (uint entityIndex = 0; entityIndex < sceneBuffer.count; entityIndex++)
+    {
+        Entity entity = sceneBuffer.entities[entityIndex];
+
+        Mesh mesh = g_meshes[entity.meshIndex];
+        mat4 modelMatrix = g_modelMatrices[entity.modelMatrixIndex];
+        mat4 invModelMatrix = g_invModelMatrices[entity.modelMatrixIndex];
+
+        // Transform ray into mesh local space by multiplying it by the inverse
+        // model matrix to test it for intersection
+        vec3 localRayOrigin = TransformPoint(rayOrigin, invModelMatrix);
+        vec3 localRayDirection =
+            normalize(TransformVector(rayDirection, invModelMatrix));
+        RayIntersectTriangleResult triangleIntersection =
+            RayIntersectTriangleMesh(mesh, localRayOrigin, localRayDirection);
+
+        // Transform triangle intersection result from mesh space into
+        // world space by transforming the local hit point into world space
+        // and then using it to compute the t value in world space
+        vec3 localHitPoint =
+            localRayOrigin + localRayDirection * triangleIntersection.t;
+        vec3 worldHitPoint = TransformPoint(localHitPoint, modelMatrix);
+
+        // Project world hit point onto the world space ray to compute t
+        // value in world space
+        float t = dot(worldHitPoint - rayOrigin, rayDirection);
+
+        // Transform mesh space normal into world space
+        vec3 localNormal = triangleIntersection.normal;
+        vec3 worldNormal = normalize(TransformVector(localNormal, modelMatrix));
+
+        if (t >= 0.0 && t < result.t)
+        {
+            result.t = t;
+            result.materialIndex = entity.materialId;
+            result.normal = worldNormal;
+            result.uv = triangleIntersection.uv;
+        }
+    }
 
     return result;
 }
@@ -369,26 +454,20 @@ vec3 ComputeRadianceForPath(PathVertex path[MAX_BOUNCES], int pathLength)
         vec2 uv = vertex.uv;
         uint materialId = vertex.materialId;
 
+        // TODO: Material buffer!
         vec3 emission = vec3(0, 0, 0);
         vec3 albedo = vec3(0, 0, 0);
-        if (materialId == 1)
+        if (materialId == Material_Red)
         {
             albedo = vec3(0.18, 0.1, 0.1);
         }
-        else if (materialId == 2)
+        else if (materialId == Material_CheckerBoard)
         {
-            //albedo = vec3(0.08, 0.08, 0.08);
             albedo =
                 texture(sampler2D(checkerBoardTexture, defaultSampler), uv).rgb;
         }
-        else if (materialId == 0)
+        else if (materialId == Material_WhiteLight)
         {
-            // Background (black)
-            //emission = vec3(0.1, 0.05, 0.15);
-        }
-        else if (materialId == 3)
-        {
-            // White light
             emission = vec3(1);
         }
 
@@ -433,7 +512,7 @@ void PathTraceTile(Tile tile, Camera camera, Film film)
     {
         for (uint x = tile.minX; x < tile.maxX; x++)
         {
-            uint sampleCount = 64;
+            uint sampleCount = 1;
             float sampleContribution = 1.0 / float(sampleCount);
 
             vec3 totalRadiance = vec3(0, 0, 0);
@@ -503,7 +582,7 @@ void PathTraceTile(Tile tile, Camera camera, Film film)
                     {
                         // Ray miss
                         PathVertex vertex;
-                        vertex.materialId = 0;
+                        vertex.materialId = Material_Black;
                         vertex.outgoingDir = -rayDirection;
                         path[pathLength++] = vertex;
 
@@ -529,8 +608,8 @@ void PathTraceTile(Tile tile, Camera camera, Film film)
 void main()
 {
     // FIXME: Don't duplicate this info from config.h
-#define IMAGE_WIDTH 1024
-#define IMAGE_HEIGHT 768
+#define IMAGE_WIDTH (1024 / 4)
+#define IMAGE_HEIGHT (768 / 4)
 #define TILE_WIDTH 16
 #define TILE_HEIGHT 16
 

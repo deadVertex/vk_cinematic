@@ -158,11 +158,12 @@ internal void* AllocateMemory(u64 size, u64 baseAddress = 0);
 internal void FreeMemory(void *p);
 internal DebugReadEntireFile(ReadEntireFile);
 
-#include "vulkan_renderer.h"
+#include "math_lib.h"
 #include "mesh.h"
+#include "scene.h"
+#include "vulkan_renderer.h"
 #include "profiler.h"
 #include "debug.h"
-#include "scene.h"
 #include "intrinsics.h"
 #include "work_queue.h"
 #include "tile.h"
@@ -1011,7 +1012,8 @@ internal void BuildPathTracerScene(
         Entity *entity = entityScene->entities + i;
 
         Assert(entity->mesh == Mesh_Sphere ||
-               entity->mesh == Mesh_Plane);
+               entity->mesh == Mesh_Plane ||
+               entity->mesh == Mesh_Cube);
 
         sp_AddObjectToScene(scene, meshes[entity->mesh], entity->material,
             entity->position, entity->rotation, entity->scale);
@@ -1044,6 +1046,10 @@ internal void CreatePathTracerMeshData(SceneMeshData *sceneMeshData,
     meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
         sceneMeshData->meshes[Mesh_Plane], meshDataArena, false);
     sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena, tempArena);
+
+    meshes[Mesh_Cube] = sp_CreateMeshFromMeshData(
+        sceneMeshData->meshes[Mesh_Cube], meshDataArena, false);
+    sp_BuildMeshMidphase(&meshes[Mesh_Cube], meshDataArena, tempArena);
 }
 
 // Copied from old project, don't really remember how this works
@@ -1257,6 +1263,7 @@ int main(int argc, char **argv)
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
     libraryCode.generateScene(&scene, meshAabbs);
+    VulkanUploadComputeSceneBuffer(&renderer, scene);
 
     g_Profiler.samples =
         (ProfilerSample *)AllocateMemory(PROFILER_SAMPLE_BUFFER_SIZE);
@@ -1385,7 +1392,8 @@ int main(int argc, char **argv)
             libraryCode = LoadLibraryCode();
         }
 
-        libraryCode.generateScene(&scene, meshAabbs);
+        // SURELY WE WOULD ONLY DO THIS IF THE LIBRARY HAS CHANGED!!!!!????
+        //libraryCode.generateScene(&scene, meshAabbs);
 #endif
 
         if (WasPressed(input.buttonStates[KEY_MOUSE_BUTTON_LEFT]))

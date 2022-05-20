@@ -423,13 +423,18 @@ internal void VulkanCopyMeshDataToGpu(VulkanRenderer *renderer)
 internal void UploadSceneDataToGpu(VulkanRenderer *renderer, Scene scene)
 {
     mat4 *modelMatrices = (mat4 *)renderer->modelMatricesBuffer.data;
+    mat4 *invModelMatrices = (mat4 *)renderer->computeInvModelMatricesBuffer.data;
     modelMatrices[0] = Identity(); // 0 slot reserved for skybox
+    invModelMatrices[0] = Identity(); // 0 slot reserved for skybox
 
     for (u32 i = 0; i < scene.count; ++i)
     {
         Entity *entity = scene.entities + i;
         modelMatrices[i + 1] = Translate(entity->position) *
                                Rotate(entity->rotation) * Scale(entity->scale);
+        invModelMatrices[i + 1] = Scale(Inverse(entity->scale)) * 
+                                Rotate(Conjugate(entity->rotation)) *
+                                Translate(-entity->position);
     }
 }
 
@@ -557,7 +562,7 @@ internal VkPipelineLayout VulkanCreateComputePipelineLayout(
 internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     VkDevice device, VkSampler sampler)
 {
-    VkDescriptorSetLayoutBinding layoutBindings[7] = {};
+    VkDescriptorSetLayoutBinding layoutBindings[10] = {};
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     layoutBindings[0].descriptorCount = 1;
@@ -587,6 +592,18 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
     layoutBindings[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     layoutBindings[6].descriptorCount = 1;
     layoutBindings[6].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[7].binding = 6;
+    layoutBindings[7].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[7].descriptorCount = 1;
+    layoutBindings[7].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[8].binding = 7;
+    layoutBindings[8].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[8].descriptorCount = 1;
+    layoutBindings[8].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    layoutBindings[9].binding = 9;
+    layoutBindings[9].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[9].descriptorCount = 1;
+    layoutBindings[9].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -604,7 +621,9 @@ internal VkDescriptorSetLayout VulkanCreateComputeDescriptorSetLayout(
 internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
     VkDescriptorSet set, VulkanImage image, VulkanBuffer uniformBuffer,
     VulkanBuffer vertexDataBuffer, VulkanBuffer indexBuffer,
-    VulkanBuffer meshBuffer, VulkanBuffer tileQueueBuffer)
+    VulkanBuffer meshBuffer, VulkanBuffer tileQueueBuffer,
+    VulkanBuffer modelMatricesBuffer, VulkanBuffer sceneBuffer,
+    VulkanBuffer invModelMatricesBuffer)
 {
     VkDescriptorImageInfo outputImageInfo = {};
     outputImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -626,7 +645,19 @@ internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
     meshBufferInfo.buffer = meshBuffer.handle;
     meshBufferInfo.range = VK_WHOLE_SIZE;
 
-    VkWriteDescriptorSet descriptorWrites[5] = {};
+    VkDescriptorBufferInfo modelMatricsBufferInfo = {};
+    modelMatricsBufferInfo.buffer = modelMatricesBuffer.handle;
+    modelMatricsBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo sceneBufferInfo = {};
+    sceneBufferInfo.buffer = sceneBuffer.handle;
+    sceneBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo invModelMatricesBufferInfo = {};
+    invModelMatricesBufferInfo.buffer = invModelMatricesBuffer.handle;
+    invModelMatricesBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet descriptorWrites[8] = {};
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].dstSet = set;
     descriptorWrites[0].dstBinding = 0;
@@ -657,6 +688,24 @@ internal void VulkanUpdateComputeDescriptorSets(VkDevice device,
     descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     descriptorWrites[4].descriptorCount = 1;
     descriptorWrites[4].pBufferInfo = &meshBufferInfo;
+    descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[5].dstSet = set;
+    descriptorWrites[5].dstBinding = 6;
+    descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[5].descriptorCount = 1;
+    descriptorWrites[5].pBufferInfo = &modelMatricsBufferInfo;
+    descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[6].dstSet = set;
+    descriptorWrites[6].dstBinding = 7;
+    descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[6].descriptorCount = 1;
+    descriptorWrites[6].pBufferInfo = &sceneBufferInfo;
+    descriptorWrites[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[7].dstSet = set;
+    descriptorWrites[7].dstBinding = 9;
+    descriptorWrites[7].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[7].descriptorCount = 1;
+    descriptorWrites[7].pBufferInfo = &invModelMatricesBufferInfo;
 
     vkUpdateDescriptorSets(
         device, ArrayCount(descriptorWrites), descriptorWrites, 0, NULL);
@@ -703,6 +752,24 @@ internal void VulkanUploadComputeTileQueue(VulkanRenderer *renderer)
             renderer->computeTileQueue[renderer->computeTileQueueTail++] =
                 y * tileCountX + x;
         }
+    }
+}
+
+internal void VulkanUploadComputeSceneBuffer(
+    VulkanRenderer *renderer, Scene scene)
+{
+    ComputeSceneBuffer *buffer =
+        (ComputeSceneBuffer *)renderer->computeSceneBuffer.data;
+    buffer->count = scene.count;
+
+    for (u32 i = 0; i < scene.count; ++i)
+    {
+        ComputeEntity *entity = buffer->entities + i;
+        entity->meshIndex = scene.entities[i].mesh;
+        entity->materialId = scene.entities[i].material;
+
+        // HACK copied from mesh rendering
+        entity->modelMatrixIndex = i + 1; // FIXME: 0 is reserved for skybox
     }
 }
 
@@ -879,6 +946,19 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
     renderer->computeTileQueueBuffer =
         VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
             COMPUTE_TILE_QUEUE_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    renderer->computeSceneBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            COMPUTE_SCENE_BUFFER_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    renderer->computeInvModelMatricesBuffer =
+        VulkanCreateBuffer(renderer->device, renderer->physicalDevice,
+            COMPUTE_INV_MODEL_MATRICES_BUFFER_SIZE,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -1210,7 +1290,10 @@ internal void VulkanInit(VulkanRenderer *renderer, GLFWwindow *window)
             renderer->vertexDataBuffer,
             renderer->indexBuffer,
             renderer->computeMeshBuffer,
-            renderer->computeTileQueueBuffer);
+            renderer->computeTileQueueBuffer,
+            renderer->modelMatricesBuffer,
+            renderer->computeSceneBuffer,
+            renderer->computeInvModelMatricesBuffer);
     }
 }
 

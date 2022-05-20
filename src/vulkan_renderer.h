@@ -1,8 +1,5 @@
 #pragma once
 
-#include "math_lib.h"
-#include "mesh.h"
-
 #define VERTEX_BUFFER_SIZE Megabytes(512)
 #define INDEX_BUFFER_SIZE Megabytes(2)
 #define UNIFORM_BUFFER_SIZE Kilobytes(4)
@@ -15,6 +12,8 @@
 #define COMPUTE_MESH_BUFFER_SIZE Kilobytes(1)
 #define COMPUTE_TILE_QUEUE_BUFFER_SIZE Kilobytes(4)
 #define COMPUTE_MAX_TILES_PER_FRAME 64
+#define COMPUTE_SCENE_BUFFER_SIZE Kilobytes(4) // FIXME: Pretty sure this buffer is too small
+#define COMPUTE_INV_MODEL_MATRICES_BUFFER_SIZE Kilobytes(256)
 
 #define TEXTURE_UPLOAD_BUFFER_SIZE Megabytes(128)
 
@@ -151,6 +150,19 @@ struct ComputePushConstants
     u32 tileIndices[COMPUTE_MAX_TILES_PER_FRAME];
 };
 
+struct ComputeEntity
+{
+    u32 meshIndex;
+    u32 materialId;
+    u32 modelMatrixIndex;
+};
+
+struct ComputeSceneBuffer
+{
+    u32 count;
+    ComputeEntity entities[MAX_ENTITIES];
+};
+
 struct VulkanRenderer
 {
     VkInstance instance;
@@ -234,6 +246,8 @@ struct VulkanRenderer
     VulkanBuffer computeUniformBuffer;
     VulkanBuffer computeMeshBuffer;
     VulkanBuffer computeTileQueueBuffer;
+    VulkanBuffer computeSceneBuffer;
+    VulkanBuffer computeInvModelMatricesBuffer;
     u32 computeTileQueueHead;
     u32 computeTileQueueTail;
     u32 computeTileQueue[4096];
