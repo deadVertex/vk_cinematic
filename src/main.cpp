@@ -1,5 +1,5 @@
 /* TODO (NEW):
-- GPU Ray tracing!!!
+- GPU Ray tracing (Parked for now, want to work on rast and CPU for now)
     - Basic compute shader implementation [x]
     - Camera [x]
     - Basic ray bouncing [x]
@@ -11,15 +11,17 @@
     - Fix camera FOV to match CPU path tracer [ ]
     - Triangle mesh support [x]
     - Uploading meshes [x]
-    - Split compute shader workload into smaller chunks for prevent lockup [ ]
-    - Broadphase? [ ]
-    - Midphase [ ]
-    - Fix texture coordinates mismatch [ ]
-    - Accumulate pixel samples over multiple frames [ ]
-    - Update screen with partial updates from GPU ray tracing [ ]
-    - Skip drawing rasterization scene when GPU ray tracing [ ]
+    - Split compute shader workload into smaller chunks for prevent lockup [x]
+    - Update screen with partial updates from GPU ray tracing [x]
     - Include system for shaders [ ]
     - Unit test framework for compute shaders [ ]
+    - Broadphase? (Top Level Acceleration Structure) [ ] (NEEDS INFRA WORK)
+        - Building broadphase tree on GPU [ ]
+        - Ray intersection broadphase tree [ ]
+    - Midphase (Bottom Level Acceleration Structure) [ ]
+    - Fix texture coordinates mismatch [ ]
+    - Accumulate pixel samples over multiple frames [ ]
+    - Skip drawing rasterization scene when GPU ray tracing [ ]
 - Texture binding mess (see FIXMEs)
 - Lights for rasterization
     - Sphere
@@ -1545,6 +1547,7 @@ int main(int argc, char **argv)
             showDebugDrawing = !showDebugDrawing;
         }
 
+#if FEAT_ENABLE_GPU_PATH_TRACING
         if (WasPressed(input.buttonStates[KEY_F3]))
         {
             showComputeShaderOutput = !showComputeShaderOutput;
@@ -1556,6 +1559,7 @@ int main(int argc, char **argv)
             showComputeShaderOutput = true;
             VulkanUploadComputeTileQueue(&renderer);
         }
+#endif
 
         VulkanCopyImageFromCPU(&renderer);
         
@@ -1597,10 +1601,12 @@ int main(int argc, char **argv)
             outputFlags |= Output_ShowDebugDrawing;
         }
 
+#if FEAT_ENABLE_GPU_PATH_TRACING
         if (runPathTracingComputeShader)
         {
             outputFlags |= Output_RunPathTracingComputeShader;
         }
+#endif
         VulkanRender(&renderer, outputFlags, scene);
 
         prevFrameTime = (f32)(glfwGetTime() - frameStart);

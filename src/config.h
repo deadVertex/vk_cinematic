@@ -29,8 +29,8 @@
 // Use Moller-Trumbore algorithm (needed for proper UVs but also seems much faster)
 #define USE_MT_RAY_TRIANGLE_INTERSECT 1
 
-#define RAY_TRACER_WIDTH (1024 / 4)
-#define RAY_TRACER_HEIGHT (768 / 4)
+#define RAY_TRACER_WIDTH (1024 / 1)
+#define RAY_TRACER_HEIGHT (768 / 1)
 
 // Maximum radiance value to clamp to before tone mapping (this is used to
 // reduce fireflies)
@@ -52,3 +52,5 @@
 
 #define CAMERA_FOV 50.0f
 #define CAMERA_NEAR_CLIP 0.01f
+
+#define FEAT_ENABLE_GPU_PATH_TRACING 0

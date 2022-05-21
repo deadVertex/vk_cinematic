@@ -53,7 +53,7 @@ void GenerateScene(Scene *scene)
         Mesh_Plane, Material_CheckerBoard);
 
     AddEntity(scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
-        Mesh_Cube, Material_WhiteLight);
+        Mesh_Sphere, Material_WhiteLight);
     AddSphereLight(scene, Vec3(0, 10, 0), Vec3(1), 5.0f * 0.5f);
 
     for (u32 z = 0; z < 4; ++z)
@@ -63,7 +63,7 @@ void GenerateScene(Scene *scene)
             vec3 origin = Vec3(-8, 1, -8);
             vec3 p = origin + Vec3((f32)x, 0, (f32)z) * 5.0f;
             AddEntity(
-                scene, p, Quat(), Vec3(1), Mesh_Cube, Material_Red);
+                scene, p, Quat(), Vec3(1), Mesh_Sphere, Material_Red);
             //AddSphereLight(scene, p, Vec3(0.4, 0.6, 1) * 10.0f, 0.5f);
         }
     }
