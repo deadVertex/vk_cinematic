@@ -97,5 +97,14 @@ sp_MaterialOutput sp_EvaluateMaterial(sp_MaterialSystem *materialSystem,
         output.emission = material->emission;
     }
 
+    // FIXME: Properly integrate this
+    if (material->flags & MaterialFlag_Background)
+    {
+        vec3 lightColor = Vec3(1);
+        vec3 lightDirection = -Normalize(Vec3(-1, -0.4, -0.4));
+        output.emission +=
+            lightColor * Max(0.0f, Dot(lightDirection, -vertex->outgoingDir));
+    }
+
     return output;
 }

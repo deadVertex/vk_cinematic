@@ -1311,11 +1311,18 @@ int main(int argc, char **argv)
     sp_RegisterMaterial(
         &materialSystem, blackMaterial, Material_Black);
 
+
+    sp_Material backgroundMaterial = {};
+    backgroundMaterial.albedo = materialData[Material_BlueLight].baseColor;
+    backgroundMaterial.emission = materialData[Material_BlueLight].emission;
+    backgroundMaterial.flags = MaterialFlag_Background;
+    sp_RegisterMaterial(&materialSystem, backgroundMaterial, Material_BlueLight);
+
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
     {
         // TODO: Do texture uploading here too
-        if (i != Material_CheckerBoard)
+        if (i != Material_CheckerBoard && i != Material_BlueLight)
         {
             sp_Material material = {};
             material.albedo = materialData[i].baseColor;
@@ -1325,6 +1332,7 @@ int main(int argc, char **argv)
         }
     }
     materialSystem.backgroundMaterialId = scene.backgroundMaterial;
+    Assert(materialSystem.backgroundMaterialId == Material_BlueLight);
 
     context.materialSystem = &materialSystem;
 

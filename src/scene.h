@@ -17,11 +17,18 @@ struct AmbientLightData
     vec3 radiance;
 };
 
+struct DirectionalLightData
+{
+    vec3 direction;
+    vec3 radiance;
+};
+
 struct LightData
 {
     u32 sphereLightCount;
     SphereLightData sphereLights[MAX_SPHERE_LIGHTS];
     AmbientLightData ambientLight;
+    DirectionalLightData directionalLight;
 };
 
 struct Entity

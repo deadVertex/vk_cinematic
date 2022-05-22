@@ -34,6 +34,13 @@ void main()
                               materials[fragMaterialIndex].emissionColorG,
                               materials[fragMaterialIndex].emissionColorB);
 
+    // FIXME: Properly integrate this
+    vec3 lightColor = vec3(1);
+    vec3 lightDirection = -normalize(vec3(-1, -0.4, -0.4));
+    vec3 viewDir = normalize(fragLocalPosition);
+    emissionColor +=
+        lightColor * max(0.0f, dot(lightDirection, viewDir));
+
     //vec4 textureSample =
         //texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
 
