@@ -22,9 +22,12 @@
     - Fix texture coordinates mismatch [ ]
     - Accumulate pixel samples over multiple frames [ ]
     - Skip drawing rasterization scene when GPU ray tracing [ ]
+- Clean up material syncing (see FIXMEs)
 - Texture binding mess (see FIXMEs)
+- Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
 - Lights for rasterization
     - Sphere
+    - Ambient term
     - Directional
     - Spot
     - Quad
@@ -1243,7 +1246,7 @@ int main(int argc, char **argv)
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
-    materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1) * 10.0;
+    materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1);
     materialData[Material_WhiteLight].emission = Vec3(1);
     materialData[Material_Black].baseColor = Vec3(0);
 
@@ -1307,7 +1310,6 @@ int main(int argc, char **argv)
     sp_Material blackMaterial = {};
     sp_RegisterMaterial(
         &materialSystem, blackMaterial, Material_Black);
-    materialSystem.backgroundMaterialId = Material_Black;
 
     // Upload materials
     for (u32 i = 0; i < MAX_MATERIALS; ++i)
@@ -1322,6 +1324,7 @@ int main(int argc, char **argv)
             sp_RegisterMaterial(&materialSystem, material, i);
         }
     }
+    materialSystem.backgroundMaterialId = scene.backgroundMaterial;
 
     context.materialSystem = &materialSystem;
 

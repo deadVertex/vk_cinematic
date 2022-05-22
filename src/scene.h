@@ -12,10 +12,16 @@ struct SphereLightData
     f32 radius;
 };
 
+struct AmbientLightData
+{
+    vec3 radiance;
+};
+
 struct LightData
 {
     u32 sphereLightCount;
     SphereLightData sphereLights[MAX_SPHERE_LIGHTS];
+    AmbientLightData ambientLight;
 };
 
 struct Entity

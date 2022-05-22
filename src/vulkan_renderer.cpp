@@ -1404,7 +1404,7 @@ internal void VulkanRender(
         VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipelineLayout, 0, 1,
         &renderer->descriptorSets[imageIndex], 0, NULL);
 
-#if 0
+#if 1
     // Draw skybox
     {
         u32 meshIndex = Mesh_Cube;

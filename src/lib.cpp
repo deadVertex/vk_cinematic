@@ -44,17 +44,35 @@ internal void AddSphereLight(
     }
 }
 
+internal void AddDirectionalLight(Scene *scene, vec3 direction, vec3 radiance)
+{
+    // TODO: Write to light data buffer
+}
+
+internal void SetAmbientLight(Scene *scene, vec3 radiance)
+{
+    LightData *lightData = scene->lightData;
+    lightData->ambientLight.radiance = radiance;
+}
+
 void GenerateScene(Scene *scene)
 {
     scene->count = 0;
     scene->lightData->sphereLightCount = 0;
 
+    scene->backgroundMaterial = Material_BlueLight;
+
     AddEntity(scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
         Mesh_Plane, Material_CheckerBoard);
 
+#if 0
     AddEntity(scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
         Mesh_Sphere, Material_WhiteLight);
     AddSphereLight(scene, Vec3(0, 10, 0), Vec3(1), 5.0f * 0.5f);
+#endif
+    // TODO: Set lights via material?
+    //AddDirectionalLight(scene, Normalize(Vec3(-1, -0.4, -0.4)), Vec3(1));
+    SetAmbientLight(scene, Vec3(0.4, 0.6, 1)); // NOTE: This needs to match backgroundMaterial for ray tracer
 
     for (u32 z = 0; z < 4; ++z)
     {

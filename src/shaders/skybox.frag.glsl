@@ -26,8 +26,16 @@ layout(location = 3) in vec2 fragTexCoord;
 
 void main()
 {
-    vec4 textureSample =
-        texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
+    // Material processing code
+    vec3 baseColor = vec3(materials[fragMaterialIndex].baseColorR,
+                          materials[fragMaterialIndex].baseColorG,
+                          materials[fragMaterialIndex].baseColorB);
+    vec3 emissionColor = vec3(materials[fragMaterialIndex].emissionColorR,
+                              materials[fragMaterialIndex].emissionColorG,
+                              materials[fragMaterialIndex].emissionColorB);
 
-    outputColor = vec4(textureSample.rgb, 1);
+    //vec4 textureSample =
+        //texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
+
+    outputColor = vec4(emissionColor, 1);
 }

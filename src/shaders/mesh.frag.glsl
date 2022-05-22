@@ -18,6 +18,12 @@ struct SphereLightData
     float radius;
 };
 
+// TODO: Just replace this with a vec3 surely?
+struct AmbientLightData
+{
+    float radianceR, radianceG, radianceB;
+};
+
 layout(binding = 5) readonly buffer Materials
 {
     Material materials[];
@@ -27,6 +33,7 @@ layout(binding = 10) readonly buffer LightData
 {
     uint sphereLightCount;
     SphereLightData sphereLights[20]; // TODO: Use MAX_SPHERE_LIGHTS constant
+    AmbientLightData ambientLight;
 } lightData;
 
 layout(binding = 2) uniform sampler defaultSampler;
@@ -70,8 +77,15 @@ void main()
 
     //vec3 outgoingRadiance = baseColor * incomingRadiance;
 
-    // Sphere light test
     vec3 outgoingRadiance = vec3(0);
+    // Ambient light
+    vec3 ambientLightRadiance = vec3(lightData.ambientLight.radianceR,
+        lightData.ambientLight.radianceG, lightData.ambientLight.radianceB);
+
+    // TODO: Ambient occlusion
+    outgoingRadiance += baseColor * ambientLightRadiance;
+
+    // Sphere light test
     for (uint i = 0; i < lightData.sphereLightCount; i++)
     {
         vec3 sphereCenter = vec3(lightData.sphereLights[i].px,
