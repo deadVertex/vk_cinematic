@@ -25,10 +25,13 @@
 - Clean up material syncing (see FIXMEs)
 - Texture binding mess (see FIXMEs)
 - Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
+- Remove directional lighting [x]
+- FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
+- FEAT: Proper support for multiple scenes to help with testing
 - Lights for rasterization
     - Sphere
-    - Ambient term
-    - Directional
+    - Ambient term [x]
+    - Disk [ ]
     - Spot
     - Quad
     - Tube/Line?

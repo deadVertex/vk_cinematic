@@ -117,10 +117,16 @@ void sp_PathTraceTile(
 
     // TODO: Expose these via parameter!
     u32 sampleCount = SAMPLES_PER_PIXEL;
-    u32 bounceCount = 2; // TODO: Use MAX_BOUNCES constant
+    u32 bounceCount = 3; // TODO: Use MAX_BOUNCES constant
+
 #if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||      \
-     SP_DEBUG_MIDPHASE_INTERSECTION_COUNT)
+     SP_DEBUG_MIDPHASE_INTERSECTION_COUNT || SP_DEBUG_COSINE)
     bounceCount = 1;
+#endif
+
+#if (SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||      \
+     SP_DEBUG_MIDPHASE_INTERSECTION_COUNT || SP_DEBUG_PATH_LENGTH ||           \
+     SP_DEBUG_COSINE)
     sampleCount = 1;
 #endif
 
@@ -192,6 +198,7 @@ void sp_PathTraceTile(
                         pathVertex->normal = result.normal;
                         pathVertex->uv = result.uv;
 
+                        // FIXME: This is generating terrible results that are not uniform!
                         // Compute random direction on hemi-sphere around
                         // result.normal
                         vec3 offset = Vec3(RandomBilateral(rng),
@@ -214,6 +221,10 @@ void sp_PathTraceTile(
 
                         // Count ray hit for metrics
                         metrics->values[sp_Metric_RayHitCount]++;
+
+#if SP_DEBUG_COSINE
+                        color = Vec4(Vec3(Max(0.0, Dot(result.normal, rayDirection))), 1);
+#endif
 
 #if SP_DEBUG_SURFACE_NORMAL
                         color = Vec4(result.normal * 0.5f + Vec3(0.5f), 1);
@@ -242,9 +253,16 @@ void sp_PathTraceTile(
 
                 // Record number of paths traced for tile
                 metrics->values[sp_Metric_PathsTraced]++;
+
+
+#if SP_DEBUG_PATH_LENGTH
+                color = Vec4((f32)pathLength / (f32)bounceCount, 0, 0, 1);
+#endif
             }
+
 #if !(SP_DEBUG_BROADPHASE_INTERSECTION_COUNT || SP_DEBUG_SURFACE_NORMAL ||     \
-      SP_DEBUG_MIDPHASE_INTERSECTION_COUNT)
+      SP_DEBUG_MIDPHASE_INTERSECTION_COUNT || SP_DEBUG_PATH_LENGTH ||          \
+      SP_DEBUG_COSINE)
             color = Vec4(totalRadiance, 1);
 #endif
 

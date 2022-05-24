@@ -18,12 +18,6 @@ struct SphereLightData
     float radius;
 };
 
-struct DirectionalLightData
-{
-    float directionX, directionY, directionZ;
-    float radianceR, radianceG, radianceB;
-};
-
 // TODO: Just replace this with a vec3 surely?
 struct AmbientLightData
 {
@@ -40,7 +34,6 @@ layout(binding = 10) readonly buffer LightData
     uint sphereLightCount;
     SphereLightData sphereLights[20]; // TODO: Use MAX_SPHERE_LIGHTS constant
     AmbientLightData ambientLight;
-    DirectionalLightData directionalLight; // TODO: Support multiple?
 } lightData;
 
 layout(binding = 2) uniform sampler defaultSampler;
@@ -90,18 +83,8 @@ void main()
         lightData.ambientLight.radianceG, lightData.ambientLight.radianceB);
 
     // TODO: Ambient occlusion
+    // FIXME: Color for this doesn't look right
     outgoingRadiance += baseColor * ambientLightRadiance;
-
-    // Directional light
-    vec3 directionalLightDirection = -normalize(vec3(lightData.directionalLight.directionX,
-        lightData.directionalLight.directionY,
-        lightData.directionalLight.directionZ));
-    vec3 directionalLightRadiance = vec3(lightData.directionalLight.radianceR,
-        lightData.directionalLight.radianceG,
-        lightData.directionalLight.radianceB);
-
-    outgoingRadiance += baseColor * directionalLightRadiance *
-                        max(dot(normal, directionalLightDirection), 0.0);
 
     // Sphere light test
     for (uint i = 0; i < lightData.sphereLightCount; i++)
