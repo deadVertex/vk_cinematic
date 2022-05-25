@@ -50,5 +50,6 @@ enum
     Material_BlueLight,
     Material_WhiteLight,
     Material_Black,
+    Material_OrangeLight,
     MAX_MATERIALS,
 };

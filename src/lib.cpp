@@ -55,22 +55,25 @@ void GenerateScene(Scene *scene)
     scene->count = 0;
     scene->lightData->sphereLightCount = 0;
 
-    scene->backgroundMaterial = Material_BlueLight;
+    scene->backgroundMaterial = Material_Black;
 
     AddEntity(scene, Vec3(0, 0, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
         Mesh_Plane, Material_CheckerBoard);
 
     // Disk light
-    AddEntity(scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(2),
-        Mesh_Disk, Material_WhiteLight);
+    AddEntity(
+        scene, Vec3(-4, 2, -5), Quat(Vec3(0, 1, 0), PI * 0.25f), Vec3(4), Mesh_Disk, Material_BlueLight);
+    AddEntity(
+        scene, Vec3(4, 2, 5), Quat(Vec3(0, 1, 0), PI * 0.25f), Vec3(4), Mesh_Disk, Material_OrangeLight);
 #if 0
     AddEntity(scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
         Mesh_Sphere, Material_WhiteLight);
     AddSphereLight(scene, Vec3(0, 10, 0), Vec3(1), 5.0f * 0.5f);
 #endif
     // TODO: Set lights via material?
-    SetAmbientLight(scene, Vec3(0.4, 0.6, 1)); // NOTE: This needs to match backgroundMaterial for ray tracer
+    SetAmbientLight(scene, Vec3(0.4, 0.6, 1) * 0.2); // NOTE: This needs to match backgroundMaterial for ray tracer
 
+#if 0
     for (u32 z = 0; z < 4; ++z)
     {
         for (u32 x = 0; x < 4; ++x)
@@ -82,9 +85,8 @@ void GenerateScene(Scene *scene)
             //AddSphereLight(scene, p, Vec3(0.4, 0.6, 1) * 10.0f, 0.5f);
         }
     }
-
-#if 0
-    AddEntity(
-            scene, Vec3(0), Quat(), Vec3(2), Mesh_Sphere, Material_Red);
 #endif
+
+    AddEntity(
+            scene, Vec3(0,-0.7,0), Quat(), Vec3(20), Mesh_Bunny, Material_Red);
 }

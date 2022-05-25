@@ -25,7 +25,6 @@
 - Clean up material syncing (see FIXMEs)
 - Texture binding mess (see FIXMEs)
 - Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
-- Remove directional lighting [x]
 - FIXME: Registering meshes really annoying due to path tracer asserts, need better syncing
 - FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
 - FEAT: Proper support for multiple scenes to help with testing
@@ -1021,11 +1020,6 @@ internal void BuildPathTracerScene(
     {
         Entity *entity = entityScene->entities + i;
 
-        Assert(entity->mesh == Mesh_Sphere ||
-               entity->mesh == Mesh_Plane ||
-               entity->mesh == Mesh_Cube ||
-               entity->mesh == Mesh_Disk);
-
         sp_AddObjectToScene(scene, meshes[entity->mesh], entity->material,
             entity->position, entity->rotation, entity->scale);
     }
@@ -1047,24 +1041,16 @@ internal void DebugDrawBvh(bvh_Node *node, DebugDrawingBuffer *debugDrawBuffer)
 }
 
 internal void CreatePathTracerMeshData(SceneMeshData *sceneMeshData,
-    sp_Mesh *meshes, MemoryArena *meshDataArena, MemoryArena *tempArena)
+    sp_Mesh *meshes, MemoryArena *meshDataArena,
+    MemoryArena *accelerationStructureMemoryArena, MemoryArena *tempArena)
 {
-    meshes[Mesh_Sphere] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Sphere], meshDataArena, true);
-    // TODO: Probably shouldn't be storing bvh nodes in meshDataArena
-    sp_BuildMeshMidphase(&meshes[Mesh_Sphere], meshDataArena, tempArena);
-
-    meshes[Mesh_Plane] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Plane], meshDataArena, false);
-    sp_BuildMeshMidphase(&meshes[Mesh_Plane], meshDataArena, tempArena);
-
-    meshes[Mesh_Cube] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Cube], meshDataArena, false);
-    sp_BuildMeshMidphase(&meshes[Mesh_Cube], meshDataArena, tempArena);
-
-    meshes[Mesh_Disk] = sp_CreateMeshFromMeshData(
-        sceneMeshData->meshes[Mesh_Disk], meshDataArena, false);
-    sp_BuildMeshMidphase(&meshes[Mesh_Disk], meshDataArena, tempArena);
+    for (u32 i = 0; i < MAX_MESHES; ++i)
+    {
+        meshes[i] = sp_CreateMeshFromMeshData(
+                sceneMeshData->meshes[i], meshDataArena, true);
+        sp_BuildMeshMidphase(
+            &meshes[i], accelerationStructureMemoryArena, tempArena);
+    }
 }
 
 // Copied from old project, don't really remember how this works
@@ -1227,8 +1213,8 @@ int main(int argc, char **argv)
 
     // Build mesh data for path tracer
     sp_Mesh meshes[MAX_MESHES];
-    CreatePathTracerMeshData(
-        &sceneMeshData, meshes, &meshDataArena, &tempArena);
+    CreatePathTracerMeshData(&sceneMeshData, meshes, &meshDataArena,
+        &accelerationStructureMemoryArena, &tempArena);
 
     // Load image data
     //HdrImage image =
@@ -1256,9 +1242,10 @@ int main(int argc, char **argv)
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
-    materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1);
+    materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1) * 4.0f;
     materialData[Material_WhiteLight].emission = Vec3(10);
     materialData[Material_Black].baseColor = Vec3(0);
+    materialData[Material_OrangeLight].emission = Vec3(10, 8, 7.5);
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
