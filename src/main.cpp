@@ -26,6 +26,7 @@
 - Texture binding mess (see FIXMEs)
 - Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
 - Remove directional lighting [x]
+- FIXME: Registering meshes really annoying due to path tracer asserts, need better syncing
 - FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
 - FEAT: Proper support for multiple scenes to help with testing
 - Lights for rasterization
@@ -817,6 +818,7 @@ internal void LoadMeshData(
     scene->meshes[Mesh_Cube] = CreateCubeMesh(meshDataArena);
     scene->meshes[Mesh_Triangle] = CreateTriangleMeshData(meshDataArena);
     scene->meshes[Mesh_Sphere] = CreateIcosahedronMesh(3, meshDataArena);
+    scene->meshes[Mesh_Disk] = CreateDiskMesh(meshDataArena, 1.0f, 13);
 
     LogMessage("Meshes data memory usage: %uk / %uk", meshDataArena->size / 1024,
         meshDataArena->capacity / 1024);
@@ -1021,7 +1023,8 @@ internal void BuildPathTracerScene(
 
         Assert(entity->mesh == Mesh_Sphere ||
                entity->mesh == Mesh_Plane ||
-               entity->mesh == Mesh_Cube);
+               entity->mesh == Mesh_Cube ||
+               entity->mesh == Mesh_Disk);
 
         sp_AddObjectToScene(scene, meshes[entity->mesh], entity->material,
             entity->position, entity->rotation, entity->scale);
@@ -1058,6 +1061,10 @@ internal void CreatePathTracerMeshData(SceneMeshData *sceneMeshData,
     meshes[Mesh_Cube] = sp_CreateMeshFromMeshData(
         sceneMeshData->meshes[Mesh_Cube], meshDataArena, false);
     sp_BuildMeshMidphase(&meshes[Mesh_Cube], meshDataArena, tempArena);
+
+    meshes[Mesh_Disk] = sp_CreateMeshFromMeshData(
+        sceneMeshData->meshes[Mesh_Disk], meshDataArena, false);
+    sp_BuildMeshMidphase(&meshes[Mesh_Disk], meshDataArena, tempArena);
 }
 
 // Copied from old project, don't really remember how this works
@@ -1250,7 +1257,7 @@ int main(int argc, char **argv)
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1);
-    materialData[Material_WhiteLight].emission = Vec3(1);
+    materialData[Material_WhiteLight].emission = Vec3(10);
     materialData[Material_Black].baseColor = Vec3(0);
 
     // Publish material data to vulkan renderer
@@ -1335,7 +1342,6 @@ int main(int argc, char **argv)
         }
     }
     materialSystem.backgroundMaterialId = scene.backgroundMaterial;
-    Assert(materialSystem.backgroundMaterialId == Material_BlueLight);
 
     context.materialSystem = &materialSystem;
 

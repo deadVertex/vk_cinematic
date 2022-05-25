@@ -42,6 +42,91 @@ internal MeshData CreateTriangleMeshData(MemoryArena *arena)
     return meshData;
 }
 
+internal MeshData CreateDiskMesh(MemoryArena *arena, f32 radius, u32 segmentCount)
+{
+    Assert(segmentCount > 3);
+
+    u32 maxVertices = segmentCount + 1;
+    u32 maxIndices = segmentCount * 3;
+
+    MeshData meshData = {};
+    meshData.vertices = AllocateArray(arena, VertexPNT, maxVertices);
+    meshData.indices = AllocateArray(arena, u32, maxIndices);
+
+    meshData.vertices[0].position = Vec3(0, 0, 0);
+    meshData.vertices[0].normal = Vec3(0, 0, -1);
+    meshData.vertices[0].textureCoord = Vec2(0, 0);
+    meshData.vertexCount = 1;
+
+
+    // Generate vertices
+    f32 increment = (2.0f * PI) / (f32)segmentCount;
+    for (u32 segmentIndex = 0; segmentIndex < segmentCount; ++segmentIndex)
+    {
+        f32 t0 = increment * segmentIndex;
+
+        vec3 p0 = Vec3(Sin(t0) * radius, Cos(t0) * radius, 0.0f);
+
+        Assert(meshData.vertexCount < maxVertices);
+        VertexPNT *a = meshData.vertices + meshData.vertexCount++;
+        a->position = p0;
+        a->normal = Vec3(0, 0, -1);
+        a->textureCoord = Vec2(0, 0);
+    }
+
+    // Generate indices
+    for (u32 segmentIndex = 0; segmentIndex < segmentCount; ++segmentIndex)
+    {
+        u32 i = segmentIndex;
+        u32 j = (segmentIndex == segmentCount - 1) ? 0 : segmentIndex + 1;
+
+
+        Assert(meshData.indexCount + 3 <= maxIndices);
+        // TODO: Why does this appear to be in clock-wise winding order?
+        meshData.indices[meshData.indexCount++] = i + 1; // +1 to skip disk center vertex
+        meshData.indices[meshData.indexCount++] = 0; // 0 is our disk center vertex
+        meshData.indices[meshData.indexCount++] = j + 1; // +1 to skip disk center vertex
+    }
+
+#if 0
+    f32 increment = (2.0f * PI) / (f32)segmentCount;
+    for (u32 segmentIndex = 0; segmentIndex < segmentCount; ++segmentIndex)
+    {
+        f32 t0 = increment * segmentIndex;
+        f32 t1 = increment * (segmentIndex + 1);
+
+        vec3 p0 = Vec3(Sin(t0) * radius, Cos(t0) * radius, 0.0f);
+        vec3 p1 = Vec3(Sin(t1) * radius, Cos(t1) * radius, 0.0f);
+
+        u32 indexA = meshData.vertexCount;
+        Assert(meshData.vertexCount < maxVertices);
+        VertexPNT *a = meshData.vertices + meshData.vertexCount++;
+        a->position = p0;
+        a->normal = Vec3(0, 0, -1);
+        a->textureCoord = Vec2(0, 0);
+
+        VertexPNT *b = NULL;
+        u32 indexB = 1; // Default to first vertex on the radius of the disk
+        if (segmentIndex != segmentCount - 1)
+        {
+            indexB = meshData.vertexCount;
+            Assert(meshData.vertexCount < maxVertices);
+            b = meshData.vertices + meshData.vertexCount++;
+            a->position = p1;
+            a->normal = Vec3(0, 0, -1);
+            a->textureCoord = Vec2(0, 0);
+        }
+
+        Assert(meshData.indexCount + 3 < maxIndices);
+        meshData.indices[meshData.indexCount++] = indexA;
+        meshData.indices[meshData.indexCount++] = indexB;
+        meshData.indices[meshData.indexCount++] = 0;
+    }
+#endif
+
+    return meshData;
+}
+
 internal MeshData CreateCubeMesh(MemoryArena *arena)
 {
     // clang-format off

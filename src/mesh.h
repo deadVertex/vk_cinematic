@@ -37,6 +37,7 @@ enum
     Mesh_Cube,
     Mesh_Triangle,
     Mesh_Sphere,
+    Mesh_Disk,
     MAX_MESHES,
 };
 
