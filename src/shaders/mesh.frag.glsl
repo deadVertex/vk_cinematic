@@ -24,6 +24,14 @@ struct AmbientLightData
     float radianceR, radianceG, radianceB;
 };
 
+struct DiskLightData
+{
+    float nx, ny, nz;
+    float px, py, pz;
+    float rr, rg, rb;
+    float radius;
+};
+
 layout(binding = 5) readonly buffer Materials
 {
     Material materials[];
@@ -34,6 +42,8 @@ layout(binding = 10) readonly buffer LightData
     uint sphereLightCount;
     SphereLightData sphereLights[20]; // TODO: Use MAX_SPHERE_LIGHTS constant
     AmbientLightData ambientLight;
+    uint diskLightCount;
+    DiskLightData diskLights[4];
 } lightData;
 
 layout(binding = 2) uniform sampler defaultSampler;
@@ -85,6 +95,33 @@ void main()
     // TODO: Ambient occlusion
     // FIXME: Color for this doesn't look right
     outgoingRadiance += baseColor * ambientLightRadiance;
+
+    // Disk light test. From "Moving Frostbite to PBR" presentation
+    for (uint i = 0; i < lightData.diskLightCount; i++)
+    {
+        vec3 diskNormal = vec3(lightData.diskLights[i].nx,
+                lightData.diskLights[i].ny,
+                lightData.diskLights[i].nz);
+
+        vec3 diskPosition = vec3(lightData.diskLights[i].px,
+                lightData.diskLights[i].py,
+                lightData.diskLights[i].pz);
+
+        vec3 diskRadiance = vec3(lightData.diskLights[i].rr,
+                lightData.diskLights[i].rg,
+                lightData.diskLights[i].rb);
+
+        float diskRadius = lightData.diskLights[i].radius;
+
+        // TODO: Horizon clipping!
+        vec3 L = diskPosition - fragWorldPosition;
+        float sqrDist = dot(L, L);
+        L = normalize(L);
+        vec3 N = normal;
+        float luminance = PI * max(0.0, dot(diskNormal, -L)) *
+            max(0.0, dot(N, L)) / (sqrDist / (diskRadius * diskRadius) + 1);
+        outgoingRadiance += baseColor * diskRadiance * luminance;
+    }
 
     // Sphere light test
     for (uint i = 0; i < lightData.sphereLightCount; i++)

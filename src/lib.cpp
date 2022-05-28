@@ -50,6 +50,21 @@ internal void SetAmbientLight(Scene *scene, vec3 radiance)
     lightData->ambientLight.radiance = radiance;
 }
 
+internal void AddDiskLight(
+    Scene *scene, vec3 position, quat rotation, float radius, vec3 radiance)
+{
+    LightData *lightData = scene->lightData;
+    Assert(lightData->diskLightCount < ArrayCount(lightData->diskLights));
+
+    DiskLightData *diskLight =
+        lightData->diskLights + lightData->diskLightCount++;
+
+    diskLight->normal = RotateVector(Vec3(0, 0, 1), rotation);
+    diskLight->position = position;
+    diskLight->radiance = radiance;
+    diskLight->radius = radius;
+}
+
 void GenerateScene(Scene *scene)
 {
     scene->count = 0;
@@ -63,15 +78,23 @@ void GenerateScene(Scene *scene)
     // Disk light
     AddEntity(
         scene, Vec3(-4, 2, -5), Quat(Vec3(0, 1, 0), PI * 0.25f), Vec3(4), Mesh_Disk, Material_BlueLight);
+    // TODO: Set material rather than radiance value directly
+    AddDiskLight(scene, Vec3(-4, 2, -5), Quat(Vec3(0, 1, 0), PI * 0.25f), 2.0f, Vec3(0.4, 0.6, 1) * 4.0f);
+
     AddEntity(
-        scene, Vec3(4, 2, 5), Quat(Vec3(0, 1, 0), PI * 0.25f), Vec3(4), Mesh_Disk, Material_OrangeLight);
+        scene, Vec3(4, 2, 5), Quat(Vec3(0, 1, 0), PI * -0.75f), Vec3(4), Mesh_Disk, Material_OrangeLight);
+    // TODO: Set material rather than radiance value directly
+    AddDiskLight(scene, Vec3(4, 2, 5), Quat(Vec3(0, 1, 0), PI * -0.75f), 2.0f, Vec3(10, 8, 7.5));
+
+    //AddEntity(
+        //scene, Vec3(4, 2, 5), Quat(Vec3(0, 1, 0), PI * 0.25f), Vec3(4), Mesh_Disk, Material_OrangeLight);
 #if 0
     AddEntity(scene, Vec3(0, 10, 0), Quat(Vec3(1, 0, 0), PI * 0.5f), Vec3(5),
         Mesh_Sphere, Material_WhiteLight);
     AddSphereLight(scene, Vec3(0, 10, 0), Vec3(1), 5.0f * 0.5f);
 #endif
     // TODO: Set lights via material?
-    SetAmbientLight(scene, Vec3(0.4, 0.6, 1) * 0.2); // NOTE: This needs to match backgroundMaterial for ray tracer
+    //SetAmbientLight(scene, Vec3(0.4, 0.6, 1) * 0.2); // NOTE: This needs to match backgroundMaterial for ray tracer
 
 #if 0
     for (u32 z = 0; z < 4; ++z)

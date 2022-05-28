@@ -165,6 +165,7 @@ internal RayIntersectTriangleResult RayIntersectTriangleMT(vec3 rayOrigin,
 
     vec3 p = Cross(rayDirection, e2);
     vec3 q = Cross(T, e1);
+    vec3 n = Cross(e1, e2);
 
     vec3 m = Vec3(Dot(q, e2), Dot(p, T), Dot(q, rayDirection));
 
@@ -175,11 +176,13 @@ internal RayIntersectTriangleResult RayIntersectTriangleMT(vec3 rayOrigin,
     f32 v = det * m.z;
     f32 w = 1.0f - u - v;
 
+    f32 f = Dot(rayDirection, n);
+
     if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f && w >= 0.0f &&
-        w <= 1.0f)
+        w <= 1.0f && f < 0.0f)
     {
         result.t = t;
-        result.normal = Cross(e1, e2);
+        result.normal = n;
         result.uv = Vec2(u, v);
     }
 
