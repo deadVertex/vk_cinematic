@@ -1,13 +1,17 @@
 /* TODO (NEW):
 - QoL improvements:
     - Texture binding mess (see FIXMEs)
-    - Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
-    - FIXME: Registering meshes really annoying due to path tracer asserts, need better syncing
+    - Clean up how we are passing data to shaders (i.e. radianceR, radianceG,
+    radianceB) - This is actually not bad, despite a small bit of developer
+    overhead this we are not wasting any memory for alignment. Alternative
+    would be to use vec4 for everywhere we use vec3 in the storage buffers but
+    that would increase the amount of work we need to do on the CPU side.
     - TODO: Setup lights in the scene via material instead of raw radiance values
     - Improve output comparison system? (Swtich between CPU and Rast without losing CPU image)
     - FEAT: Better system for managing textures
 - Bugs:
     - FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
+    - SRGB conversion is inaccurate approximation
 - FEAT: Proper support for multiple scenes to help with testing
 - FEAT: Lights for rasterization
     - Sphere
@@ -69,6 +73,7 @@
     - Next event estimation
     - Surface Area heuristic acceleration structure
     - Improve acceleration structure construction performance
+    - FIXME: Avoid computing AABB from mesh vertices each time we add an object to our scene
 */
 /* TODO:
 List:
@@ -910,7 +915,7 @@ internal HdrImage LoadImage(
 }
 
 #if LIVE_CODE_RELOADING_TEST_ENABLED
-typedef void LibraryFunction(Scene *, Aabb *);
+typedef void LibraryFunction(Scene *);
 
 struct LibraryCode
 {
@@ -1248,6 +1253,14 @@ int main(int argc, char **argv)
     CreatePathTracerMeshData(&sceneMeshData, meshes, &meshDataArena,
         &accelerationStructureMemoryArena, &tempArena);
 
+    // FIXME: Hack to include this in scene/entity data
+    Aabb meshAabbs[MAX_MESHES] = {};
+    for (u32 i = 0; i < MAX_MESHES; ++i)
+    {
+        meshAabbs[i].min = meshes[i].midphaseTree.root->min;
+        meshAabbs[i].max = meshes[i].midphaseTree.root->max;
+    }
+
     // Load image data
     //HdrImage image =
         //LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
@@ -1284,12 +1297,6 @@ int main(int argc, char **argv)
     UploadMaterialDataToGpu(&renderer, materialData);
     UploadMaterialDataToPathTracer(&materialSystem, materialData);
 
-    Aabb meshAabbs[MAX_MESHES] = {};
-    meshAabbs[Mesh_Sphere].min = meshes[Mesh_Sphere].midphaseTree.root->min;
-    meshAabbs[Mesh_Sphere].max = meshes[Mesh_Sphere].midphaseTree.root->max;
-    meshAabbs[Mesh_Plane].min = meshes[Mesh_Plane].midphaseTree.root->min;
-    meshAabbs[Mesh_Plane].max = meshes[Mesh_Plane].midphaseTree.root->max;
-
     // Create scene
     Scene scene = {};
     scene.meshAabbs = meshAabbs;
@@ -1298,7 +1305,7 @@ int main(int argc, char **argv)
 
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
-    libraryCode.generateScene(&scene, meshAabbs);
+    libraryCode.generateScene(&scene);
     VulkanUploadComputeSceneBuffer(&renderer, scene);
 
     g_Profiler.samples =
@@ -1329,15 +1336,6 @@ int main(int argc, char **argv)
     ThreadPool threadPool = CreateThreadPool(&workQueue);
 
     LogMessage("Start up time: %gs", glfwGetTime());
-
-    // Debugging compute shader
-    {
-        Mesh mesh = renderer.meshes[Mesh_Plane];
-        LogMessage("Mesh_Plane: indexCount: %u indexDataOffset: %u vertexDataOffset: %u",
-                mesh.indexCount,
-                mesh.indexDataOffset,
-                mesh.vertexDataOffset);
-    }
 
     vec3 lastCameraPosition = g_camera.position;
     vec3 lastCameraRotation = g_camera.rotation;
@@ -1565,9 +1563,6 @@ int main(int argc, char **argv)
 #if DRAW_ENTITY_AABBS
         DrawEntityAabbs(scene, &debugDrawBuffer);
 #endif
-
-        //DebugDrawBvh(
-            //pathTracerScene.meshes[4].midphaseTree.root, &debugDrawBuffer);
 
         // Move camera around
         Update(&renderer, &input, dt);

@@ -79,6 +79,7 @@ void sp_AddObjectToScene(sp_Scene *scene, sp_Mesh mesh, u32 material,
 {
     // TODO: Do we want to add padding to AABBs to handle 0 length vector
     // components
+    // FIXME: Avoid computing this for every object, should take as input
     // Compute AABB for mesh
     Aabb aabb = ComputeAabb(mesh.vertices, mesh.vertexCount);
 
