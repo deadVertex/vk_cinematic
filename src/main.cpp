@@ -74,6 +74,7 @@
     - Surface Area heuristic acceleration structure
     - Improve acceleration structure construction performance
     - FIXME: Avoid computing AABB from mesh vertices each time we add an object to our scene
+    - TODO: Only generate acceleration structure for meshes used in the scene
 */
 /* TODO:
 List:

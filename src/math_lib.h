@@ -923,3 +923,34 @@ inline f32 MinComponent(vec3 a)
     f32 result = Min(a.x, Min(a.y, a.z));
     return result;
 }
+
+// FIXME: This is still not returning results which match a uniform
+// distribution, look into Shirly Concentric Mapping
+inline vec3 RandomDirectionOnHemisphere(vec3 normal, RandomNumberGenerator *rng)
+{
+#if 1
+    // Generate random vector on unit sphere
+    f32 theta = PI * RandomUnilateral(rng); // 0 to PI range for sphere
+    f32 phi = PI * RandomBilateral(rng); // -PI to PI range for circle on XZ plane
+    vec3 dir = MapSphericalToCartesianCoordinates(Vec2(phi, theta));
+
+    // Swap direction of vector if it is not in the top half half of the
+    // hemisphere relative to the normal
+    if (Dot(dir, normal) < 0.0f)
+    {
+        dir = -dir;
+    }
+    return dir;
+#else
+    // Old method which generated pretty terrible results
+    vec3 offset =
+        Vec3(RandomBilateral(rng), RandomBilateral(rng), RandomBilateral(rng));
+    vec3 dir = Normalize(normal + offset);
+    if (Dot(dir, normal) < 0.0f)
+    {
+        dir = -dir;
+    }
+
+    return dir;
+#endif
+}

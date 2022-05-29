@@ -527,6 +527,22 @@ void TestRayIntersectAabbCompare()
     }
 }
 
+void TestRandomDirectionOnHemisphere()
+{
+    RandomNumberGenerator rng = { 123456789 };
+
+    vec3 normal = Vec3(0, -1, 0);
+
+    for (u32 i = 0; i < 1000; i++)
+    {
+        vec3 v = RandomDirectionOnHemisphere(normal, &rng);
+        TEST_ASSERT_FLOAT_WITHIN(EPSILON, 1.0f, Length(v));
+        TEST_ASSERT_TRUE(Dot(v, normal) >= 0.0f);
+
+        normal = v;
+    }
+}
+
 int main()
 {
     InitializeMemoryArena(
@@ -552,6 +568,8 @@ int main()
     RUN_TEST(TestRayIntersectAabb4);
     RUN_TEST(TestRayIntersectAabb4Bug);
     RUN_TEST(TestRayIntersectAabbCompare);
+
+    RUN_TEST(TestRandomDirectionOnHemisphere);
 
     free(memoryArena.base);
 

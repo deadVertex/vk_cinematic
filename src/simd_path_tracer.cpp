@@ -201,14 +201,7 @@ void sp_PathTraceTile(
                         // FIXME: This is generating terrible results that are not uniform!
                         // Compute random direction on hemi-sphere around
                         // result.normal
-                        vec3 offset = Vec3(RandomBilateral(rng),
-                                RandomBilateral(rng), RandomBilateral(rng));
-                        vec3 dir = Normalize(result.normal + offset);
-                        if (Dot(dir, result.normal) < 0.0f)
-                        {
-                            dir = -dir;
-                        }
-
+                        vec3 dir = RandomDirectionOnHemisphere(result.normal, rng);
                         pathVertex->incomingDir = dir;
 
                         // Move new ray origin out of hit surface with a small
@@ -224,6 +217,7 @@ void sp_PathTraceTile(
 
 #if SP_DEBUG_COSINE
                         color = Vec4(Vec3(Max(0.0, Dot(result.normal, rayDirection))), 1);
+                        //color = Dot(result.normal, dir) < 0.0f ? Vec4(1, 0, 0, 1) : Vec4(0, 0, 0, 1);
 #endif
 
 #if SP_DEBUG_SURFACE_NORMAL
