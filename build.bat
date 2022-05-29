@@ -1,11 +1,11 @@
 @echo off
 
-set BUILD_SHADERS=0
+set BUILD_SHADERS=1
 set BUILD_UNIT_TESTS=0
 set BUILD_INTEGRATION_TESTS=0
-set BUILD_PERF_TESTS=1
-set BUILD_LIB=0
-set BUILD_EXECUTABLE=0
+set BUILD_PERF_TESTS=0
+set BUILD_LIB=1
+set BUILD_EXECUTABLE=1
 set BUILD_ASSET_LOADER=0
 
 set CompilerFlags=-DPLATFORM_WINDOWS -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4702 -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7 -I..\src
@@ -36,6 +36,7 @@ if %BUILD_SHADERS%==1 (
     glslangvalidator ..\src\shaders\debug_draw.vert.glsl -V -o shaders\debug_draw.vert.spv
     glslangvalidator ..\src\shaders\debug_draw.frag.glsl -V -o shaders\debug_draw.frag.spv
     glslangvalidator ..\src\shaders\post_processing.frag.glsl -V -o shaders\post_processing.frag.spv
+    glslangvalidator ..\src\shaders\test_compute.comp.glsl -V -o shaders\test_compute.comp.spv
 )
 
 if %BUILD_UNIT_TESTS%==1 (
@@ -50,8 +51,16 @@ if %BUILD_UNIT_TESTS%==1 (
         -link %LinkerFlags% ^
         %unity_lib%
 
-    REM Build SIMD path tracer
+    REM Build SIMD path tracer tests
     cl ../unit_tests/test_simd_path_tracer.cpp ^
+        %CompilerFlags% ^
+        -Od ^
+        -I %unity_include_dir% ^
+        -link %LinkerFlags% ^
+        %unity_lib%
+
+    REM Build BVH tests
+    cl ../unit_tests/test_bvh.cpp ^
         %CompilerFlags% ^
         -Od ^
         -I %unity_include_dir% ^
@@ -61,6 +70,7 @@ if %BUILD_UNIT_TESTS%==1 (
     REM Run unit tests
     unit_tests.exe
     test_simd_path_tracer.exe
+    test_bvh.exe
 )
 
 if %BUILD_INTEGRATION_TESTS%==1 (

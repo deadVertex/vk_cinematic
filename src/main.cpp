@@ -1,5 +1,33 @@
 /* TODO (NEW):
-- GPU Ray tracing (Parked for now, want to work on rast and CPU for now)
+- QoL improvements:
+    - Clean up material syncing (see FIXMEs)
+    - Texture binding mess (see FIXMEs)
+    - Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
+    - FIXME: Registering meshes really annoying due to path tracer asserts, need better syncing
+    - TODO: Setup lights in the scene via material instead of raw radiance values
+    - Improve output comparison system? (Swtich between CPU and Rast without losing CPU image)
+- Bugs:
+    - FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
+- FEAT: Proper support for multiple scenes to help with testing
+- FEAT: Lights for rasterization
+    - Sphere
+    - Ambient term [x]
+    - Disk [x]
+    - Spot
+    - Quad
+    - Tube/Line?
+- FEAT: Restore Environment/HDR lighting
+- FEAT: Proper PBR material model
+    - Smith GGX BRDF
+    - Albedo maps
+    - Normal maps
+    - Metalness
+    - Roughness
+- FEAT: Tone mapping
+    - Reinhard
+    - Filmic
+    - ACES
+- FEAT: GPU Ray tracing (Parked for now, want to work on rast and CPU for now)
     - Basic compute shader implementation [x]
     - Camera [x]
     - Basic ray bouncing [x]
@@ -22,42 +50,24 @@
     - Fix texture coordinates mismatch [ ]
     - Accumulate pixel samples over multiple frames [ ]
     - Skip drawing rasterization scene when GPU ray tracing [ ]
-- Clean up material syncing (see FIXMEs)
-- Texture binding mess (see FIXMEs)
-- Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
-- FIXME: Registering meshes really annoying due to path tracer asserts, need better syncing
-- FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
-- FEAT: Proper support for multiple scenes to help with testing
-- Lights for rasterization
-    - Sphere
-    - Ambient term [x]
-    - Disk [ ]
-    - Spot
-    - Quad
-    - Tube/Line?
-- Restore Environment/HDR lighting
-- Proper PBR material model
-    - Albedo maps
-    - Normal maps
-    - Metalness
-    - Roughness
-- Tone mapping
-    - Reinhard
-    - Filmic
-    - ACES
-- Screen space ambient occlusion
-- Screen space reflections
-- Bloom
-- Global Illumination
+- FEAT: Rasterizer Screen space ambient occlusion
+- FEAT: Rasterizer Screen space reflections
+- FEAT: Bloom Post processing
+- FEAT: Rasterizer Global Illumination
     - Light Propagation Volumes
     - Voxel cone tracing
     - SDFGI
     - Screen space GI
     - Light probes
-- Shadows
+- FEAT: Rasterizer Shadows
     - Directional 
     - Omni directional
     - Cascaded shadow maps
+- FEAT: CPU Ray tracer optimizations
+    - Importance sampling
+    - Next event estimation
+    - Surface Area heuristic acceleration structure
+    - Improve acceleration structure construction performance
 */
 /* TODO:
 List:
