@@ -1,11 +1,5 @@
 #pragma once
 
-enum
-{
-    MaterialFlag_None = 0x0,
-    MaterialFlag_Background = 0x1,
-};
-
 struct sp_Material
 {
     vec3 albedo;

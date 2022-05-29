@@ -1,11 +1,11 @@
 /* TODO (NEW):
 - QoL improvements:
-    - Clean up material syncing (see FIXMEs)
     - Texture binding mess (see FIXMEs)
     - Clean up how we are passing data to shaders (i.e. radianceR, radianceG, radianceB)
     - FIXME: Registering meshes really annoying due to path tracer asserts, need better syncing
     - TODO: Setup lights in the scene via material instead of raw radiance values
     - Improve output comparison system? (Swtich between CPU and Rast without losing CPU image)
+    - FEAT: Better system for managing textures
 - Bugs:
     - FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
 - FEAT: Proper support for multiple scenes to help with testing
@@ -64,6 +64,7 @@
     - Omni directional
     - Cascaded shadow maps
 - FEAT: CPU Ray tracer optimizations
+    - FIXME: Use semaphore for signally between worked threads rather than busy wait with sleep
     - Importance sampling
     - Next event estimation
     - Surface Area heuristic acceleration structure
@@ -1132,6 +1133,25 @@ internal void HandleSelection(
     }
 }
 
+internal void UploadMaterialDataToPathTracer(
+    sp_MaterialSystem *materialSystem, Material *materialData)
+{
+    // Upload materials
+    for (u32 i = 0; i < MAX_MATERIALS; ++i)
+    {
+        sp_Material material = {};
+        material.albedo = materialData[i].baseColor;
+        material.emission = materialData[i].emission;
+        if (i == Material_CheckerBoard)
+        {
+            material.albedoTexture = 6;
+        }
+
+        // TODO: Don't ignore return value
+        sp_RegisterMaterial(materialSystem, material, i);
+    }
+}
+
 int main(int argc, char **argv)
 {
     LogMessage = &LogMessage_;
@@ -1210,6 +1230,8 @@ int main(int argc, char **argv)
 
     // Create SIMD Path tracer
     sp_Context context = {};
+    sp_MaterialSystem materialSystem = {};
+    context.materialSystem = &materialSystem;
 
     // Load mesh data
     SceneMeshData sceneMeshData = {};
@@ -1235,6 +1257,7 @@ int main(int argc, char **argv)
     // Create checkerboard image
     HdrImage checkerBoardImage = CreateCheckerBoardImage(&imageDataArena);
     UploadHdrImageToGPU(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
+    sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
 
     // Create and upload test cube map
     //HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);
@@ -1259,6 +1282,7 @@ int main(int argc, char **argv)
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);
+    UploadMaterialDataToPathTracer(&materialSystem, materialData);
 
     Aabb meshAabbs[MAX_MESHES] = {};
     meshAabbs[Mesh_Sphere].min = meshes[Mesh_Sphere].midphaseTree.root->min;
@@ -1298,49 +1322,7 @@ int main(int argc, char **argv)
     sp_InitializeScene(&pathTracerScene, &applicationMemoryArena);
     context.scene = &pathTracerScene;
 
-    sp_MaterialSystem materialSystem = {};
-    //sp_RegisterTexture(&materialSystem, image, 5);
-    sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
-
-#if 0
-    sp_Material backgroundMaterial = {};
-    backgroundMaterial.emissionTexture = 5;
-    sp_RegisterMaterial(
-        &materialSystem, backgroundMaterial, Material_Background);
-#endif
-
-    sp_Material checkerboardMaterial = {};
-    checkerboardMaterial.albedoTexture = 6;
-    sp_RegisterMaterial(
-        &materialSystem, checkerboardMaterial, Material_CheckerBoard);
-
-    sp_Material blackMaterial = {};
-    sp_RegisterMaterial(
-        &materialSystem, blackMaterial, Material_Black);
-
-
-    sp_Material backgroundMaterial = {};
-    backgroundMaterial.albedo = materialData[Material_BlueLight].baseColor;
-    backgroundMaterial.emission = materialData[Material_BlueLight].emission;
-    backgroundMaterial.flags = MaterialFlag_Background;
-    sp_RegisterMaterial(&materialSystem, backgroundMaterial, Material_BlueLight);
-
-    // Upload materials
-    for (u32 i = 0; i < MAX_MATERIALS; ++i)
-    {
-        // TODO: Do texture uploading here too
-        if (i != Material_CheckerBoard && i != Material_BlueLight)
-        {
-            sp_Material material = {};
-            material.albedo = materialData[i].baseColor;
-            material.emission = materialData[i].emission;
-            // TODO: Don't ignore return value
-            sp_RegisterMaterial(&materialSystem, material, i);
-        }
-    }
     materialSystem.backgroundMaterialId = scene.backgroundMaterial;
-
-    context.materialSystem = &materialSystem;
 
     WorkQueue workQueue =
         CreateWorkQueue(&workQueueArena, sizeof(sp_Task), 1024);

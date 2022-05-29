@@ -69,6 +69,7 @@ void GenerateScene(Scene *scene)
 {
     scene->count = 0;
     scene->lightData->sphereLightCount = 0;
+    scene->lightData->diskLightCount = 0;
 
     scene->backgroundMaterial = Material_Black;
 
