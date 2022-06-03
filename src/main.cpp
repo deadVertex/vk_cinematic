@@ -12,6 +12,9 @@
 - Bugs:
     - FIXME: Random vector on hemi-sphere code is generating non-uniform terrible results
     - SRGB conversion is inaccurate approximation
+- FEAT: Restore Environment/HDR lighting
+- FEAT: RAY support window resizing
+- FETA: Proper API for scene construction
 - FEAT: Proper support for multiple scenes to help with testing
 - FEAT: Lights for rasterization
     - Sphere
@@ -20,7 +23,6 @@
     - Spot
     - Quad
     - Tube/Line?
-- FEAT: Restore Environment/HDR lighting
 - FEAT: Proper PBR material model
     - Smith GGX BRDF
     - Albedo maps
@@ -827,9 +829,10 @@ struct SceneMeshData
 internal void LoadMeshData(
     SceneMeshData *scene, MemoryArena *meshDataArena, const char *assetDir)
 {
-    scene->meshes[Mesh_Bunny] = LoadMesh("bunny.obj", meshDataArena, assetDir);
-    scene->meshes[Mesh_Monkey] =
-        LoadMesh("monkey.obj", meshDataArena, assetDir);
+    // FIXME: HACK to speed up startup time
+    //scene->meshes[Mesh_Bunny] = LoadMesh("bunny.obj", meshDataArena, assetDir);
+    //scene->meshes[Mesh_Monkey] =
+        //LoadMesh("monkey.obj", meshDataArena, assetDir);
     scene->meshes[Mesh_Plane] = CreatePlaneMesh(meshDataArena);
     scene->meshes[Mesh_Cube] = CreateCubeMesh(meshDataArena);
     scene->meshes[Mesh_Triangle] = CreateTriangleMeshData(meshDataArena);
@@ -1150,7 +1153,11 @@ internal void UploadMaterialDataToPathTracer(
         material.emission = materialData[i].emission;
         if (i == Material_CheckerBoard)
         {
-            material.albedoTexture = 6;
+            material.albedoTexture = Image_CheckerBoard;
+        }
+        if (i == Material_HDRI)
+        {
+            material.emissionTexture = Image_CubeMapTest;
         }
 
         // TODO: Don't ignore return value
@@ -1265,13 +1272,14 @@ int main(int argc, char **argv)
     // Load image data
     //HdrImage image =
         //LoadImage("studio_garden_4k.exr", &imageDataArena, assetDir);
-    //HdrImage image =
-        //LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
+    HdrImage hdri =
+        LoadImage("kiara_4_mid-morning_4k.exr", &imageDataArena, assetDir);
 
     // Create checkerboard image
     HdrImage checkerBoardImage = CreateCheckerBoardImage(&imageDataArena);
     UploadHdrImageToGPU(&renderer, checkerBoardImage, Image_CheckerBoard, 8);
-    sp_RegisterTexture(&materialSystem, checkerBoardImage, 6);
+    sp_RegisterTexture(&materialSystem, checkerBoardImage, Image_CheckerBoard);
+    sp_RegisterTexture(&materialSystem, hdri, Image_CubeMapTest);
 
     // Create and upload test cube map
     //HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);

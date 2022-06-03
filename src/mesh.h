@@ -31,8 +31,8 @@ struct MeshData
 
 enum
 {
-    Mesh_Bunny,
-    Mesh_Monkey,
+    //Mesh_Bunny, // HACK to speed up startup time
+    //Mesh_Monkey,
     Mesh_Plane,
     Mesh_Cube,
     Mesh_Triangle,
@@ -51,5 +51,6 @@ enum
     Material_WhiteLight,
     Material_Black,
     Material_OrangeLight,
+    Material_HDRI,
     MAX_MATERIALS,
 };
