@@ -62,6 +62,48 @@ u32 sp_CalculateFilmPositions(
     return count;
 }
 
+vec3 FresnelSchlick(f32 cosineTheta, vec3 F0)
+{
+    vec3 result =
+        F0 + (Vec3(1) - F0) * Pow(1.0f - cosineTheta, 5.0f);
+    return result;
+}
+
+f32 DistributionGGX(vec3 N, vec3 H, f32 roughness)
+{
+    f32 a = roughness * roughness;
+    f32 a2 = a * a;
+    f32 NdotH = Max(Dot(N, H), 0.0f);
+    f32 NdotH2 = NdotH * NdotH;
+
+    f32 num = a2;
+    f32 denom = (NdotH2 * (a2 - 1.0f) + 1.0f);
+    denom = PI * denom * denom;
+
+    return num / denom;
+}
+
+f32 GeometrySchlickGGX(f32 NdotV, f32 roughness)
+{
+    f32 r = (roughness + 1.0f);
+    f32 k = (r * r) / 8.0f;
+
+    f32 num = NdotV;
+    f32 denom = NdotV * (1.0f - k) + k;
+
+    return num / denom;
+}
+
+f32 GeometrySmith(vec3 N, vec3 V, vec3 L, f32 roughness)
+{
+    f32 NdotV = Max(Dot(N, V), 0.0f);
+    f32 NdotL = Max(Dot(N, L), 0.0f);
+    f32 ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    f32 ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
 vec3 ComputeRadianceForPath(
     sp_PathVertex *path, u32 pathLength, sp_MaterialSystem *materialSystem)
 {
@@ -97,8 +139,38 @@ vec3 ComputeRadianceForPath(
             Clamp(incomingRadiance, Vec3(0), Vec3(RADIANCE_CLAMP));
 #endif
 
-        radiance = materialOutput.emission +
-                   Hadamard(materialOutput.albedo, incomingRadiance) * cosine;
+        vec3 L = incomingDir;
+        vec3 N = normal;
+        vec3 V = vertex->outgoingDir;
+        vec3 H = Normalize(L + V);
+
+        f32 exponent = 64.0f;
+        f32 spec = Pow(Max(Dot(N, H), 0.0), exponent);
+        vec3 specularColor = Vec3(1);
+
+        vec3 F0 = Vec3(0.04f);
+        vec3 F = FresnelSchlick(Max(Dot(H, V), 0.0f), F0);
+
+        vec3 kS = F;
+        vec3 kD = Vec3(1) - kS;
+
+        f32 oneOverPI = 1.0f / PI;
+
+        f32 roughness = 0.1f;
+        f32 NDF = DistributionGGX(N, H, roughness);       
+        f32 G   = GeometrySmith(N, V, L, roughness);
+
+        vec3 numerator = NDF * G * F;
+        f32 denominator =
+            4.0f * Max(Dot(N, V), 0.0f) * Max(Dot(N, L), 0.0f) + 0.0001f;
+        vec3 specular = numerator * (1.0f / denominator);
+
+        vec3 albedo = materialOutput.albedo;
+
+        radiance =
+            materialOutput.emission +
+            Hadamard(Hadamard(kD, albedo) * oneOverPI + specular, incomingRadiance) *
+                cosine;
     }
 
     return radiance;

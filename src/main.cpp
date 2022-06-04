@@ -16,6 +16,7 @@
 - FEAT: RAY support window resizing
 - FETA: Proper API for scene construction
 - FEAT: Proper support for multiple scenes to help with testing
+- FEAT: Image channels (separate direct and indirect lighting)
 - FEAT: Lights for rasterization
     - Sphere
     - Ambient term [x]
