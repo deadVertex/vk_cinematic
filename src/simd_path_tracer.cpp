@@ -92,6 +92,11 @@ vec3 ComputeRadianceForPath(
         f32 cosine = Max(0.0, Dot(normal, incomingDir));
         vec3 incomingRadiance = radiance;
 
+#if RADIANCE_CLAMP
+        incomingRadiance =
+            Clamp(incomingRadiance, Vec3(0), Vec3(RADIANCE_CLAMP));
+#endif
+
         radiance = materialOutput.emission +
                    Hadamard(materialOutput.albedo, incomingRadiance) * cosine;
     }

@@ -180,8 +180,10 @@ internal HdrCubeMap CreateIrradianceCubeMap(HdrImage equirectangularImage,
                             SampleImageBilinear(equirectangularImage, uv).xyz;
 
                         // Perform radiance clamp
-                        vec3 radiance =
-                            Clamp(sample, Vec3(0), Vec3(RADIANCE_CLAMP));
+                        vec3 radiance = sample;
+#if RADIANCE_CLAMP
+                        radiance = Clamp(radiance, Vec3(0), Vec3(RADIANCE_CLAMP));
+#endif
 
                         // Add irradiance contribution for integral
                         irradiance += radiance * Cos(theta) * Sin(theta);

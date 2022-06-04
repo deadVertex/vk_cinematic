@@ -1282,21 +1282,21 @@ int main(int argc, char **argv)
     sp_RegisterTexture(&materialSystem, hdri, Image_CubeMapTest);
 
     // Create and upload test cube map
-    //HdrCubeMap cubeMap = CreateCubeMap(image, &imageDataArena, 1024, 1024);
-    //UploadCubeMapToGPU(&renderer, cubeMap, Image_CubeMapTest, 6, 1024, 1024);
+    HdrCubeMap cubeMap = CreateCubeMap(hdri, &imageDataArena, 1024, 1024);
+    UploadCubeMapToGPU(&renderer, cubeMap, Image_CubeMapTest, 6, 1024, 1024);
 
     // Create and upload irradiance cube map
-    //HdrCubeMap irradianceCubeMap =
-        //CreateIrradianceCubeMap(image, &imageDataArena, 32, 32);
-    //UploadCubeMapToGPU(
-        //&renderer, irradianceCubeMap, Image_IrradianceCubeMap, 7, 32, 32);
+    HdrCubeMap irradianceCubeMap =
+        CreateIrradianceCubeMap(hdri, &imageDataArena, 32, 32);
+    UploadCubeMapToGPU(
+        &renderer, irradianceCubeMap, Image_IrradianceCubeMap, 7, 32, 32);
 
     // Define materials, in the future this will come from file
     Material materialData[MAX_MATERIALS] = {};
     materialData[Material_Red].baseColor = Vec3(0.18, 0.1, 0.1);
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
-    materialData[Material_White].baseColor = Vec3(0.18, 0.18, 0.18);
+    materialData[Material_White].baseColor = Vec3(1);
     materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1) * 4.0f;
     materialData[Material_WhiteLight].emission = Vec3(10);
     materialData[Material_Black].baseColor = Vec3(0);

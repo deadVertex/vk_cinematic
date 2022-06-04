@@ -90,7 +90,9 @@ sp_MaterialOutput sp_EvaluateMaterial(sp_MaterialSystem *materialSystem,
 
         // Sample image
         uv.y = 1.0f - uv.y; // Flip Y axis as usual
-        output.emission = SampleImageNearest(*emissionTexture, uv).xyz;
+        vec3 radiance = SampleImageNearest(*emissionTexture, uv).xyz;
+        radiance *= 1.0f; // Exposure adjustment
+        output.emission = radiance;
     }
     else
     {

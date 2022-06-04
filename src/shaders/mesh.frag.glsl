@@ -48,7 +48,7 @@ layout(binding = 10) readonly buffer LightData
 
 layout(binding = 2) uniform sampler defaultSampler;
 layout(binding = 6) uniform textureCube cubeMap;
-//layout(binding = 7) uniform textureCube irradianceMap;
+layout(binding = 7) uniform textureCube irradianceMap;
 layout(binding = 8) uniform texture2D checkerBoardTexture;
 
 layout(location = 0) out vec4 outputColor;
@@ -77,16 +77,6 @@ void main()
     vec3 lightDirection = normalize(vec3(1, 1, 0.5));
     vec3 normal = normalize(fragNormal);
 
-    // For each light
-    //float cosine = max(dot(fragNormal, lightDirection), 0);
-    //float brdf = 1.0;
-    //vec3 incomingRadiance = lightColor * brdf * cosine;
-
-    //vec3 incomingRadiance =
-        //texture(samplerCube(irradianceMap, defaultSampler), normal).rgb;
-
-    //vec3 outgoingRadiance = baseColor * incomingRadiance;
-
     vec3 outgoingRadiance = vec3(0);
     // Ambient light
     vec3 ambientLightRadiance = vec3(lightData.ambientLight.radianceR,
@@ -95,6 +85,12 @@ void main()
     // TODO: Ambient occlusion
     // FIXME: Color for this doesn't look right
     outgoingRadiance += baseColor * ambientLightRadiance;
+
+    // Environment map lighting
+    vec3 environmentMapRadiance =
+        texture(samplerCube(irradianceMap, defaultSampler), normal).rgb;
+
+    outgoingRadiance += baseColor * environmentMapRadiance;
 
     // Disk light test. From "Moving Frostbite to PBR" presentation
     for (uint i = 0; i < lightData.diskLightCount; i++)

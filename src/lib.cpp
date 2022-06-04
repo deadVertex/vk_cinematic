@@ -74,10 +74,8 @@ void GenerateScene(Scene *scene)
 
     scene->backgroundMaterial = Material_HDRI;
 
-    SetAmbientLight(scene, Vec3(0.1));
-
     AddEntity(scene, Vec3(0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
         Mesh_Plane, Material_CheckerBoard);
 
-    AddEntity(scene, Vec3(0, 1, 0), Quat(), Vec3(1), Mesh_Sphere, Material_White);
+    AddEntity(scene, Vec3(0, 1, 0), Quat(), Vec3(1), Mesh_Sphere, Material_Red);
 }

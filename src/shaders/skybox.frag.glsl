@@ -34,8 +34,9 @@ void main()
                               materials[fragMaterialIndex].emissionColorG,
                               materials[fragMaterialIndex].emissionColorB);
 
-    //vec4 textureSample =
-        //texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
+    vec4 textureSample =
+        texture(samplerCube(cubeMap, defaultSampler), fragLocalPosition);
+    emissionColor = textureSample.rgb;
 
     outputColor = vec4(emissionColor, 1);
 }
