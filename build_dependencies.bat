@@ -7,7 +7,7 @@ REM CMake bug? configurePreset field in buildPreset is being ignored
 REM Build glfw
 COPY dependencies\glfw.json dependencies\glfw\CMakePresets.json
 pushd dependencies\glfw
-cmake --preset=default .
+cmake --preset=default -G "Visual Studio 15 Win64" .
 cmake --build build --config=Release 
 cmake --install build
 popd
@@ -15,7 +15,7 @@ popd
 REM Build assimp
 COPY dependencies\assimp.json dependencies\assimp\CMakePresets.json
 pushd dependencies\assimp
-cmake --preset=default .
+cmake --preset=default -G "Visual Studio 15 Win64" .
 cmake --build build --config=Release 
 cmake --install build
 popd

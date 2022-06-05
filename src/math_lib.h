@@ -906,11 +906,14 @@ inline f32 Distance(vec3 a, vec3 b)
     return Length(a - b);
 }
 
+#pragma warning(push)
+#pragma warning(disable: 4723)
 inline vec3 Inverse(vec3 a)
 {
     vec3 result = { 1.0f / a.x, 1.0f / a.y, 1.0f / a.z };
     return result;
 }
+#pragma warning(pop)
 
 inline f32 MaxComponent(vec3 a)
 {

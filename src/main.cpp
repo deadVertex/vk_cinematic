@@ -239,6 +239,10 @@ internal DebugReadEntireFile(ReadEntireFile);
 #include "sp_material_system.cpp"
 #include "simd_path_tracer.cpp"
 
+#if !LIVE_CODE_RELOADING_TEST_ENABLED
+#include "lib.cpp"
+#endif
+
 struct sp_Task
 {
     sp_Context *context;
@@ -1332,7 +1336,11 @@ int main(int argc, char **argv)
 
     scene.entities = AllocateArray(&entityMemoryArena, Entity, MAX_ENTITIES);
     scene.max = MAX_ENTITIES;
+#if LIVE_CODE_RELOADING_TEST_ENABLED
     libraryCode.generateScene(&scene);
+#else
+    GenerateScene(&scene);
+#endif
     VulkanUploadComputeSceneBuffer(&renderer, scene);
 
     g_Profiler.samples =
