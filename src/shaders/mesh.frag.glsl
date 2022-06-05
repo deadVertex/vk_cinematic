@@ -9,6 +9,7 @@ struct Material
 {
     float baseColorR, baseColorG, baseColorB;
     float emissionColorR, emissionColorG, emissionColorB;
+    float roughness;
 };
 
 struct SphereLightData

@@ -74,8 +74,16 @@ void GenerateScene(Scene *scene)
 
     scene->backgroundMaterial = Material_HDRI;
 
-    AddEntity(scene, Vec3(0), Quat(Vec3(1, 0, 0), PI * -0.5f), Vec3(50),
-        Mesh_Plane, Material_CheckerBoard);
+    u32 materials[] = {Material_WhiteR10, Material_WhiteR30, Material_WhiteR60,
+        Material_WhiteR80};
+    for (u32 y = 0; y < 4; y++)
+    {
+        for (u32 x = 0; x < 4; x++)
+        {
+            vec3 p = Vec3(-4, -4, 0) + Vec3((f32)x, (f32)y, 0) * 2.5f;
 
-    AddEntity(scene, Vec3(0, 1, 0), Quat(), Vec3(1), Mesh_Sphere, Material_Red);
+            Assert(x < ArrayCount(materials));
+            AddEntity(scene, p, Quat(), Vec3(1), Mesh_Sphere, materials[x]);
+        }
+    }
 }

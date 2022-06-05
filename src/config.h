@@ -22,7 +22,7 @@
 
 #define MAX_BOUNCES 3
 
-#define SAMPLES_PER_PIXEL 64
+#define SAMPLES_PER_PIXEL 1024
 
 #define APPLICATION_MEMORY_LIMIT Megabytes(512)
 

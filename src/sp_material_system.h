@@ -8,7 +8,7 @@ struct sp_Material
     vec3 emission;
     u32 emissionTexture;
 
-    u32 flags;
+    f32 roughness;
 };
 
 // Output of sp_EvaluateMaterial
@@ -16,6 +16,7 @@ struct sp_MaterialOutput
 {
     vec3 albedo;
     vec3 emission;
+    f32 roughness;
 };
 
 struct sp_PathVertex

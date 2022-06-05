@@ -99,5 +99,7 @@ sp_MaterialOutput sp_EvaluateMaterial(sp_MaterialSystem *materialSystem,
         output.emission = material->emission;
     }
 
+    output.roughness = material->roughness;
+
     return output;
 }

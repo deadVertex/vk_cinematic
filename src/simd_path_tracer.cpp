@@ -144,8 +144,6 @@ vec3 ComputeRadianceForPath(
         vec3 V = vertex->outgoingDir;
         vec3 H = Normalize(L + V);
 
-        f32 exponent = 64.0f;
-        f32 spec = Pow(Max(Dot(N, H), 0.0), exponent);
         vec3 specularColor = Vec3(1);
 
         vec3 F0 = Vec3(0.04f);
@@ -156,7 +154,7 @@ vec3 ComputeRadianceForPath(
 
         f32 oneOverPI = 1.0f / PI;
 
-        f32 roughness = 0.1f;
+        f32 roughness = materialOutput.roughness;
         f32 NDF = DistributionGGX(N, H, roughness);       
         f32 G   = GeometrySmith(N, V, L, roughness);
 

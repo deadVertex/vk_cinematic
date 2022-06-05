@@ -1173,6 +1173,7 @@ internal void UploadMaterialDataToPathTracer(
         sp_Material material = {};
         material.albedo = materialData[i].baseColor;
         material.emission = materialData[i].emission;
+        material.roughness = materialData[i].roughness;
         if (i == Material_CheckerBoard)
         {
             material.albedoTexture = Image_CheckerBoard;
@@ -1319,10 +1320,20 @@ int main(int argc, char **argv)
     materialData[Material_Blue].baseColor = Vec3(0.1, 0.1, 0.18);
     materialData[Material_CheckerBoard].baseColor = Vec3(0.18, 0.18, 0.18);
     materialData[Material_White].baseColor = Vec3(1);
+    materialData[Material_White].roughness = 0.6f;
     materialData[Material_BlueLight].emission = Vec3(0.4, 0.6, 1) * 4.0f;
     materialData[Material_WhiteLight].emission = Vec3(10);
     materialData[Material_Black].baseColor = Vec3(0);
     materialData[Material_OrangeLight].emission = Vec3(10, 8, 7.5);
+
+    for (u32 i = Material_WhiteR10; i <= Material_WhiteR80; i++)
+    {
+        float roughness[] = {0.1f, 0.3f, 0.6f, 0.8f};
+        Assert(i - Material_WhiteR10 < ArrayCount(roughness));
+
+        materialData[i].baseColor = Vec3(1);
+        materialData[i].roughness = roughness[i - Material_WhiteR10];
+    }
 
     // Publish material data to vulkan renderer
     UploadMaterialDataToGpu(&renderer, materialData);

@@ -18,6 +18,7 @@ struct Material
 {
     vec3 baseColor;
     vec3 emission;
+    f32 roughness;
 };
 #pragma pack(pop)
 
@@ -52,5 +53,9 @@ enum
     Material_Black,
     Material_OrangeLight,
     Material_HDRI,
+    Material_WhiteR10,
+    Material_WhiteR30,
+    Material_WhiteR60,
+    Material_WhiteR80,
     MAX_MATERIALS,
 };

@@ -6,6 +6,7 @@ struct Material
 {
     float baseColorR, baseColorG, baseColorB;
     float emissionColorR, emissionColorG, emissionColorB;
+    float roughness;
 };
 
 layout(binding = 5) readonly buffer Materials
