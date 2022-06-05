@@ -1,4 +1,21 @@
-/* TODO (NEW):
+/* 
+Priorities:
+0. Fun to work on
+1. Easy to tweak, change and experiment with (changability, configurability, modular, fast iteration times)
+2. Debugability and Observability
+3. Physically based (accuracy?)
+4. Performant
+5. Reusable
+
+BIG BANG REFACTOR:
+- (1) Get rid of bat file build system DRY (TOO HARD, build system is a big mess right now)
+- (1) Define our modules and their interfaces
+- (1) Module reloading without restarting application
+- (1) Cycle time monitoring (build time, app start up time, module restart time)
+- (1) Config system?
+- (1) First class Linux support?
+
+TODO (NEW):
 - QoL improvements:
     - Texture binding mess (see FIXMEs)
     - Clean up how we are passing data to shaders (i.e. radianceR, radianceG,

@@ -1,12 +1,12 @@
 @echo off
 
 set BUILD_SHADERS=1
-set BUILD_UNIT_TESTS=0
-set BUILD_INTEGRATION_TESTS=0
-set BUILD_PERF_TESTS=0
+set BUILD_UNIT_TESTS=1
+set BUILD_INTEGRATION_TESTS=1
+set BUILD_PERF_TESTS=1
 set BUILD_LIB=1
 set BUILD_EXECUTABLE=1
-set BUILD_ASSET_LOADER=0
+set BUILD_ASSET_LOADER=1
 
 set CompilerFlags=-DPLATFORM_WINDOWS -MT -F16777216 -nologo -Gm- -GR- -EHa -W4 -WX -wd4702 -wd4305 -wd4127 -wd4201 -wd4189 -wd4100 -wd4996 -wd4505 -FC -Z7 -I..\src
 set LinkerFlags=-opt:ref -incremental:no
@@ -113,7 +113,7 @@ if %BUILD_PERF_TESTS%==1 (
 
 if %BUILD_ASSET_LOADER%==1 (
     REM Build miniz library
-    REM cl %CompilerFlags% -O2 -I..\thirdparty\tinyexr -c ../thirdparty/tinyexr/miniz.c
+    cl %CompilerFlags% -O2 -I..\thirdparty\tinyexr -c ../thirdparty/tinyexr/miniz.c
 
     REM Build asset loader library
     cl ../src/asset_loader/asset_loader.cpp ^
